@@ -55,7 +55,7 @@ dependencies = [
     "prometheus-client>=0.19.0",
     
     # Causal inference specific
-    "pymc>=5.10.0",
+    # "pymc>=5.10.0",  # Temporarily disabled for Python 3.13 compatibility
 ]
 
 [project.optional-dependencies]
@@ -65,6 +65,7 @@ ml = [
     "mlflow>=2.15.1",
     "shap>=0.45.0",
     "alibi>=0.9.4",
+    "pymc>=5.10.0",  # Advanced causal inference with Bayesian methods
 ]
 dev = [
     "ruff>=0.1.6",
