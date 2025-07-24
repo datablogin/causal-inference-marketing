@@ -35,7 +35,12 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --extra dev --extra test --extra ml
+        if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+          # Skip ML dependencies for Python 3.13 due to compilation issues with blis/spacy
+          uv sync --extra dev --extra test
+        else
+          uv sync --extra dev --extra test --extra ml
+        fi
     
     - name: Run linting
       run: |
