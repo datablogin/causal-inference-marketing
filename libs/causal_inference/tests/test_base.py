@@ -1,6 +1,5 @@
 """Tests for base estimator classes and interfaces."""
 
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -73,9 +72,7 @@ class TestTreatmentData:
         """Test creation of valid binary treatment data."""
         values = pd.Series([0, 1, 0, 1, 1])
         treatment = TreatmentData(
-            values=values,
-            name="treatment",
-            treatment_type="binary"
+            values=values, name="treatment", treatment_type="binary"
         )
 
         assert treatment.name == "treatment"
@@ -89,7 +86,7 @@ class TestTreatmentData:
             values=values,
             name="group",
             treatment_type="categorical",
-            categories=["A", "B", "C"]
+            categories=["A", "B", "C"],
         )
 
         assert treatment.name == "group"
@@ -99,10 +96,7 @@ class TestTreatmentData:
     def test_valid_continuous_treatment(self):
         """Test creation of valid continuous treatment data."""
         values = np.array([0.1, 0.5, 1.2, 2.0, 0.8])
-        treatment = TreatmentData(
-            values=values,
-            treatment_type="continuous"
-        )
+        treatment = TreatmentData(values=values, treatment_type="continuous")
 
         assert treatment.treatment_type == "continuous"
         assert len(treatment.values) == 5
@@ -126,11 +120,7 @@ class TestOutcomeData:
     def test_valid_continuous_outcome(self):
         """Test creation of valid continuous outcome data."""
         values = pd.Series([1.5, 2.1, 0.8, 3.2, 1.9])
-        outcome = OutcomeData(
-            values=values,
-            name="revenue",
-            outcome_type="continuous"
-        )
+        outcome = OutcomeData(values=values, name="revenue", outcome_type="continuous")
 
         assert outcome.name == "revenue"
         assert outcome.outcome_type == "continuous"
@@ -139,10 +129,7 @@ class TestOutcomeData:
     def test_valid_binary_outcome(self):
         """Test creation of valid binary outcome data."""
         values = np.array([0, 1, 1, 0, 1])
-        outcome = OutcomeData(
-            values=values,
-            outcome_type="binary"
-        )
+        outcome = OutcomeData(values=values, outcome_type="binary")
 
         assert outcome.outcome_type == "binary"
         assert len(outcome.values) == 5
@@ -165,15 +152,11 @@ class TestCovariateData:
 
     def test_valid_covariate_dataframe(self):
         """Test creation of valid covariate data with DataFrame."""
-        df = pd.DataFrame({
-            "age": [25, 30, 35, 40, 45],
-            "income": [50000, 60000, 70000, 80000, 90000]
-        })
-
-        covariates = CovariateData(
-            values=df,
-            names=["age", "income"]
+        df = pd.DataFrame(
+            {"age": [25, 30, 35, 40, 45], "income": [50000, 60000, 70000, 80000, 90000]}
         )
+
+        covariates = CovariateData(values=df, names=["age", "income"])
 
         assert covariates.names == ["age", "income"]
         assert covariates.values.shape == (5, 2)
@@ -181,10 +164,7 @@ class TestCovariateData:
     def test_valid_covariate_array(self):
         """Test creation of valid covariate data with numpy array."""
         values = np.random.randn(10, 3)
-        covariates = CovariateData(
-            values=values,
-            names=["x1", "x2", "x3"]
-        )
+        covariates = CovariateData(values=values, names=["x1", "x2", "x3"])
 
         assert covariates.names == ["x1", "x2", "x3"]
         assert covariates.values.shape == (10, 3)
@@ -206,7 +186,7 @@ class TestCausalEffect:
             ate_ci_lower=0.3,
             ate_ci_upper=0.7,
             method="test",
-            n_observations=100
+            n_observations=100,
         )
 
         assert effect.ate == 0.5
@@ -216,16 +196,16 @@ class TestCausalEffect:
 
     def test_invalid_confidence_interval(self):
         """Test that invalid confidence interval raises error."""
-        with pytest.raises(ValueError, match="Lower confidence bound cannot exceed upper bound"):
-            CausalEffect(
-                ate=0.5,
-                ate_ci_lower=0.7,
-                ate_ci_upper=0.3
-            )
+        with pytest.raises(
+            ValueError, match="Lower confidence bound cannot exceed upper bound"
+        ):
+            CausalEffect(ate=0.5, ate_ci_lower=0.7, ate_ci_upper=0.3)
 
     def test_invalid_confidence_level(self):
         """Test that invalid confidence level raises error."""
-        with pytest.raises(ValueError, match="Confidence level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="Confidence level must be between 0 and 1"
+        ):
             CausalEffect(ate=0.5, confidence_level=1.5)
 
     def test_is_significant_property(self):
@@ -269,18 +249,16 @@ class TestBaseEstimator:
         self.covariate_values = np.random.randn(n, 2)
 
         self.treatment_data = TreatmentData(
-            values=pd.Series(self.treatment_values),
-            treatment_type="binary"
+            values=pd.Series(self.treatment_values), treatment_type="binary"
         )
 
         self.outcome_data = OutcomeData(
-            values=pd.Series(self.outcome_values),
-            outcome_type="continuous"
+            values=pd.Series(self.outcome_values), outcome_type="continuous"
         )
 
         self.covariate_data = CovariateData(
             values=pd.DataFrame(self.covariate_values, columns=["x1", "x2"]),
-            names=["x1", "x2"]
+            names=["x1", "x2"],
         )
 
     def test_initialization(self):
@@ -301,7 +279,7 @@ class TestBaseEstimator:
         result = estimator.fit(
             treatment=self.treatment_data,
             outcome=self.outcome_data,
-            covariates=self.covariate_data
+            covariates=self.covariate_data,
         )
 
         # Should return self
@@ -316,20 +294,14 @@ class TestBaseEstimator:
         estimator = MockEstimator(should_fail=True)
 
         with pytest.raises(EstimationError, match="Failed to fit estimator"):
-            estimator.fit(
-                treatment=self.treatment_data,
-                outcome=self.outcome_data
-            )
+            estimator.fit(treatment=self.treatment_data, outcome=self.outcome_data)
 
         assert estimator.is_fitted is False
 
     def test_ate_estimation(self):
         """Test ATE estimation."""
         estimator = MockEstimator()
-        estimator.fit(
-            treatment=self.treatment_data,
-            outcome=self.outcome_data
-        )
+        estimator.fit(treatment=self.treatment_data, outcome=self.outcome_data)
 
         effect = estimator.estimate_ate()
 
@@ -342,16 +314,15 @@ class TestBaseEstimator:
         """Test that ATE estimation fails if not fitted."""
         estimator = MockEstimator()
 
-        with pytest.raises(EstimationError, match="Estimator must be fitted before estimation"):
+        with pytest.raises(
+            EstimationError, match="Estimator must be fitted before estimation"
+        ):
             estimator.estimate_ate()
 
     def test_ate_estimation_caching(self):
         """Test that ATE estimation results are cached."""
         estimator = MockEstimator()
-        estimator.fit(
-            treatment=self.treatment_data,
-            outcome=self.outcome_data
-        )
+        estimator.fit(treatment=self.treatment_data, outcome=self.outcome_data)
 
         # First call
         effect1 = estimator.estimate_ate()
@@ -371,13 +342,15 @@ class TestBaseEstimator:
 
         short_outcome = OutcomeData(
             values=pd.Series([1, 2, 3]),  # Only 3 observations
-            outcome_type="continuous"
+            outcome_type="continuous",
         )
 
-        with pytest.raises(DataValidationError, match="must have the same number of observations"):
+        with pytest.raises(
+            DataValidationError, match="must have the same number of observations"
+        ):
             estimator.fit(
                 treatment=self.treatment_data,  # 100 observations
-                outcome=short_outcome           # 3 observations
+                outcome=short_outcome,  # 3 observations
             )
 
     def test_input_validation_missing_treatment(self):
@@ -385,16 +358,16 @@ class TestBaseEstimator:
         estimator = MockEstimator()
 
         treatment_with_na = TreatmentData(
-            values=pd.Series([0, 1, np.nan, 1, 0]),
-            treatment_type="binary"
+            values=pd.Series([0, 1, np.nan, 1, 0]), treatment_type="binary"
         )
 
         outcome = OutcomeData(
-            values=pd.Series([1, 2, 3, 4, 5]),
-            outcome_type="continuous"
+            values=pd.Series([1, 2, 3, 4, 5]), outcome_type="continuous"
         )
 
-        with pytest.raises(DataValidationError, match="Treatment values cannot contain missing data"):
+        with pytest.raises(
+            DataValidationError, match="Treatment values cannot contain missing data"
+        ):
             estimator.fit(treatment=treatment_with_na, outcome=outcome)
 
     def test_input_validation_minimum_sample_size(self):
@@ -403,15 +376,16 @@ class TestBaseEstimator:
 
         small_treatment = TreatmentData(
             values=pd.Series([0, 1, 0]),  # Only 3 observations
-            treatment_type="binary"
+            treatment_type="binary",
         )
 
         small_outcome = OutcomeData(
-            values=pd.Series([1, 2, 3]),
-            outcome_type="continuous"
+            values=pd.Series([1, 2, 3]), outcome_type="continuous"
         )
 
-        with pytest.raises(DataValidationError, match="Minimum sample size of 10 observations required"):
+        with pytest.raises(
+            DataValidationError, match="Minimum sample size of 10 observations required"
+        ):
             estimator.fit(treatment=small_treatment, outcome=small_outcome)
 
     def test_input_validation_no_treatment_variation(self):
@@ -421,24 +395,21 @@ class TestBaseEstimator:
         # All treated units
         no_variation_treatment = TreatmentData(
             values=pd.Series([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),  # All 1s
-            treatment_type="binary"
+            treatment_type="binary",
         )
 
-        outcome = OutcomeData(
-            values=pd.Series(range(11)),
-            outcome_type="continuous"
-        )
+        outcome = OutcomeData(values=pd.Series(range(11)), outcome_type="continuous")
 
-        with pytest.raises(DataValidationError, match="Binary treatment must have both treated and control units"):
+        with pytest.raises(
+            DataValidationError,
+            match="Binary treatment must have both treated and control units",
+        ):
             estimator.fit(treatment=no_variation_treatment, outcome=outcome)
 
     def test_positivity_assumption_check(self):
         """Test positivity assumption checking."""
         estimator = MockEstimator()
-        estimator.fit(
-            treatment=self.treatment_data,
-            outcome=self.outcome_data
-        )
+        estimator.fit(treatment=self.treatment_data, outcome=self.outcome_data)
 
         results = estimator.check_positivity_assumption()
 
@@ -451,25 +422,24 @@ class TestBaseEstimator:
     def test_positivity_assumption_violation(self):
         """Test positivity assumption with severe imbalance."""
         # Create severely imbalanced treatment
-        imbalanced_treatment = np.concatenate([
-            np.ones(95),    # 95 treated
-            np.zeros(5)     # 5 control
-        ])
+        imbalanced_treatment = np.concatenate(
+            [
+                np.ones(95),  # 95 treated
+                np.zeros(5),  # 5 control
+            ]
+        )
 
         imbalanced_treatment_data = TreatmentData(
-            values=pd.Series(imbalanced_treatment),
-            treatment_type="binary"
+            values=pd.Series(imbalanced_treatment), treatment_type="binary"
         )
 
         imbalanced_outcome_data = OutcomeData(
-            values=pd.Series(np.random.randn(100)),
-            outcome_type="continuous"
+            values=pd.Series(np.random.randn(100)), outcome_type="continuous"
         )
 
         estimator = MockEstimator()
         estimator.fit(
-            treatment=imbalanced_treatment_data,
-            outcome=imbalanced_outcome_data
+            treatment=imbalanced_treatment_data, outcome=imbalanced_outcome_data
         )
 
         results = estimator.check_positivity_assumption(min_probability=0.1)
@@ -487,10 +457,7 @@ class TestBaseEstimator:
     def test_summary_fitted(self):
         """Test summary for fitted estimator."""
         estimator = MockEstimator()
-        estimator.fit(
-            treatment=self.treatment_data,
-            outcome=self.outcome_data
-        )
+        estimator.fit(treatment=self.treatment_data, outcome=self.outcome_data)
 
         # Generate ATE estimate
         estimator.estimate_ate()
@@ -506,15 +473,11 @@ class TestBaseEstimator:
     def test_predict_potential_outcomes_not_implemented(self):
         """Test that base class prediction method raises NotImplementedError."""
         estimator = MockEstimator()
-        estimator.fit(
-            treatment=self.treatment_data,
-            outcome=self.outcome_data
-        )
+        estimator.fit(treatment=self.treatment_data, outcome=self.outcome_data)
 
         with pytest.raises(NotImplementedError):
             estimator.predict_potential_outcomes(
-                treatment_values=np.array([0, 1, 0, 1]),
-                covariates=None
+                treatment_values=np.array([0, 1, 0, 1]), covariates=None
             )
 
 

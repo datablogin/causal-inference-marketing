@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15  # Prevent runaway tests
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -35,15 +35,20 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --extra dev --extra test --extra ml
+        if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+          # Skip ML dependencies for Python 3.13 due to compilation issues with blis/spacy
+          uv sync --extra dev --extra test
+        else
+          uv sync --extra dev --extra test --extra ml
+        fi
     
     - name: Run linting
       run: |
-        uv run ruff check libs/ services/ shared/
+        uv run ruff check libs/causal_inference/ services/ shared/
     
     - name: Run formatting check
       run: |
-        uv run ruff format --check libs/ services/ shared/
+        uv run ruff format --check libs/causal_inference/ services/ shared/
     
     - name: Run type checking
       run: |
@@ -52,7 +57,7 @@ jobs:
     - name: Run tests
       timeout-minutes: 10  # Most tests should complete quickly
       run: |
-        uv run pytest --cov=causal_inference --cov=shared --cov-report=xml --cov-report=term
+        uv run pytest libs/causal_inference/tests/ --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
@@ -74,7 +79,7 @@ jobs:
         cache-dependency-glob: "pyproject.toml"
     
     - name: Set up Python
-      run: uv python install 3.11
+      run: uv python install 3.12
     
     - name: Install dependencies
       run: |

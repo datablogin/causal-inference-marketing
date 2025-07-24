@@ -1,5 +1,5 @@
 # Dockerfile for Causal Inference API service
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -7,12 +7,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY pyproject.toml ./
+COPY docker-requirements.txt ./
 RUN pip install --no-cache-dir uv && \
-    uv pip install --system -e ".[dev]"
+    uv pip install --system -r docker-requirements.txt
 
 # Copy source code
 COPY libs/ ./libs/
