@@ -2,16 +2,15 @@
 
 import logging
 import sys
-from typing import Optional
 
 from shared.config import CausalInferenceConfig, Environment
 
 
-def setup_logging(config: Optional[CausalInferenceConfig] = None) -> None:
+def setup_logging(config: CausalInferenceConfig | None = None) -> None:
     """Set up logging configuration."""
     if config is None:
         config = CausalInferenceConfig()
-    
+
     # Configure log level based on environment
     if config.environment == Environment.PRODUCTION:
         log_level = logging.INFO
@@ -19,10 +18,10 @@ def setup_logging(config: Optional[CausalInferenceConfig] = None) -> None:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
-    
+
     # Configure logging format
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
+
     # Set up root logger
     logging.basicConfig(
         level=log_level,
@@ -31,7 +30,7 @@ def setup_logging(config: Optional[CausalInferenceConfig] = None) -> None:
             logging.StreamHandler(sys.stdout)
         ]
     )
-    
+
     # Configure specific loggers
     logging.getLogger("sqlalchemy.engine").setLevel(
         logging.INFO if config.environment == Environment.DEVELOPMENT else logging.WARNING

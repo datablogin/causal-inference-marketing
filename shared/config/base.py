@@ -1,7 +1,7 @@
 """Base configuration management extracted from analytics-backend-monorepo."""
 
-from enum import Enum
 from datetime import datetime
+from enum import Enum
 from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field
@@ -78,7 +78,7 @@ class BaseConfiguration(BaseSettings):
     def validate_configuration(self) -> list[str]:
         """Validate the current configuration and return any issues."""
         issues = []
-        
+
         # Basic validation - override in subclasses for specific validation
         if self.environment == Environment.PRODUCTION:
             # Add production-specific validations

@@ -11,7 +11,7 @@ from .causal_config import CausalInferenceConfig
 __all__ = [
     "BaseConfiguration",
     "ConfigurationManager",
-    "Environment", 
+    "Environment",
     "config_manager",
     "CausalInferenceConfig",
 ]
