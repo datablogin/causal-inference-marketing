@@ -35,7 +35,7 @@ async def readiness_check() -> dict[str, Any]:
         "status": "ready" if db_status == "healthy" else "not ready",
         "environment": config.environment.value if config else "unknown",
         "database": db_status,
-        "version": "0.1.0"
+        "version": "0.1.0",
     }
 
 

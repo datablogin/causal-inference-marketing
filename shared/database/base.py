@@ -113,6 +113,7 @@ def get_database_manager() -> DatabaseManager:
     global _database_manager
     if _database_manager is None:
         from shared.config import CausalInferenceConfig
+
         config = CausalInferenceConfig()
         _database_manager = DatabaseManager(config)
     return _database_manager

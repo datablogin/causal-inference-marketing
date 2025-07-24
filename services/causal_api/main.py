@@ -27,7 +27,9 @@ async def lifespan(app: FastAPI):
     setup_logging(config)
     setup_metrics(config)
 
-    logger.info("Starting Causal Inference API", version="0.1.0", environment=config.environment)
+    logger.info(
+        "Starting Causal Inference API", version="0.1.0", environment=config.environment
+    )
 
     yield
 
@@ -69,7 +71,7 @@ async def metrics_middleware(request: Request, call_next):
             endpoint=request.url.path,
             method=request.method,
             status=str(response.status_code),
-            duration=duration
+            duration=duration,
         )
 
         return response
@@ -82,7 +84,7 @@ async def metrics_middleware(request: Request, call_next):
             endpoint=request.url.path,
             method=request.method,
             status="500",
-            duration=duration
+            duration=duration,
         )
         metrics.record_error(error_type=type(e).__name__, component="api")
 
@@ -91,7 +93,9 @@ async def metrics_middleware(request: Request, call_next):
 
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["health"])
-app.include_router(attribution.router, prefix="/api/v1/attribution", tags=["attribution"])
+app.include_router(
+    attribution.router, prefix="/api/v1/attribution", tags=["attribution"]
+)
 
 
 @app.get("/")
@@ -102,7 +106,7 @@ async def root() -> dict[str, Any]:
         "service": "Causal Inference API",
         "version": "0.1.0",
         "environment": config.environment.value if config else "unknown",
-        "status": "healthy"
+        "status": "healthy",
     }
 
 
@@ -112,7 +116,4 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     metrics = get_metrics()
     metrics.record_error(error_type="HTTPException", component="api")
 
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
-    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})

@@ -24,16 +24,14 @@ def setup_logging(config: CausalInferenceConfig | None = None) -> None:
 
     # Set up root logger
     logging.basicConfig(
-        level=log_level,
-        format=log_format,
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        level=log_level, format=log_format, handlers=[logging.StreamHandler(sys.stdout)]
     )
 
     # Configure specific loggers
     logging.getLogger("sqlalchemy.engine").setLevel(
-        logging.INFO if config.environment == Environment.DEVELOPMENT else logging.WARNING
+        logging.INFO
+        if config.environment == Environment.DEVELOPMENT
+        else logging.WARNING
     )
 
 
