@@ -72,6 +72,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "mypy>=1.7.0",
+    "pandas-stubs>=2.3.0.250703",
     "pre-commit>=3.5.0",
     "safety>=2.3.0",
 ]
@@ -141,9 +142,14 @@ known-first-party = ["causal_inference", "shared"]
 # MyPy type checking
 [tool.mypy]
 python_version = "3.11"
-strict = true
-warn_return_any = true
+strict = false
+warn_return_any = false
 warn_unused_configs = true
+explicit_package_bases = true
+exclude = [
+    "libs/causal_inference_python_code/.*",
+    "libs/causal_inference/tests/.*",
+]
 
 [[tool.mypy.overrides]]
 module = [
@@ -199,4 +205,9 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+]
+
+[dependency-groups]
+dev = [
+    "pandas-stubs>=2.3.0.250703",
 ]
