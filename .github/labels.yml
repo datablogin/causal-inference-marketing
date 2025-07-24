@@ -1,0 +1,120 @@
+# GitHub Labels Configuration
+# These labels are designed to be compatible with analytics-backend-monorepo
+
+# Issue Types
+- name: "bug"
+  color: "d73a4a"
+  description: "Something isn't working correctly"
+
+- name: "feature"
+  color: "0e8a16" 
+  description: "New feature or functionality request"
+
+- name: "enhancement" 
+  color: "84b6eb"
+  description: "Improvement to existing functionality"
+
+- name: "documentation"
+  color: "1d76db"
+  description: "Documentation improvements or additions"
+
+# Priority Levels
+- name: "priority: low"
+  color: "c2e0c6"
+  description: "Low priority issue"
+
+- name: "priority: medium"
+  color: "fbca04"
+  description: "Medium priority issue"
+
+- name: "priority: high"
+  color: "d93f0b"
+  description: "High priority issue"
+
+- name: "priority: critical"
+  color: "b60205"
+  description: "Critical priority issue"
+
+# Component Labels
+- name: "component: causal-api"
+  color: "5319e7"
+  description: "Related to FastAPI causal inference service"
+
+- name: "component: causal-inference-lib"
+  color: "5319e7"
+  description: "Related to core causal inference library"
+
+- name: "component: attribution"
+  color: "0e8a16"
+  description: "Related to attribution modeling"
+
+- name: "component: incrementality"
+  color: "0e8a16"
+  description: "Related to incrementality testing"
+
+- name: "component: mmm"
+  color: "0e8a16"
+  description: "Related to media mix modeling"
+
+- name: "component: config"
+  color: "5319e7"
+  description: "Related to configuration management"
+
+- name: "component: database"
+  color: "5319e7"
+  description: "Related to database integration"
+
+- name: "component: observability"
+  color: "5319e7"
+  description: "Related to monitoring and logging"
+
+# Status Labels
+- name: "status: needs-triage"
+  color: "ededed"
+  description: "Issue needs to be triaged"
+
+- name: "status: in-progress"
+  color: "c5def5"
+  description: "Work is in progress"
+
+- name: "status: blocked"
+  color: "b60205"
+  description: "Work is blocked on something"
+
+- name: "status: ready-for-review"
+  color: "0e8a16"
+  description: "Ready for code review"
+
+# Type Labels
+- name: "type: statistical"
+  color: "f9d0c4"
+  description: "Related to statistical methods or theory"
+
+- name: "type: performance"
+  color: "ff9500"
+  description: "Related to performance improvements"
+
+- name: "type: security"
+  color: "d1ecf1"
+  description: "Related to security improvements"
+
+- name: "type: refactoring"
+  color: "1d76db" 
+  description: "Code refactoring or cleanup"
+
+# Process Labels
+- name: "dependencies"
+  color: "0366d6"
+  description: "Related to dependency updates"
+
+- name: "automated"
+  color: "b0c0c0"
+  description: "Automated process (e.g., Dependabot)"
+
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers to the project"
+
+- name: "help wanted"
+  color: "008672"
+  description: "Help from community is welcome"

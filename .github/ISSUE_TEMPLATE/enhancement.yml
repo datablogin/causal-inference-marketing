@@ -1,0 +1,170 @@
+name: 🚀 Enhancement
+description: Improve existing causal inference functionality or performance
+title: "[ENHANCEMENT] "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to our causal inference capabilities! Please provide details about the enhancement you'd like to see.
+
+  - type: textarea
+    id: enhancement-description
+    attributes:
+      label: 🚀 Enhancement Description
+      description: A clear and concise description of the causal inference improvement you'd like to see.
+      placeholder: Describe the enhancement...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: 📊 Current Behavior
+      description: How does the causal inference method/feature currently work?
+      placeholder: Describe how it works now...
+    validations:
+      required: true
+
+  - type: textarea
+    id: improved-behavior
+    attributes:
+      label: ✨ Improved Behavior
+      description: How should it work after the enhancement?
+      placeholder: Describe the improved behavior...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: enhancement-type
+    attributes:
+      label: 🔧 Enhancement Type
+      description: What type of improvement is this?
+      options:
+        - Performance - Faster computation, lower memory usage
+        - Accuracy - Better causal estimates, reduced bias
+        - User Experience - Better APIs, clearer outputs
+        - Statistical Power - Better confidence intervals, significance testing
+        - Robustness - Better handling of edge cases, missing data
+        - Scalability - Handle larger datasets, distributed computing
+        - Interpretability - Better explanations, visualizations
+        - Validation - Better diagnostics, assumption checking
+        - Integration - Better API compatibility, data formats
+        - Documentation - Improved examples, tutorials
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🏗️ Target Component
+      description: Which component should be enhanced?
+      options:
+        - causal-api (FastAPI service)
+        - causal-processor (background jobs)
+        - causal_inference (core library)
+        - attribution modeling
+        - incrementality testing
+        - media mix modeling
+        - experimental design
+        - data preprocessing
+        - model validation
+        - visualization/reporting
+        - CI/CD Pipeline
+        - Documentation
+        - Cross-cutting (multiple components)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: 📈 Expected Impact
+      description: What level of impact would this enhancement have on causal inference quality?
+      options:
+        - Low - Minor improvement for specific use cases
+        - Medium - Noticeable improvement for common causal analysis
+        - High - Significant improvement affecting most causal inference workflows
+        - Critical - Major improvement essential for accurate causal estimates
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefits
+    attributes:
+      label: 🎯 Benefits
+      description: What are the concrete benefits of this enhancement for causal inference?
+      placeholder: |
+        - Improved accuracy by X% in attribution estimates
+        - Reduced computation time by Y minutes for large datasets
+        - Better handling of Z type of confounding
+    validations:
+      required: true
+
+  - type: textarea
+    id: statistical-justification
+    attributes:
+      label: 📚 Statistical Justification
+      description: What is the statistical reasoning behind this enhancement?
+      placeholder: Reference papers, theoretical improvements, bias reduction mechanisms...
+
+  - type: textarea
+    id: implementation-approach
+    attributes:
+      label: 🛠️ Implementation Approach
+      description: Do you have ideas about how this could be implemented?
+      placeholder: Suggest algorithms, statistical methods, computational optimizations...
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: 📊 Success Metrics
+      description: How would we measure the success of this enhancement?
+      placeholder: |
+        - Accuracy improvement measured by simulation studies
+        - Computation time reduced from X to Y seconds
+        - Bias reduction verified by Monte Carlo testing
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: ⚠️ Risks and Considerations
+      description: What risks or challenges might this enhancement introduce?
+      placeholder: Computational complexity, statistical assumptions, breaking changes, etc.
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: 🛠️ Estimated Effort
+      description: What do you think the implementation effort might be?
+      options:
+        - Small - A few hours of work
+        - Medium - 1-3 days of work
+        - Large - 1-2 weeks of work
+        - Extra Large - More than 2 weeks
+        - Unknown - Need technical investigation
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context about the enhancement
+      placeholder: Academic references, benchmark results, examples from other tools...
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✅ Checklist
+      options:
+        - label: I have searched existing issues to ensure this enhancement hasn't been suggested before
+          required: true
+        - label: I have provided clear benefits and success criteria
+          required: true
+        - label: I am available to provide additional clarification if needed
+          required: false
+        - label: I am willing to help test this enhancement when implemented
+          required: false

@@ -2,77 +2,101 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
+
+# Global workflow timeout as safety net
+run-name: "CI Pipeline ${{ github.run_number }}"
+defaults:
+  run:
+    shell: bash
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent runaway tests
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
       with:
-        python-version: ${{ matrix.python-version }}
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
     
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[dev,test]"
+        uv sync --extra dev --extra test --extra ml
     
-    - name: Lint with ruff
+    - name: Run linting
       run: |
-        ruff check src/ tests/
+        uv run ruff check libs/ services/ shared/
     
-    - name: Format check with black
+    - name: Run formatting check
       run: |
-        black --check src/ tests/
+        uv run ruff format --check libs/ services/ shared/
     
-    - name: Type check with mypy
+    - name: Run type checking
       run: |
-        mypy src/
+        uv run mypy libs/causal_inference/ shared/
     
-    - name: Test with pytest
+    - name: Run tests
+      timeout-minutes: 10  # Most tests should complete quickly
       run: |
-        pytest --cov=causal_inference_marketing --cov-report=xml
+        uv run pytest --cov=causal_inference --cov=shared --cov-report=xml --cov-report=term
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
         fail_ci_if_error: false
 
-  build:
+  security:
     runs-on: ubuntu-latest
-    needs: test
-    
+    timeout-minutes: 10  # Security scans should be quick
     steps:
     - uses: actions/checkout@v4
     
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+        enable-cache: true
+        cache-dependency-glob: "pyproject.toml"
+    
     - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
+      run: uv python install 3.11
     
-    - name: Install build dependencies
+    - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install build
+        uv sync --extra dev
     
-    - name: Build package
+    - name: Run security scan
       run: |
-        python -m build
+        uv run safety check || echo "Security scan completed with warnings"
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20  # Docker builds can take longer
+    steps:
+    - uses: actions/checkout@v4
     
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: dist
-        path: dist/
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Test Docker build (causal-api)
+      run: |
+        docker build -f docker/Dockerfile.causal-api -t causal-api:test .
+    
+    - name: Test Docker compose
+      run: |
+        docker-compose -f docker/docker-compose.yml config

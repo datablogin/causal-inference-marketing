@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/datablogin/causal-inference-marketing/discussions
+    about: Ask questions, share ideas, or discuss causal inference methods with the community
+  - name: 📚 Documentation
+    url: https://github.com/datablogin/causal-inference-marketing/blob/main/README.md
+    about: Check our documentation for setup instructions and API references
+  - name: 🔗 Integration Guide
+    url: https://github.com/datablogin/causal-inference-marketing/blob/main/INTEGRATION.md
+    about: Guide for integrating with analytics-backend-monorepo

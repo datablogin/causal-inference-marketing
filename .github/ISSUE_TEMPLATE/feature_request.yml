@@ -1,0 +1,172 @@
+name: ✨ Feature Request
+description: Suggest a new causal inference feature or enhancement
+title: "[FEATURE] "
+labels: ["feature", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new causal inference feature! Please provide as much detail as possible to help us understand your request.
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: ✨ Feature Description
+      description: A clear and concise description of the causal inference feature you'd like to see.
+      placeholder: Describe the feature you want...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: 🎯 Problem Statement
+      description: What causal inference problem does this feature solve? What is the current limitation?
+      placeholder: What causal inference challenge are you trying to address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: How would you like this feature to work? Describe your ideal solution.
+      placeholder: Describe how you envision this working...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🏗️ Target Component
+      description: Which component should this feature be added to?
+      options:
+        - causal-api (FastAPI service)
+        - causal-processor (background jobs)
+        - causal_inference (core library)
+        - attribution modeling
+        - incrementality testing
+        - media mix modeling
+        - experimental design
+        - configuration management
+        - data preprocessing
+        - visualization/reporting
+        - CI/CD Pipeline
+        - Documentation
+        - New Component
+        - Cross-cutting (multiple components)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: method-category
+    attributes:
+      label: 📊 Causal Method Category
+      description: What category of causal inference does this relate to?
+      options:
+        - Attribution modeling (multi-touch, data-driven)
+        - Incrementality testing (geo-holdout, DID)
+        - Media mix modeling (MMM, adstock, saturation)
+        - Experimental design (A/B testing, randomization)
+        - Causal discovery (structure learning)
+        - Treatment effect estimation (ATE, CATE, ITE)
+        - Sensitivity analysis (robustness checks)
+        - Data preprocessing (confounding, selection bias)
+        - Model validation (diagnostics, testing)
+        - Infrastructure/tooling
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 📊 Priority
+      description: How important is this feature for causal inference workflows?
+      options:
+        - Low - Nice to have, not urgent
+        - Medium - Would improve causal analysis significantly
+        - High - Critical for accurate causal inference
+        - Urgent - Blocking current causal analysis work
+    validations:
+      required: true
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: 🛠️ Estimated Effort
+      description: What do you think the implementation effort might be?
+      options:
+        - Small - A few hours of work
+        - Medium - 1-3 days of work
+        - Large - 1-2 weeks of work
+        - Extra Large - More than 2 weeks
+        - Unknown - Need technical investigation
+    validations:
+      required: true
+
+  - type: textarea
+    id: statistical-background
+    attributes:
+      label: 📚 Statistical Background
+      description: What is the statistical/theoretical foundation for this method?
+      placeholder: References to papers, statistical theory, or existing implementations...
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternatives Considered
+      description: What alternative methods or approaches have you considered?
+      placeholder: What other causal inference methods did you consider?
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: ✅ Acceptance Criteria
+      description: What would need to be true for this feature to be considered complete?
+      placeholder: |
+        - [ ] Method correctly estimates causal effects
+        - [ ] Handles missing data appropriately
+        - [ ] Provides confidence intervals/uncertainty
+        - [ ] Passes validation tests
+        - [ ] API documentation complete
+
+  - type: textarea
+    id: technical-considerations
+    attributes:
+      label: 🔧 Technical Considerations
+      description: Any technical details, constraints, or dependencies to consider?
+      placeholder: Computational complexity, data requirements, assumptions, etc.
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: 🎯 Use Cases
+      description: What marketing scenarios would benefit from this feature?
+      placeholder: |
+        - Multi-channel attribution for e-commerce
+        - TV advertising incrementality measurement
+        - Cross-device customer journey analysis
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context about the feature request.
+      placeholder: Academic papers, examples from other tools, mockups, etc.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: ✅ Checklist
+      options:
+        - label: I have searched existing issues to ensure this feature hasn't been requested before
+          required: true
+        - label: I have provided sufficient detail for the development team to understand the request
+          required: true
+        - label: I am available to provide additional clarification if needed
+          required: false
+        - label: I am willing to help test this feature when implemented
+          required: false

@@ -1,0 +1,15 @@
+[project]
+name = "causal-api"
+version = "0.1.0"
+description = "FastAPI service for causal inference"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "causal-inference",
+    "prometheus-client>=0.19.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  causal-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.causal-api
+    ports:
+      - "8000:8000"
+      - "9090:9090"  # Metrics port
+    environment:
+      - DATABASE_URL=postgresql://causal:causal@postgres:5432/causal_inference
+      - ENVIRONMENT=development
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ../config:/app/config:ro
+    networks:
+      - causal-net
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: causal_inference
+      POSTGRES_USER: causal
+      POSTGRES_PASSWORD: causal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - causal-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - causal-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - causal-net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  causal-net:
+    driver: bridge

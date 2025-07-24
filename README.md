@@ -1,57 +1,98 @@
 # Causal Inference Tools for Marketing Applications
 
-A comprehensive Python library for applying causal inference methods to marketing analytics, including attribution modeling, incrementality testing, and media mix modeling.
+A comprehensive library for applying causal inference methods to marketing analytics, structured for compatibility with the analytics-backend-monorepo ecosystem.
 
 ## Overview
 
-This library provides production-ready implementations of causal inference methods specifically designed for marketing use cases. Built on the theoretical foundation of "Causal Inference: What If" by Hernán and Robins, it offers both academic rigor and practical applicability for marketing practitioners.
+This library provides production-ready implementations of causal inference methods specifically designed for marketing use cases. Built with a **monorepo-compatible architecture**, it can operate as a standalone project or seamlessly integrate into the existing analytics-backend-monorepo infrastructure.
 
 ## Key Features
 
 - **Attribution Modeling**: Multi-touch attribution with proper causal identification
-- **Incrementality Testing**: Geo-based holdout experiments and difference-in-differences
+- **Incrementality Testing**: Geo-based holdout experiments and difference-in-differences  
 - **Media Mix Modeling**: Causal decomposition of marketing channel effects
 - **Experimental Design**: A/B testing with network effects and interference
 - **Customer Analytics**: Causal impact analysis for customer lifetime value
 - **Budget Optimization**: Causal-based marketing budget allocation
+- **Production-Ready**: FastAPI services, observability, and Docker deployment
+
+## Architecture
+
+### Monorepo-Compatible Structure
+```
+causal-inference-marketing/
+├── libs/
+│   └── causal_inference/          # Core library (ready for monorepo)
+│       ├── causal_inference/
+│       │   ├── core/             # Attribution, incrementality, MMM
+│       │   ├── data/             # Data processing utilities  
+│       │   └── utils/            # Helper functions
+│       ├── tests/
+│       └── pyproject.toml
+├── services/
+│   ├── causal_api/               # FastAPI service
+│   └── causal_processor/         # Background processing (planned)
+├── shared/                       # Extracted monorepo patterns
+│   ├── config/                   # Configuration management
+│   ├── database/                 # Database abstractions
+│   └── observability/            # Metrics and logging
+└── docker/                       # Service containerization
+```
+
+### Integration Ready
+This structure mirrors the analytics-backend-monorepo patterns, enabling seamless integration. See [INTEGRATION.md](INTEGRATION.md) for detailed integration guide.
 
 ## Installation
-
-### From PyPI (recommended)
-
-```bash
-pip install causal-inference-marketing
-```
 
 ### Development Installation
 
 ```bash
 git clone https://github.com/datablogin/causal-inference-marketing.git
 cd causal-inference-marketing
-pip install -e ".[dev]"
+make install-dev
+```
+
+### Using Make Commands
+```bash
+make help           # Show available commands
+make install-dev    # Install with development dependencies
+make ci             # Run full CI pipeline (lint, typecheck, test)
+make api            # Start FastAPI development server
 ```
 
 ## Quick Start
 
+### Library Usage
 ```python
-from causal_inference_marketing import Attribution, IncrementalityTest
+from causal_inference import Attribution, IncrementalityTest
 
-# Multi-touch attribution analysis
+# Multi-touch attribution analysis  
 attribution = Attribution(method="doubly_robust")
 results = attribution.fit(data, treatment_col="channel", outcome_col="conversion")
 
 # Incrementality testing
-increment_test = IncrementalityTest(method="geo_holdout")
+increment_test = IncrementalityTest(method="geo_holdout") 
 lift = increment_test.estimate_lift(data, treatment_periods, control_periods)
 ```
 
-## Project Structure
+### API Service
+```bash
+# Start the causal inference API
+make api
 
+# Test the API
+curl http://localhost:8000/health/
+curl http://localhost:8000/api/v1/attribution/methods
 ```
-src/causal_inference_marketing/
-├── core/              # Core causal inference estimators
-├── data/              # Data preprocessing and simulation utilities
-└── utils/             # Common utilities and helper functions
+
+### Docker Deployment
+```bash
+# Start all services
+docker-compose -f docker/docker-compose.yml up
+
+# API available at http://localhost:8000
+# Metrics at http://localhost:9090
+# Prometheus at http://localhost:9091
 ```
 
 ## Development
