@@ -24,26 +24,21 @@ class TreatmentData(BaseModel):
     """
 
     values: pd.Series | NDArray[Any] = Field(
-        ...,
-        description="Treatment assignment values"
+        ..., description="Treatment assignment values"
     )
-    name: str = Field(
-        default="treatment",
-        description="Name of the treatment variable"
-    )
+    name: str = Field(default="treatment", description="Name of the treatment variable")
     treatment_type: str = Field(
         default="binary",
-        description="Type of treatment: 'binary', 'categorical', or 'continuous'"
+        description="Type of treatment: 'binary', 'categorical', or 'continuous'",
     )
     categories: list[str | int | float] | None = Field(
-        default=None,
-        description="For categorical treatments, the possible categories"
+        default=None, description="For categorical treatments, the possible categories"
     )
 
     class Config:
         arbitrary_types_allowed = True
 
-    @field_validator('treatment_type')
+    @field_validator("treatment_type")
     @classmethod
     def validate_treatment_type(cls, v: str) -> str:
         """Validate treatment type is one of allowed values."""
@@ -52,7 +47,7 @@ class TreatmentData(BaseModel):
             raise ValueError(f"treatment_type must be one of {allowed_types}")
         return v
 
-    @field_validator('values')
+    @field_validator("values")
     @classmethod
     def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
         """Validate treatment values are not empty."""
@@ -67,23 +62,17 @@ class OutcomeData(BaseModel):
     Represents the outcome variable(s) in a causal inference analysis.
     """
 
-    values: pd.Series | NDArray[Any] = Field(
-        ...,
-        description="Outcome values"
-    )
-    name: str = Field(
-        default="outcome",
-        description="Name of the outcome variable"
-    )
+    values: pd.Series | NDArray[Any] = Field(..., description="Outcome values")
+    name: str = Field(default="outcome", description="Name of the outcome variable")
     outcome_type: str = Field(
         default="continuous",
-        description="Type of outcome: 'continuous', 'binary', or 'count'"
+        description="Type of outcome: 'continuous', 'binary', or 'count'",
     )
 
     class Config:
         arbitrary_types_allowed = True
 
-    @field_validator('outcome_type')
+    @field_validator("outcome_type")
     @classmethod
     def validate_outcome_type(cls, v: str) -> str:
         """Validate outcome type is one of allowed values."""
@@ -92,7 +81,7 @@ class OutcomeData(BaseModel):
             raise ValueError(f"outcome_type must be one of {allowed_types}")
         return v
 
-    @field_validator('values')
+    @field_validator("values")
     @classmethod
     def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
         """Validate outcome values are not empty."""
@@ -107,21 +96,19 @@ class CovariateData(BaseModel):
     Represents the covariates used for adjustment in causal inference.
     """
 
-    values: pd.DataFrame | NDArray[Any] = Field(
-        ...,
-        description="Covariate values"
-    )
+    values: pd.DataFrame | NDArray[Any] = Field(..., description="Covariate values")
     names: list[str] = Field(
-        default_factory=list,
-        description="Names of the covariate variables"
+        default_factory=list, description="Names of the covariate variables"
     )
 
     class Config:
         arbitrary_types_allowed = True
 
-    @field_validator('values')
+    @field_validator("values")
     @classmethod
-    def validate_values(cls, v: pd.DataFrame | NDArray[Any]) -> pd.DataFrame | NDArray[Any]:
+    def validate_values(
+        cls, v: pd.DataFrame | NDArray[Any]
+    ) -> pd.DataFrame | NDArray[Any]:
         """Validate covariate values are not empty."""
         if len(v) == 0:
             raise ValueError("Covariate values cannot be empty")
@@ -203,21 +190,25 @@ class CausalEffect:
 
 class CausalInferenceError(Exception):
     """Base exception class for causal inference specific errors."""
+
     pass
 
 
 class AssumptionViolationError(CausalInferenceError):
     """Raised when causal inference assumptions are violated."""
+
     pass
 
 
 class DataValidationError(CausalInferenceError):
     """Raised when input data fails validation."""
+
     pass
 
 
 class EstimationError(CausalInferenceError):
     """Raised when estimation process fails."""
+
     pass
 
 
@@ -389,7 +380,9 @@ class BaseEstimator(abc.ABC):
             if self.verbose:
                 print(f"Estimated ATE: {causal_effect.ate:.4f}")
                 if causal_effect.ate_ci_lower is not None:
-                    print(f"95% CI: [{causal_effect.ate_ci_lower:.4f}, {causal_effect.ate_ci_upper:.4f}]")
+                    print(
+                        f"95% CI: [{causal_effect.ate_ci_lower:.4f}, {causal_effect.ate_ci_upper:.4f}]"
+                    )
 
             return causal_effect
 
@@ -458,10 +451,14 @@ class BaseEstimator(abc.ABC):
         # Check for missing values in treatment (not allowed)
         if isinstance(treatment.values, pd.Series):
             if treatment.values.isna().any():
-                raise DataValidationError("Treatment values cannot contain missing data")
+                raise DataValidationError(
+                    "Treatment values cannot contain missing data"
+                )
         elif isinstance(treatment.values, np.ndarray):
             if np.isnan(treatment.values).any():
-                raise DataValidationError("Treatment values cannot contain missing data")
+                raise DataValidationError(
+                    "Treatment values cannot contain missing data"
+                )
 
         # Validate treatment type specific constraints
         self._validate_treatment_constraints(treatment)
@@ -471,10 +468,12 @@ class BaseEstimator(abc.ABC):
             raise DataValidationError("Minimum sample size of 10 observations required")
 
         # Check treatment variation
-        if isinstance(treatment.values, pd.Series | np.ndarray):
+        if isinstance(treatment.values, (pd.Series, np.ndarray)):  # noqa: UP038
             if treatment.treatment_type == "binary":
                 if len(np.unique(treatment.values)) < 2:
-                    raise DataValidationError("Binary treatment must have both treated and control units")
+                    raise DataValidationError(
+                        "Binary treatment must have both treated and control units"
+                    )
 
     def _validate_treatment_constraints(self, treatment: TreatmentData) -> None:
         """Validate treatment-specific constraints.
@@ -487,13 +486,21 @@ class BaseEstimator(abc.ABC):
         """
         if treatment.treatment_type == "binary":
             unique_values = np.unique(treatment.values)
-            if not np.array_equal(unique_values, [0, 1]) and not np.array_equal(unique_values, [0]) and not np.array_equal(unique_values, [1]):
+            if (
+                not np.array_equal(unique_values, [0, 1])
+                and not np.array_equal(unique_values, [0])
+                and not np.array_equal(unique_values, [1])
+            ):
                 if len(unique_values) != 2:
-                    raise DataValidationError("Binary treatment must have exactly 2 unique values")
+                    raise DataValidationError(
+                        "Binary treatment must have exactly 2 unique values"
+                    )
 
         elif treatment.treatment_type == "categorical":
             if treatment.categories is None:
-                raise DataValidationError("Categorical treatment must specify categories")
+                raise DataValidationError(
+                    "Categorical treatment must specify categories"
+                )
 
             unique_values = set(np.unique(treatment.values))
             expected_categories = set(treatment.categories)
@@ -504,8 +511,7 @@ class BaseEstimator(abc.ABC):
                 )
 
     def check_positivity_assumption(
-        self,
-        min_probability: float = 0.01
+        self, min_probability: float = 0.01
     ) -> dict[str, Any]:
         """Check the positivity assumption for causal inference.
 
@@ -531,7 +537,7 @@ class BaseEstimator(abc.ABC):
             "assumption_met": True,
             "min_probability": min_probability,
             "violations": [],
-            "warnings": []
+            "warnings": [],
         }
 
         # For binary treatment
@@ -545,11 +551,15 @@ class BaseEstimator(abc.ABC):
 
             if prob_treated < min_probability:
                 results["assumption_met"] = False
-                results["violations"].append(f"Probability of treatment ({prob_treated:.4f}) below threshold")
+                results["violations"].append(
+                    f"Probability of treatment ({prob_treated:.4f}) below threshold"
+                )
 
             if prob_control < min_probability:
                 results["assumption_met"] = False
-                results["violations"].append(f"Probability of control ({prob_control:.4f}) below threshold")
+                results["violations"].append(
+                    f"Probability of control ({prob_control:.4f}) below threshold"
+                )
 
             results["treatment_probability"] = prob_treated
             results["control_probability"] = prob_control
@@ -576,23 +586,29 @@ class BaseEstimator(abc.ABC):
             if self.treatment_data.treatment_type == "binary":
                 n_treated = np.sum(self.treatment_data.values == 1)
                 n_control = np.sum(self.treatment_data.values == 0)
-                summary_lines.extend([
-                    f"Treated units: {n_treated}",
-                    f"Control units: {n_control}",
-                ])
+                summary_lines.extend(
+                    [
+                        f"Treated units: {n_treated}",
+                        f"Control units: {n_control}",
+                    ]
+                )
 
         if self._causal_effect:
-            summary_lines.extend([
-                "",
-                "Causal Effect Estimate:",
-                f"ATE: {self._causal_effect.ate:.4f}",
-            ])
+            summary_lines.extend(
+                [
+                    "",
+                    "Causal Effect Estimate:",
+                    f"ATE: {self._causal_effect.ate:.4f}",
+                ]
+            )
 
             if self._causal_effect.ate_ci_lower is not None:
                 summary_lines.append(
                     f"95% CI: [{self._causal_effect.ate_ci_lower:.4f}, "
                     f"{self._causal_effect.ate_ci_upper:.4f}]"
                 )
-                summary_lines.append(f"Significant: {self._causal_effect.is_significant}")
+                summary_lines.append(
+                    f"Significant: {self._causal_effect.is_significant}"
+                )
 
         return "\n".join(summary_lines)

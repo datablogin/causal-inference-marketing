@@ -77,7 +77,7 @@ class BaseConfiguration(BaseSettings):
 
     def validate_configuration(self) -> list[str]:
         """Validate the current configuration and return any issues."""
-        issues = []
+        issues: list[str] = []
 
         # Basic validation - override in subclasses for specific validation
         if self.environment == Environment.PRODUCTION:

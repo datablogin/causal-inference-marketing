@@ -15,33 +15,31 @@ class CausalInferenceConfig(BaseConfiguration):
 
     # Database Configuration
     database_url: str = Field(
-        default="sqlite:///causal_inference.db",
-        description="Database connection URL"
+        default="sqlite:///causal_inference.db", description="Database connection URL"
     )
-    database_pool_size: int = Field(default=5, description="Database connection pool size")
+    database_pool_size: int = Field(
+        default=5, description="Database connection pool size"
+    )
 
     # Computation Configuration
     max_sample_size: int = Field(
         default=1_000_000,
-        description="Maximum sample size for causal inference computations"
+        description="Maximum sample size for causal inference computations",
     )
     computation_timeout: int = Field(
-        default=300,
-        description="Computation timeout in seconds"
+        default=300, description="Computation timeout in seconds"
     )
     enable_parallel_processing: bool = Field(
-        default=True,
-        description="Enable parallel processing for computations"
+        default=True, description="Enable parallel processing for computations"
     )
 
     # Model Configuration
     default_confidence_level: float = Field(
-        default=0.95,
-        description="Default confidence level for causal estimates"
+        default=0.95, description="Default confidence level for causal estimates"
     )
     bootstrap_samples: int = Field(
         default=1000,
-        description="Number of bootstrap samples for uncertainty estimation"
+        description="Number of bootstrap samples for uncertainty estimation",
     )
 
     # Cache Configuration
@@ -53,13 +51,13 @@ class CausalInferenceConfig(BaseConfiguration):
     metrics_port: int = Field(default=9090, description="Metrics endpoint port")
 
     @validator("default_confidence_level")
-    def validate_confidence_level(cls, v):
+    def validate_confidence_level(cls, v):  # noqa: N805
         if not 0 < v < 1:
             raise ValueError("Confidence level must be between 0 and 1")
         return v
 
     @validator("bootstrap_samples")
-    def validate_bootstrap_samples(cls, v):
+    def validate_bootstrap_samples(cls, v):  # noqa: N805
         if v < 100:
             raise ValueError("Bootstrap samples must be at least 100")
         return v

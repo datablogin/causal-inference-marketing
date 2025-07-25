@@ -22,21 +22,21 @@ class CausalInferenceMetrics:
             "causal_inference_computation_duration_seconds",
             "Duration of causal inference computations",
             ["method", "outcome"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.computation_count = Counter(
             "causal_inference_computations_total",
             "Total number of causal inference computations",
             ["method", "status"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.sample_size_gauge = Gauge(
             "causal_inference_sample_size",
             "Sample size of current computation",
             ["method"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         # API metrics
@@ -44,14 +44,14 @@ class CausalInferenceMetrics:
             "causal_inference_api_requests_total",
             "Total API requests",
             ["endpoint", "method", "status"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         self.api_duration = Histogram(
             "causal_inference_api_duration_seconds",
             "API request duration",
             ["endpoint", "method"],
-            registry=self.registry
+            registry=self.registry,
         )
 
         # Error metrics
@@ -59,16 +59,22 @@ class CausalInferenceMetrics:
             "causal_inference_errors_total",
             "Total errors",
             ["error_type", "component"],
-            registry=self.registry
+            registry=self.registry,
         )
 
-    def record_computation(self, method: str, duration: float, status: str, sample_size: int):
+    def record_computation(
+        self, method: str, duration: float, status: str, sample_size: int
+    ):
         """Record a causal inference computation."""
-        self.computation_duration.labels(method=method, outcome=status).observe(duration)
+        self.computation_duration.labels(method=method, outcome=status).observe(
+            duration
+        )
         self.computation_count.labels(method=method, status=status).inc()
         self.sample_size_gauge.labels(method=method).set(sample_size)
 
-    def record_api_request(self, endpoint: str, method: str, status: str, duration: float):
+    def record_api_request(
+        self, endpoint: str, method: str, status: str, duration: float
+    ):
         """Record an API request."""
         self.api_requests.labels(endpoint=endpoint, method=method, status=status).inc()
         self.api_duration.labels(endpoint=endpoint, method=method).observe(duration)
@@ -101,4 +107,3 @@ def setup_metrics(config: CausalInferenceConfig | None = None) -> None:
 
         # Initialize metrics
         get_metrics()
-
