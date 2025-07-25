@@ -429,7 +429,7 @@ class IPWEstimator(BaseEstimator):
             treatment_values = treatment.values.values
         else:
             treatment_values = treatment.values
-        
+
         # Ensure treatment_values is a numpy array for consistent typing
         treatment_values = np.asarray(treatment_values)
 
