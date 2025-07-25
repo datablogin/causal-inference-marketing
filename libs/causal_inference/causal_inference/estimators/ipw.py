@@ -444,7 +444,7 @@ class IPWEstimator(BaseEstimator):
         # Apply stabilized weights if requested
         if self.stabilized_weights:
             # Stabilized weights multiply by marginal treatment probability
-            treatment_prob = np.mean(treatment_values)
+            treatment_prob = float(np.mean(treatment_values))
 
             # SW_i = P(T=1) * T_i / e_i + P(T=0) * (1 - T_i) / (1 - e_i)
             stabilized_weights = np.zeros_like(weights)
