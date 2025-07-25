@@ -499,9 +499,9 @@ class AIPWEstimator(BaseEstimator):
 
         # Get predictions
         if isinstance(treatment.values, pd.Series):
-            treatment_values = treatment.values.values
+            treatment_values = np.asarray(treatment.values.values)
         else:
-            treatment_values = treatment.values
+            treatment_values = np.asarray(treatment.values)
 
         len(treatment_values)
 
