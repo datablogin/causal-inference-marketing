@@ -98,19 +98,16 @@ class GComputationEstimator(BaseEstimator):
             return LinearRegression(**self.model_params)
         elif model_type == "logistic":
             return LogisticRegression(
-                random_state=self.random_state,
-                **self.model_params
+                random_state=self.random_state, **self.model_params
             )
         elif model_type == "random_forest":
             if outcome_type == "continuous":
                 return RandomForestRegressor(
-                    random_state=self.random_state,
-                    **self.model_params
+                    random_state=self.random_state, **self.model_params
                 )
             else:
                 return RandomForestClassifier(
-                    random_state=self.random_state,
-                    **self.model_params
+                    random_state=self.random_state, **self.model_params
                 )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
@@ -143,7 +140,9 @@ class GComputationEstimator(BaseEstimator):
                     features[col] = covariates.values[col]
             else:
                 # Convert array to DataFrame with covariate names
-                cov_names = covariates.names or [f"X{i}" for i in range(covariates.values.shape[1])]
+                cov_names = covariates.names or [
+                    f"X{i}" for i in range(covariates.values.shape[1])
+                ]
                 for i, name in enumerate(cov_names):
                     features[name] = covariates.values[:, i]
 
@@ -222,9 +221,9 @@ class GComputationEstimator(BaseEstimator):
                 n_obs = covariates.values.shape[0]
 
         # Start with treatment set to specified value
-        counterfactual_features = pd.DataFrame({
-            self.treatment_data.name: [treatment_value] * n_obs
-        })
+        counterfactual_features = pd.DataFrame(
+            {self.treatment_data.name: [treatment_value] * n_obs}
+        )
 
         # Add covariates
         if covariates is not None:
@@ -232,7 +231,9 @@ class GComputationEstimator(BaseEstimator):
                 for col in covariates.values.columns:
                     counterfactual_features[col] = covariates.values[col].values
             else:
-                cov_names = covariates.names or [f"X{i}" for i in range(covariates.values.shape[1])]
+                cov_names = covariates.names or [
+                    f"X{i}" for i in range(covariates.values.shape[1])
+                ]
                 for i, name in enumerate(cov_names):
                     counterfactual_features[name] = covariates.values[:, i]
 
@@ -282,15 +283,21 @@ class GComputationEstimator(BaseEstimator):
             potential_outcome_control = y0_mean
         else:
             # For categorical treatments, compare first category to others
-            ate = np.mean(outcomes[treatment_values[1]]) - np.mean(outcomes[treatment_values[0]])
+            ate = np.mean(outcomes[treatment_values[1]]) - np.mean(
+                outcomes[treatment_values[0]]
+            )
             potential_outcome_treated = np.mean(outcomes[treatment_values[1]])
             potential_outcome_control = np.mean(outcomes[treatment_values[0]])
 
         # Bootstrap confidence intervals
-        ate_ci_lower, ate_ci_upper, bootstrap_estimates = self._bootstrap_confidence_interval()
+        ate_ci_lower, ate_ci_upper, bootstrap_estimates = (
+            self._bootstrap_confidence_interval()
+        )
 
         # Calculate standard error from bootstrap
-        ate_se = np.std(bootstrap_estimates) if bootstrap_estimates is not None else None
+        ate_se = (
+            np.std(bootstrap_estimates) if bootstrap_estimates is not None else None
+        )
 
         # Count treatment/control units
         if self.treatment_data.treatment_type == "binary":
@@ -316,7 +323,9 @@ class GComputationEstimator(BaseEstimator):
             bootstrap_estimates=bootstrap_estimates,
         )
 
-    def _bootstrap_confidence_interval(self) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    def _bootstrap_confidence_interval(
+        self,
+    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
         """Calculate bootstrap confidence intervals for ATE.
 
         Returns:
@@ -337,16 +346,18 @@ class GComputationEstimator(BaseEstimator):
 
             # Create bootstrap datasets
             boot_treatment = TreatmentData(
-                values=self.treatment_data.values.iloc[bootstrap_indices] if isinstance(self.treatment_data.values, pd.Series)
-                       else self.treatment_data.values[bootstrap_indices],
+                values=self.treatment_data.values.iloc[bootstrap_indices]
+                if isinstance(self.treatment_data.values, pd.Series)
+                else self.treatment_data.values[bootstrap_indices],
                 name=self.treatment_data.name,
                 treatment_type=self.treatment_data.treatment_type,
                 categories=self.treatment_data.categories,
             )
 
             boot_outcome = OutcomeData(
-                values=self.outcome_data.values.iloc[bootstrap_indices] if isinstance(self.outcome_data.values, pd.Series)
-                       else self.outcome_data.values[bootstrap_indices],
+                values=self.outcome_data.values.iloc[bootstrap_indices]
+                if isinstance(self.outcome_data.values, pd.Series)
+                else self.outcome_data.values[bootstrap_indices],
                 name=self.outcome_data.name,
                 outcome_type=self.outcome_data.outcome_type,
             )
@@ -419,15 +430,21 @@ class GComputationEstimator(BaseEstimator):
         # Prepare covariate data with correct feature names
         if covariates is not None:
             if isinstance(covariates, pd.DataFrame):
-                cov_data = CovariateData(values=covariates, names=list(covariates.columns))
+                cov_data = CovariateData(
+                    values=covariates, names=list(covariates.columns)
+                )
             else:
                 # Use the same covariate names as the training data
                 if self.covariate_data is not None:
                     cov_names = self.covariate_data.names
                 else:
                     # Fall back to generic names matching the number of features in training
-                    n_features = len(self._model_features) - 1 if self._model_features else covariates.shape[1]
-                    cov_names = [f"X{i+1}" for i in range(n_features)]
+                    n_features = (
+                        len(self._model_features) - 1
+                        if self._model_features
+                        else covariates.shape[1]
+                    )
+                    cov_names = [f"X{i + 1}" for i in range(n_features)]
 
                 # Create DataFrame to ensure correct column ordering
                 cov_df = pd.DataFrame(covariates, columns=cov_names)
