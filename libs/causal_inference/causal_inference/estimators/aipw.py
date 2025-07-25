@@ -293,14 +293,14 @@ class AIPWEstimator(BaseEstimator):
 
         # Initialize prediction arrays
         if isinstance(treatment.values, pd.Series):
-            treatment_values = treatment.values.values
+            treatment_values = np.asarray(treatment.values.values)
         else:
-            treatment_values = treatment.values
+            treatment_values = np.asarray(treatment.values)
 
         if isinstance(outcome.values, pd.Series):
-            outcome_values = outcome.values.values
+            outcome_values = np.asarray(outcome.values.values)
         else:
-            outcome_values = outcome.values
+            outcome_values = np.asarray(outcome.values)
 
         # Initialize cross-fit predictions with NaN (will be filled by successful folds)
         self._cross_fit_predictions = {
@@ -550,14 +550,14 @@ class AIPWEstimator(BaseEstimator):
             AIPW estimate of the average treatment effect
         """
         if isinstance(treatment.values, pd.Series):
-            treatment_values = treatment.values.values
+            treatment_values = np.asarray(treatment.values.values)
         else:
-            treatment_values = treatment.values
+            treatment_values = np.asarray(treatment.values)
 
         if isinstance(outcome.values, pd.Series):
-            outcome_values = outcome.values.values
+            outcome_values = np.asarray(outcome.values.values)
         else:
-            outcome_values = outcome.values
+            outcome_values = np.asarray(outcome.values)
 
         mu_0 = self._cross_fit_predictions["mu_0"]
         mu_1 = self._cross_fit_predictions["mu_1"]
