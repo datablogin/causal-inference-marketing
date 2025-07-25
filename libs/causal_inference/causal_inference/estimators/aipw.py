@@ -207,7 +207,9 @@ class AIPWEstimator(BaseEstimator):
         self._influence_functions: NDArray[Any] | None = None
         self._component_diagnostics: dict[str, Any] = {}
 
-    def _create_component_estimators(self) -> tuple[GComputationEstimator, IPWEstimator]:
+    def _create_component_estimators(
+        self,
+    ) -> tuple[GComputationEstimator, IPWEstimator]:
         """Create the component G-computation and IPW estimators.
 
         Returns:
@@ -238,9 +240,7 @@ class AIPWEstimator(BaseEstimator):
         return outcome_estimator, propensity_estimator
 
     def _create_cross_fitting_folds(
-        self,
-        treatment: TreatmentData,
-        n_samples: int
+        self, treatment: TreatmentData, n_samples: int
     ) -> list[tuple[NDArray[Any], NDArray[Any]]]:
         """Create cross-fitting fold indices.
 
@@ -259,16 +259,12 @@ class AIPWEstimator(BaseEstimator):
                 treatment_values = treatment.values
 
             kfold = StratifiedKFold(
-                n_splits=self.n_folds,
-                shuffle=True,
-                random_state=self.random_state
+                n_splits=self.n_folds, shuffle=True, random_state=self.random_state
             )
             folds = list(kfold.split(np.arange(n_samples), treatment_values))
         else:
             kfold = KFold(
-                n_splits=self.n_folds,
-                shuffle=True,
-                random_state=self.random_state
+                n_splits=self.n_folds, shuffle=True, random_state=self.random_state
             )
             folds = list(kfold.split(np.arange(n_samples)))
 
@@ -288,7 +284,9 @@ class AIPWEstimator(BaseEstimator):
             covariates: Covariate data for adjustment
         """
         if covariates is None:
-            raise EstimationError("AIPW requires covariates for both outcome and propensity models")
+            raise EstimationError(
+                "AIPW requires covariates for both outcome and propensity models"
+            )
 
         n_samples = len(treatment.values)
         folds = self._create_cross_fitting_folds(treatment, n_samples)
@@ -306,10 +304,10 @@ class AIPWEstimator(BaseEstimator):
 
         # Initialize cross-fit predictions with NaN (will be filled by successful folds)
         self._cross_fit_predictions = {
-            'mu_0': np.full(n_samples, np.nan),
-            'mu_1': np.full(n_samples, np.nan),
-            'propensity_scores': np.full(n_samples, np.nan),
-            'ipw_weights': np.full(n_samples, np.nan)
+            "mu_0": np.full(n_samples, np.nan),
+            "mu_1": np.full(n_samples, np.nan),
+            "propensity_scores": np.full(n_samples, np.nan),
+            "ipw_weights": np.full(n_samples, np.nan),
         }
 
         self._fold_models = []
@@ -349,14 +347,20 @@ class AIPWEstimator(BaseEstimator):
             )
 
             # Fit component estimators on this fold
-            fold_outcome_estimator, fold_propensity_estimator = self._create_component_estimators()
+            fold_outcome_estimator, fold_propensity_estimator = (
+                self._create_component_estimators()
+            )
 
             try:
                 # Fit outcome model
-                fold_outcome_estimator.fit(fold_treatment, fold_outcome, fold_covariates)
+                fold_outcome_estimator.fit(
+                    fold_treatment, fold_outcome, fold_covariates
+                )
 
                 # Fit propensity model
-                fold_propensity_estimator.fit(fold_treatment, fold_outcome, fold_covariates)
+                fold_propensity_estimator.fit(
+                    fold_treatment, fold_outcome, fold_covariates
+                )
             except Exception as e:
                 if self.verbose:
                     print(f"    Warning: Fold {fold_idx + 1} failed to fit: {str(e)}")
@@ -375,18 +379,21 @@ class AIPWEstimator(BaseEstimator):
             # Predict potential outcomes
             mu_0_test, mu_1_test = fold_outcome_estimator.predict_potential_outcomes(
                 treatment_values=test_treatment_values,  # Actual treatment values
-                covariates=test_covariates_values if isinstance(test_covariates_values, np.ndarray)
-                         else test_covariates_values.values
+                covariates=test_covariates_values
+                if isinstance(test_covariates_values, np.ndarray)
+                else test_covariates_values.values,
             )
 
             # Store predictions
-            self._cross_fit_predictions['mu_0'][test_idx] = mu_0_test
-            self._cross_fit_predictions['mu_1'][test_idx] = mu_1_test
+            self._cross_fit_predictions["mu_0"][test_idx] = mu_0_test
+            self._cross_fit_predictions["mu_1"][test_idx] = mu_1_test
 
             # Predict propensity scores
-            if hasattr(fold_propensity_estimator, 'predict_propensity_scores'):
-                ps_test = fold_propensity_estimator.predict_propensity_scores(test_covariates_values)
-                self._cross_fit_predictions['propensity_scores'][test_idx] = ps_test
+            if hasattr(fold_propensity_estimator, "predict_propensity_scores"):
+                ps_test = fold_propensity_estimator.predict_propensity_scores(
+                    test_covariates_values
+                )
+                self._cross_fit_predictions["propensity_scores"][test_idx] = ps_test
 
                 # Compute IPW weights for test set
                 weights_test = np.zeros(len(test_idx))
@@ -406,8 +413,12 @@ class AIPWEstimator(BaseEstimator):
                 if self.stabilized_weights:
                     treatment_prob = np.mean(treatment_values[train_idx])
                     stabilized_weights = np.zeros_like(weights_test)
-                    stabilized_weights[treated_mask] = treatment_prob * weights_test[treated_mask]
-                    stabilized_weights[control_mask] = (1 - treatment_prob) * weights_test[control_mask]
+                    stabilized_weights[treated_mask] = (
+                        treatment_prob * weights_test[treated_mask]
+                    )
+                    stabilized_weights[control_mask] = (
+                        1 - treatment_prob
+                    ) * weights_test[control_mask]
                     weights_test = stabilized_weights
 
                 # Apply weight truncation
@@ -424,15 +435,17 @@ class AIPWEstimator(BaseEstimator):
                     min_weight = self.truncation_threshold
                     weights_test = np.clip(weights_test, min_weight, max_weight)
 
-                self._cross_fit_predictions['ipw_weights'][test_idx] = weights_test
+                self._cross_fit_predictions["ipw_weights"][test_idx] = weights_test
 
             # Store fold models for diagnostics
-            self._fold_models.append({
-                'outcome_estimator': fold_outcome_estimator,
-                'propensity_estimator': fold_propensity_estimator,
-                'train_idx': train_idx,
-                'test_idx': test_idx,
-            })
+            self._fold_models.append(
+                {
+                    "outcome_estimator": fold_outcome_estimator,
+                    "propensity_estimator": fold_propensity_estimator,
+                    "train_idx": train_idx,
+                    "test_idx": test_idx,
+                }
+            )
 
             successful_folds += 1
 
@@ -444,8 +457,10 @@ class AIPWEstimator(BaseEstimator):
             )
         elif successful_folds < self.n_folds // 2:
             if self.verbose:
-                print(f"Warning: Only {successful_folds}/{self.n_folds} folds succeeded. "
-                      "Results may be less reliable.")
+                print(
+                    f"Warning: Only {successful_folds}/{self.n_folds} folds succeeded. "
+                    "Results may be less reliable."
+                )
 
         # Check for missing predictions and fill with zeros if needed
         for key in self._cross_fit_predictions:
@@ -453,8 +468,10 @@ class AIPWEstimator(BaseEstimator):
             if np.any(missing_mask):
                 if self.verbose:
                     n_missing = np.sum(missing_mask)
-                    print(f"Warning: {n_missing} observations missing {key} predictions. "
-                          "Filling with zeros.")
+                    print(
+                        f"Warning: {n_missing} observations missing {key} predictions. "
+                        "Filling with zeros."
+                    )
                 # Fill missing predictions with zeros (simple fallback)
                 self._cross_fit_predictions[key][missing_mask] = 0.0
 
@@ -472,7 +489,9 @@ class AIPWEstimator(BaseEstimator):
             covariates: Covariate data for adjustment
         """
         # Create and fit component estimators
-        self.outcome_estimator, self.propensity_estimator = self._create_component_estimators()
+        self.outcome_estimator, self.propensity_estimator = (
+            self._create_component_estimators()
+        )
 
         # Fit both models on full data
         self.outcome_estimator.fit(treatment, outcome, covariates)
@@ -488,15 +507,17 @@ class AIPWEstimator(BaseEstimator):
 
         # Get potential outcomes
         if covariates is not None:
-            covariate_values = (covariates.values if isinstance(covariates.values, np.ndarray)
-                              else covariates.values.values)
+            covariate_values = (
+                covariates.values
+                if isinstance(covariates.values, np.ndarray)
+                else covariates.values.values
+            )
         else:
             raise EstimationError("AIPW requires covariates")
 
         # Predict potential outcomes
         mu_0, mu_1 = self.outcome_estimator.predict_potential_outcomes(
-            treatment_values=treatment_values,
-            covariates=covariate_values
+            treatment_values=treatment_values, covariates=covariate_values
         )
 
         # Get propensity scores and weights
@@ -508,10 +529,10 @@ class AIPWEstimator(BaseEstimator):
 
         # Store predictions
         self._cross_fit_predictions = {
-            'mu_0': mu_0,
-            'mu_1': mu_1,
-            'propensity_scores': propensity_scores,
-            'ipw_weights': ipw_weights
+            "mu_0": mu_0,
+            "mu_1": mu_1,
+            "propensity_scores": propensity_scores,
+            "ipw_weights": ipw_weights,
         }
 
     def _compute_aipw_estimate(
@@ -538,9 +559,9 @@ class AIPWEstimator(BaseEstimator):
         else:
             outcome_values = outcome.values
 
-        mu_0 = self._cross_fit_predictions['mu_0']
-        mu_1 = self._cross_fit_predictions['mu_1']
-        propensity_scores = self._cross_fit_predictions['propensity_scores']
+        mu_0 = self._cross_fit_predictions["mu_0"]
+        mu_1 = self._cross_fit_predictions["mu_1"]
+        propensity_scores = self._cross_fit_predictions["propensity_scores"]
 
         n_samples = len(treatment_values)
 
@@ -559,22 +580,24 @@ class AIPWEstimator(BaseEstimator):
         # Treated units correction: (T_i/e(X_i))(Y_i - μ₁(X_i))
         if np.any(treated_mask):
             ipw_correction[treated_mask] = (
-                (treatment_values[treated_mask] / propensity_scores[treated_mask]) *
-                (outcome_values[treated_mask] - mu_1[treated_mask])
-            )
+                treatment_values[treated_mask] / propensity_scores[treated_mask]
+            ) * (outcome_values[treated_mask] - mu_1[treated_mask])
 
         # Control units correction: -((1-T_i)/(1-e(X_i)))(Y_i - μ₀(X_i))
         if np.any(control_mask):
             ipw_correction[control_mask] = -(
-                ((1 - treatment_values[control_mask]) / (1 - propensity_scores[control_mask])) *
-                (outcome_values[control_mask] - mu_0[control_mask])
+                (
+                    (1 - treatment_values[control_mask])
+                    / (1 - propensity_scores[control_mask])
+                )
+                * (outcome_values[control_mask] - mu_0[control_mask])
             )
 
         # Store components for diagnostics
         self._aipw_components = {
-            'g_computation': g_comp_component,
-            'ipw_correction': ipw_correction,
-            'full_aipw': g_comp_component + ipw_correction
+            "g_computation": g_comp_component,
+            "ipw_correction": ipw_correction,
+            "full_aipw": g_comp_component + ipw_correction,
         }
 
         # AIPW estimate
@@ -635,7 +658,7 @@ class AIPWEstimator(BaseEstimator):
 
         # Compute influence function for each observation
         # This is a simplified version - full implementation would be more complex
-        aipw_components = self._aipw_components['full_aipw']
+        aipw_components = self._aipw_components["full_aipw"]
         aipw_estimate = np.mean(aipw_components)
 
         # Influence function is approximately the component minus the mean
@@ -664,7 +687,9 @@ class AIPWEstimator(BaseEstimator):
             covariates: Covariate data for adjustment
         """
         if covariates is None:
-            raise EstimationError("AIPW requires covariates for both outcome and propensity models")
+            raise EstimationError(
+                "AIPW requires covariates for both outcome and propensity models"
+            )
 
         if self.verbose:
             print("Fitting AIPW estimator...")
@@ -690,20 +715,27 @@ class AIPWEstimator(BaseEstimator):
         Returns:
             CausalEffect object with AIPW estimate and diagnostics
         """
-        if (self.treatment_data is None or self.outcome_data is None or
-            not self._cross_fit_predictions):
+        if (
+            self.treatment_data is None
+            or self.outcome_data is None
+            or not self._cross_fit_predictions
+        ):
             raise EstimationError("Model must be fitted before estimation")
 
         # Compute AIPW estimate
         aipw_ate = self._compute_aipw_estimate(self.treatment_data, self.outcome_data)
 
         # Compute influence function standard error
-        influence_se = self._compute_influence_function_se(self.treatment_data, self.outcome_data)
+        influence_se = self._compute_influence_function_se(
+            self.treatment_data, self.outcome_data
+        )
 
         # Bootstrap confidence intervals
         ate_ci_lower, ate_ci_upper, bootstrap_estimates = None, None, None
         if self.bootstrap_samples > 0:
-            ate_ci_lower, ate_ci_upper, bootstrap_estimates = self._bootstrap_confidence_interval()
+            ate_ci_lower, ate_ci_upper, bootstrap_estimates = (
+                self._bootstrap_confidence_interval()
+            )
 
         # Use influence function SE if available, otherwise bootstrap SE
         if influence_se is not None:
@@ -726,8 +758,8 @@ class AIPWEstimator(BaseEstimator):
         n_control = np.sum(treatment_values == 0)
 
         # Potential outcome means from G-computation component
-        mu_0_mean = np.mean(self._cross_fit_predictions['mu_0'])
-        mu_1_mean = np.mean(self._cross_fit_predictions['mu_1'])
+        mu_0_mean = np.mean(self._cross_fit_predictions["mu_0"])
+        mu_1_mean = np.mean(self._cross_fit_predictions["mu_1"])
 
         return CausalEffect(
             ate=aipw_ate,
@@ -746,7 +778,9 @@ class AIPWEstimator(BaseEstimator):
             diagnostics=self._component_diagnostics,
         )
 
-    def _bootstrap_confidence_interval(self) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    def _bootstrap_confidence_interval(
+        self,
+    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
         """Calculate bootstrap confidence intervals for AIPW estimate.
 
         Returns:
@@ -755,8 +789,11 @@ class AIPWEstimator(BaseEstimator):
         if self.bootstrap_samples <= 0:
             return None, None, None
 
-        if (self.treatment_data is None or self.outcome_data is None or
-            self.covariate_data is None):
+        if (
+            self.treatment_data is None
+            or self.outcome_data is None
+            or self.covariate_data is None
+        ):
             raise EstimationError("Data must be available for bootstrap")
 
         bootstrap_ates: list[float] = []
@@ -835,18 +872,22 @@ class AIPWEstimator(BaseEstimator):
     def _compute_component_diagnostics(self) -> None:
         """Compute diagnostics comparing component estimators."""
         diagnostics: dict[str, Any] = {
-            'cross_fitting': self.cross_fitting,
-            'n_folds': self.n_folds if self.cross_fitting else None,
-            'use_tmle': self.use_tmle,
-            'influence_function_se': self.influence_function_se,
+            "cross_fitting": self.cross_fitting,
+            "n_folds": self.n_folds if self.cross_fitting else None,
+            "use_tmle": self.use_tmle,
+            "influence_function_se": self.influence_function_se,
         }
 
         # G-computation component estimate
-        g_comp_ate = np.mean(self._aipw_components['g_computation'])
-        diagnostics['g_computation_ate'] = g_comp_ate
+        g_comp_ate = np.mean(self._aipw_components["g_computation"])
+        diagnostics["g_computation_ate"] = g_comp_ate
 
         # Pure IPW estimate (for comparison)
-        if self._cross_fit_predictions.get('ipw_weights') is not None and self.treatment_data is not None and self.outcome_data is not None:
+        if (
+            self._cross_fit_predictions.get("ipw_weights") is not None
+            and self.treatment_data is not None
+            and self.outcome_data is not None
+        ):
             if isinstance(self.treatment_data.values, pd.Series):
                 treatment_values = self.treatment_data.values.values
             else:
@@ -857,48 +898,51 @@ class AIPWEstimator(BaseEstimator):
             else:
                 outcome_values = self.outcome_data.values
 
-            ipw_weights = self._cross_fit_predictions['ipw_weights']
+            ipw_weights = self._cross_fit_predictions["ipw_weights"]
 
             # Compute weighted means
             treated_mask = treatment_values == 1
             control_mask = treatment_values == 0
 
             if np.any(treated_mask) and np.any(control_mask):
-                weighted_outcome_treated = (
-                    np.sum(outcome_values[treated_mask] * ipw_weights[treated_mask]) /
-                    np.sum(ipw_weights[treated_mask])
-                )
-                weighted_outcome_control = (
-                    np.sum(outcome_values[control_mask] * ipw_weights[control_mask]) /
-                    np.sum(ipw_weights[control_mask])
-                )
+                weighted_outcome_treated = np.sum(
+                    outcome_values[treated_mask] * ipw_weights[treated_mask]
+                ) / np.sum(ipw_weights[treated_mask])
+                weighted_outcome_control = np.sum(
+                    outcome_values[control_mask] * ipw_weights[control_mask]
+                ) / np.sum(ipw_weights[control_mask])
                 ipw_ate = weighted_outcome_treated - weighted_outcome_control
-                diagnostics['ipw_ate'] = ipw_ate
+                diagnostics["ipw_ate"] = ipw_ate
 
         # Cross-fitting model performance
         if self.cross_fitting and self._fold_models:
-            diagnostics['n_folds_used'] = len(self._fold_models)
+            diagnostics["n_folds_used"] = len(self._fold_models)
 
         # Propensity score diagnostics
-        propensity_scores = self._cross_fit_predictions.get('propensity_scores')
+        propensity_scores = self._cross_fit_predictions.get("propensity_scores")
         if propensity_scores is not None:
-            diagnostics['propensity_score_stats'] = {
-                'mean': float(np.mean(propensity_scores)),
-                'min': float(np.min(propensity_scores)),
-                'max': float(np.max(propensity_scores)),
-                'std': float(np.std(propensity_scores)),
+            diagnostics["propensity_score_stats"] = {
+                "mean": float(np.mean(propensity_scores)),
+                "min": float(np.min(propensity_scores)),
+                "max": float(np.max(propensity_scores)),
+                "std": float(np.std(propensity_scores)),
             }
 
         # Component balance
-        if 'g_computation' in self._aipw_components and 'ipw_correction' in self._aipw_components:
-            g_comp_contribution = np.mean(np.abs(self._aipw_components['g_computation']))
-            ipw_contribution = np.mean(np.abs(self._aipw_components['ipw_correction']))
+        if (
+            "g_computation" in self._aipw_components
+            and "ipw_correction" in self._aipw_components
+        ):
+            g_comp_contribution = np.mean(
+                np.abs(self._aipw_components["g_computation"])
+            )
+            ipw_contribution = np.mean(np.abs(self._aipw_components["ipw_correction"]))
             total_contribution = g_comp_contribution + ipw_contribution
 
             if total_contribution > 0:
-                diagnostics['component_balance'] = {
-                    'g_computation_weight': g_comp_contribution / total_contribution,
-                    'ipw_correction_weight': ipw_contribution / total_contribution,
+                diagnostics["component_balance"] = {
+                    "g_computation_weight": g_comp_contribution / total_contribution,
+                    "ipw_correction_weight": ipw_contribution / total_contribution,
                 }
 
         self._component_diagnostics = diagnostics
@@ -955,4 +999,6 @@ class AIPWEstimator(BaseEstimator):
         if self.outcome_estimator is None:
             raise EstimationError("Outcome estimator not available")
 
-        return self.outcome_estimator.predict_potential_outcomes(treatment_values, covariates)
+        return self.outcome_estimator.predict_potential_outcomes(
+            treatment_values, covariates
+        )

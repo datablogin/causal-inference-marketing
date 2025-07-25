@@ -223,7 +223,12 @@ class TestAIPWEstimator:
         balance = diagnostics["component_balance"]
         assert "g_computation_weight" in balance
         assert "ipw_correction_weight" in balance
-        assert abs(balance["g_computation_weight"] + balance["ipw_correction_weight"] - 1.0) < 1e-6
+        assert (
+            abs(
+                balance["g_computation_weight"] + balance["ipw_correction_weight"] - 1.0
+            )
+            < 1e-6
+        )
 
     def test_robustness_outcome_misspecification(self):
         """Test AIPW robustness when outcome model is misspecified."""
@@ -320,8 +325,12 @@ class TestAIPWEstimator:
             estimator = AIPWEstimator(
                 outcome_model_type=outcome_model,
                 propensity_model_type=propensity_model,
-                outcome_model_params={"n_estimators": 20} if "forest" in outcome_model else {},
-                propensity_model_params={"n_estimators": 20} if "forest" in propensity_model else {},
+                outcome_model_params={"n_estimators": 20}
+                if "forest" in outcome_model
+                else {},
+                propensity_model_params={"n_estimators": 20}
+                if "forest" in propensity_model
+                else {},
                 cross_fitting=False,  # Simplify for multiple tests
                 bootstrap_samples=10,  # Small for speed
                 random_state=42,
@@ -338,7 +347,9 @@ class TestAIPWEstimator:
             # All combinations should produce reasonable estimates
             assert isinstance(effect.ate, float)
             assert not np.isnan(effect.ate)
-            assert abs(effect.ate - self.true_ate) < 2.0  # Lenient bound for different models
+            assert (
+                abs(effect.ate - self.true_ate) < 2.0
+            )  # Lenient bound for different models
 
     def test_error_handling(self):
         """Test error handling for various invalid inputs."""
@@ -360,8 +371,7 @@ class TestAIPWEstimator:
         unfitted_estimator = AIPWEstimator()
         with pytest.raises(EstimationError, match="must be fitted"):
             unfitted_estimator.predict_potential_outcomes(
-                treatment_values=np.array([0, 1, 0, 1]),
-                covariates=self.X[:4]
+                treatment_values=np.array([0, 1, 0, 1]), covariates=self.X[:4]
             )
 
     def test_prediction_capabilities(self):
@@ -385,8 +395,7 @@ class TestAIPWEstimator:
         new_treatment = np.random.binomial(1, 0.5, 50)
 
         y0_pred, y1_pred = estimator.predict_potential_outcomes(
-            treatment_values=new_treatment,
-            covariates=new_X
+            treatment_values=new_treatment, covariates=new_X
         )
 
         assert len(y0_pred) == 50
@@ -400,7 +409,9 @@ class TestAIPWEstimator:
     def test_cross_fitting_prediction_error(self):
         """Test that prediction fails with cross-fitting."""
         # Skip this test since cross-fitting is disabled for now
-        pytest.skip("Cross-fitting prediction test disabled until cross-fitting is fixed")
+        pytest.skip(
+            "Cross-fitting prediction test disabled until cross-fitting is fixed"
+        )
 
     def test_sklearn_dataset_compatibility(self):
         """Test AIPW with sklearn generated datasets."""
@@ -486,7 +497,11 @@ class TestAIPWEstimator:
                 prop_covs = self.covariate_data
 
             # For simplicity, use same covariate set for both (real study would vary this)
-            test_covs = outcome_covs if len(outcome_covs.names) >= len(prop_covs.names) else prop_covs
+            test_covs = (
+                outcome_covs
+                if len(outcome_covs.names) >= len(prop_covs.names)
+                else prop_covs
+            )
 
             estimator = AIPWEstimator(
                 outcome_model_type="linear",
