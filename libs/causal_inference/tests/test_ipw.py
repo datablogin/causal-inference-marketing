@@ -30,7 +30,10 @@ class TestIPWEstimator:
         # Generate treatment with selection on covariates (confounding)
         # This creates a scenario where IPW should correct for bias
         treatment_logits = (
-            0.8 * self.X[:, 0] + 0.6 * self.X[:, 1] - 0.4 * self.X[:, 2] + 0.3 * self.X[:, 3]
+            0.8 * self.X[:, 0]
+            + 0.6 * self.X[:, 1]
+            - 0.4 * self.X[:, 2]
+            + 0.3 * self.X[:, 3]
         )
         treatment_probs = 1 / (1 + np.exp(-treatment_logits))
         self.treatment_binary = np.random.binomial(1, treatment_probs)
@@ -73,9 +76,7 @@ class TestIPWEstimator:
         )
 
         self.outcome_data_binary = OutcomeData(
-            values=pd.Series(self.outcome_binary),
-            name="outcome",
-            outcome_type="binary"
+            values=pd.Series(self.outcome_binary), name="outcome", outcome_type="binary"
         )
 
         self.covariate_data = CovariateData(
@@ -189,13 +190,18 @@ class TestIPWEstimator:
         assert len(estimator._propensity_features) == 4
 
         # Check propensity scores are probabilities
-        assert np.all((estimator.propensity_scores >= 0) & (estimator.propensity_scores <= 1))
+        assert np.all(
+            (estimator.propensity_scores >= 0) & (estimator.propensity_scores <= 1)
+        )
 
     def test_fitting_random_forest_model(self):
         """Test fitting with random forest propensity model."""
         estimator = IPWEstimator(
             propensity_model_type="random_forest",
-            propensity_model_params={"n_estimators": 10, "max_depth": 3},  # Small for speed
+            propensity_model_params={
+                "n_estimators": 10,
+                "max_depth": 3,
+            },  # Small for speed
             bootstrap_samples=0,
             random_state=42,
         )
@@ -209,7 +215,9 @@ class TestIPWEstimator:
         assert estimator.is_fitted
         assert estimator.propensity_model.__class__.__name__ == "RandomForestClassifier"
         assert estimator.propensity_scores is not None
-        assert np.all((estimator.propensity_scores >= 0) & (estimator.propensity_scores <= 1))
+        assert np.all(
+            (estimator.propensity_scores >= 0) & (estimator.propensity_scores <= 1)
+        )
 
     def test_ate_estimation_continuous(self):
         """Test ATE estimation with continuous outcome."""
@@ -353,7 +361,9 @@ class TestIPWEstimator:
 
         # Create outcome data that matches the poor overlap treatment size
         poor_overlap_outcome = OutcomeData(
-            values=pd.Series(self.outcome_continuous[:len(self.treatment_poor_overlap)]),
+            values=pd.Series(
+                self.outcome_continuous[: len(self.treatment_poor_overlap)]
+            ),
             name="outcome",
             outcome_type="continuous",
         )
@@ -386,7 +396,9 @@ class TestIPWEstimator:
 
         # Create outcome data that matches the poor overlap treatment size
         poor_overlap_outcome_2 = OutcomeData(
-            values=pd.Series(self.outcome_continuous[:len(self.treatment_poor_overlap)]),
+            values=pd.Series(
+                self.outcome_continuous[: len(self.treatment_poor_overlap)]
+            ),
             name="outcome",
             outcome_type="continuous",
         )
@@ -442,7 +454,9 @@ class TestIPWEstimator:
 
         # Create outcome data that matches the poor overlap treatment size
         poor_overlap_outcome_3 = OutcomeData(
-            values=pd.Series(self.outcome_continuous[:len(self.treatment_poor_overlap)]),
+            values=pd.Series(
+                self.outcome_continuous[: len(self.treatment_poor_overlap)]
+            ),
             name="outcome",
             outcome_type="continuous",
         )
@@ -496,7 +510,9 @@ class TestIPWEstimator:
             assert isinstance(weight_diag[key], int | float)
 
         # Check that effective sample size makes sense
-        assert 0 < weight_diag["effective_sample_size"] <= len(self.treatment_data.values)
+        assert (
+            0 < weight_diag["effective_sample_size"] <= len(self.treatment_data.values)
+        )
 
     def test_propensity_score_prediction(self):
         """Test propensity score prediction on new data."""
@@ -550,8 +566,7 @@ class TestIPWEstimator:
         # IPW should require covariates
         with pytest.raises(EstimationError, match="IPW requires covariates"):
             estimator.fit(
-                treatment=self.treatment_data,
-                outcome=self.outcome_data_continuous
+                treatment=self.treatment_data, outcome=self.outcome_data_continuous
             )
 
     def test_bootstrap_confidence_intervals(self):
@@ -613,7 +628,7 @@ class TestIPWEstimator:
             n_redundant=0,
             n_informative=3,
             n_clusters_per_class=1,
-            random_state=42
+            random_state=42,
         )
 
         # Use the classification target as treatment
@@ -622,17 +637,18 @@ class TestIPWEstimator:
         # Generate outcome with treatment effect
         true_ate = 1.2
         outcome = (
-            0.5 * X[:, 0] + 0.3 * X[:, 1] + 0.2 * X[:, 2] +
-            true_ate * treatment + np.random.randn(200) * 0.3
+            0.5 * X[:, 0]
+            + 0.3 * X[:, 1]
+            + 0.2 * X[:, 2]
+            + true_ate * treatment
+            + np.random.randn(200) * 0.3
         )
 
         treatment_data = TreatmentData(
             values=pd.Series(treatment), treatment_type="binary"
         )
 
-        outcome_data = OutcomeData(
-            values=pd.Series(outcome), outcome_type="continuous"
-        )
+        outcome_data = OutcomeData(values=pd.Series(outcome), outcome_type="continuous")
 
         covariate_data = CovariateData(
             values=pd.DataFrame(X, columns=["X1", "X2", "X3"]),
@@ -661,14 +677,18 @@ class TestIPWEstimator:
         X_extreme = np.random.randn(n, 2)
 
         # Create extreme logits that will result in propensity scores very close to 0 or 1
-        extreme_logits = 8 * X_extreme[:, 0] + 6 * X_extreme[:, 1]  # Very large coefficients
+        extreme_logits = (
+            8 * X_extreme[:, 0] + 6 * X_extreme[:, 1]
+        )  # Very large coefficients
         extreme_probs = 1 / (1 + np.exp(-extreme_logits))
         treatment_extreme = np.random.binomial(1, extreme_probs)
 
         # Create outcome
         outcome_extreme = (
-            X_extreme[:, 0] + X_extreme[:, 1] + 2.0 * treatment_extreme +
-            np.random.randn(n) * 0.2
+            X_extreme[:, 0]
+            + X_extreme[:, 1]
+            + 2.0 * treatment_extreme
+            + np.random.randn(n) * 0.2
         )
 
         treatment_data_extreme = TreatmentData(
@@ -697,7 +717,9 @@ class TestIPWEstimator:
         )
 
         # This should not crash even with extreme propensity scores
-        estimator.fit(treatment_data_extreme, outcome_data_extreme, covariate_data_extreme)
+        estimator.fit(
+            treatment_data_extreme, outcome_data_extreme, covariate_data_extreme
+        )
         effect = estimator.estimate_ate()
 
         # Should produce some estimate (may not be accurate due to poor overlap)
@@ -749,9 +771,7 @@ class TestIPWEstimator:
         # )
 
         estimator = IPWEstimator(
-            propensity_model_type="logistic",
-            bootstrap_samples=0,
-            random_state=42
+            propensity_model_type="logistic", bootstrap_samples=0, random_state=42
         )
 
         # Current IPW implementation is designed for binary treatment
@@ -776,7 +796,7 @@ class TestIPWEstimator:
             outcome=outcome_data_n,
             covariates=CovariateData(
                 values=pd.DataFrame(self.X[:n, :2], columns=["X1", "X2"]),
-                names=["X1", "X2"]
+                names=["X1", "X2"],
             ),
         )
 
@@ -786,4 +806,3 @@ class TestIPWEstimator:
 
 if __name__ == "__main__":
     pytest.main([__file__])
-

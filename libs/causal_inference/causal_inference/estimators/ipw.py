@@ -198,7 +198,9 @@ class IPWEstimator(BaseEstimator):
                 random_state=self.random_state, **self.propensity_model_params
             )
         else:
-            raise ValueError(f"Unknown propensity model type: {self.propensity_model_type}")
+            raise ValueError(
+                f"Unknown propensity model type: {self.propensity_model_type}"
+            )
 
     def _prepare_propensity_features(
         self, covariates: CovariateData | None = None
@@ -275,7 +277,9 @@ class IPWEstimator(BaseEstimator):
                     cv_scores = cross_val_score(
                         self.propensity_model, X, y, cv=5, scoring="roc_auc"
                     )
-                    print(f"Cross-validation AUC: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
+                    print(
+                        f"Cross-validation AUC: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})"
+                    )
                 except ValueError:
                     pass  # Skip if cross-validation fails
 
@@ -327,7 +331,9 @@ class IPWEstimator(BaseEstimator):
             "min_propensity": float(np.min(propensity_scores)),
             "max_propensity": float(np.max(propensity_scores)),
             "mean_propensity": float(np.mean(propensity_scores)),
-            "propensity_range": float(np.max(propensity_scores) - np.min(propensity_scores)),
+            "propensity_range": float(
+                np.max(propensity_scores) - np.min(propensity_scores)
+            ),
         }
 
         # Check for extreme propensity scores
@@ -392,12 +398,16 @@ class IPWEstimator(BaseEstimator):
             truncated_weights = np.clip(weights, min_weight, max_weight)
 
         else:
-            raise ValueError(f"Unknown weight truncation method: {self.weight_truncation}")
+            raise ValueError(
+                f"Unknown weight truncation method: {self.weight_truncation}"
+            )
 
         if self.verbose:
             n_truncated = np.sum(weights != truncated_weights)
             if n_truncated > 0:
-                print(f"Truncated {n_truncated} extreme weights ({100 * n_truncated / len(weights):.1f}%)")
+                print(
+                    f"Truncated {n_truncated} extreme weights ({100 * n_truncated / len(weights):.1f}%)"
+                )
 
         return truncated_weights
 
@@ -439,7 +449,9 @@ class IPWEstimator(BaseEstimator):
             # SW_i = P(T=1) * T_i / e_i + P(T=0) * (1 - T_i) / (1 - e_i)
             stabilized_weights = np.zeros_like(weights)
             stabilized_weights[treated_mask] = treatment_prob * weights[treated_mask]
-            stabilized_weights[control_mask] = (1 - treatment_prob) * weights[control_mask]
+            stabilized_weights[control_mask] = (1 - treatment_prob) * weights[
+                control_mask
+            ]
 
             weights = stabilized_weights
 
@@ -464,9 +476,11 @@ class IPWEstimator(BaseEstimator):
             "max_weight": float(np.max(weights)),
             "weight_std": float(np.std(weights)),
             "weight_variance": float(np.var(weights)),
-            "effective_sample_size": float(np.sum(weights) ** 2 / np.sum(weights ** 2)),
+            "effective_sample_size": float(np.sum(weights) ** 2 / np.sum(weights**2)),
             "weight_ratio": float(np.max(weights) / np.min(weights)),
-            "extreme_weights_pct": float(100 * np.sum((weights > 10) | (weights < 0.1)) / len(weights)),
+            "extreme_weights_pct": float(
+                100 * np.sum((weights > 10) | (weights < 0.1)) / len(weights)
+            ),
         }
 
     def _fit_implementation(
@@ -509,8 +523,12 @@ class IPWEstimator(BaseEstimator):
 
         if self.verbose:
             print(f"Mean weight: {self._weight_diagnostics['mean_weight']:.4f}")
-            print(f"Weight range: [{self._weight_diagnostics['min_weight']:.4f}, {self._weight_diagnostics['max_weight']:.4f}]")
-            print(f"Effective sample size: {self._weight_diagnostics['effective_sample_size']:.1f}")
+            print(
+                f"Weight range: [{self._weight_diagnostics['min_weight']:.4f}, {self._weight_diagnostics['max_weight']:.4f}]"
+            )
+            print(
+                f"Effective sample size: {self._weight_diagnostics['effective_sample_size']:.1f}"
+            )
 
     def _estimate_ate_implementation(self) -> CausalEffect:
         """Estimate Average Treatment Effect using IPW.
@@ -731,9 +749,7 @@ class IPWEstimator(BaseEstimator):
 
         # Prepare covariate data
         if isinstance(covariates, pd.DataFrame):
-            cov_data = CovariateData(
-                values=covariates, names=list(covariates.columns)
-            )
+            cov_data = CovariateData(values=covariates, names=list(covariates.columns))
         else:
             # Use the same covariate names as the training data
             if self.covariate_data is not None:
