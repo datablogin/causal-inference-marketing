@@ -51,13 +51,13 @@ class CausalInferenceConfig(BaseConfiguration):
     metrics_port: int = Field(default=9090, description="Metrics endpoint port")
 
     @validator("default_confidence_level")
-    def validate_confidence_level(cls, v):
+    def validate_confidence_level(cls, v):  # noqa: N805
         if not 0 < v < 1:
             raise ValueError("Confidence level must be between 0 and 1")
         return v
 
     @validator("bootstrap_samples")
-    def validate_bootstrap_samples(cls, v):
+    def validate_bootstrap_samples(cls, v):  # noqa: N805
         if v < 100:
             raise ValueError("Bootstrap samples must be at least 100")
         return v
