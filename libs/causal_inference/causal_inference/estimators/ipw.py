@@ -429,6 +429,9 @@ class IPWEstimator(BaseEstimator):
             treatment_values = treatment.values.values
         else:
             treatment_values = treatment.values
+        
+        # Ensure treatment_values is a numpy array for consistent typing
+        treatment_values = np.asarray(treatment_values)
 
         # Basic IPW weights: W_i = T_i / e_i + (1 - T_i) / (1 - e_i)
         weights = np.zeros_like(propensity_scores)
@@ -444,7 +447,7 @@ class IPWEstimator(BaseEstimator):
         # Apply stabilized weights if requested
         if self.stabilized_weights:
             # Stabilized weights multiply by marginal treatment probability
-            treatment_prob = float(np.mean(treatment_values))
+            treatment_prob = np.mean(treatment_values)
 
             # SW_i = P(T=1) * T_i / e_i + P(T=0) * (1 - T_i) / (1 - e_i)
             stabilized_weights = np.zeros_like(weights)
