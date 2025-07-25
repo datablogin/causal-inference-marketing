@@ -35,8 +35,7 @@ class TreatmentData(BaseModel):
         default=None, description="For categorical treatments, the possible categories"
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("treatment_type")
     @classmethod
@@ -69,8 +68,7 @@ class OutcomeData(BaseModel):
         description="Type of outcome: 'continuous', 'binary', or 'count'",
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("outcome_type")
     @classmethod
@@ -101,8 +99,7 @@ class CovariateData(BaseModel):
         default_factory=list, description="Names of the covariate variables"
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
     @field_validator("values")
     @classmethod
