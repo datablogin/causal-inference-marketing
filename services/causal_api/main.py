@@ -2,15 +2,15 @@
 
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from shared.config import CausalInferenceConfig, config_manager
-from shared.observability import get_logger, get_metrics, setup_logging, setup_metrics
 from shared.database import get_database_manager
+from shared.observability import get_logger, get_metrics, setup_logging, setup_metrics
 
 from .routes import attribution, health
 
@@ -23,14 +23,14 @@ async def lifespan(app: FastAPI):
     # Startup
     config = CausalInferenceConfig()
     config_manager.register_configuration("causal_inference", config)
-    
+
     setup_logging(config)
     setup_metrics(config)
-    
+
     logger.info("Starting Causal Inference API", version="0.1.0", environment=config.environment)
-    
+
     yield
-    
+
     # Shutdown
     db_manager = get_database_manager()
     await db_manager.close()
@@ -58,11 +58,11 @@ app.add_middleware(
 async def metrics_middleware(request: Request, call_next):
     """Middleware to collect metrics for all requests."""
     start_time = time.time()
-    
+
     try:
         response = await call_next(request)
         duration = time.time() - start_time
-        
+
         # Record metrics
         metrics = get_metrics()
         metrics.record_api_request(
@@ -71,13 +71,13 @@ async def metrics_middleware(request: Request, call_next):
             status=str(response.status_code),
             duration=duration
         )
-        
+
         return response
     except Exception as e:
         duration = time.time() - start_time
-        
+
         # Record error metrics
-        metrics = get_metrics() 
+        metrics = get_metrics()
         metrics.record_api_request(
             endpoint=request.url.path,
             method=request.method,
@@ -85,7 +85,7 @@ async def metrics_middleware(request: Request, call_next):
             duration=duration
         )
         metrics.record_error(error_type=type(e).__name__, component="api")
-        
+
         raise
 
 
@@ -95,7 +95,7 @@ app.include_router(attribution.router, prefix="/api/v1/attribution", tags=["attr
 
 
 @app.get("/")
-async def root() -> Dict[str, Any]:
+async def root() -> dict[str, Any]:
     """Root endpoint."""
     config = config_manager.get_configuration("causal_inference")
     return {
@@ -111,7 +111,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions."""
     metrics = get_metrics()
     metrics.record_error(error_type="HTTPException", component="api")
-    
+
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}

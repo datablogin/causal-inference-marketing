@@ -471,7 +471,7 @@ class BaseEstimator(abc.ABC):
             raise DataValidationError("Minimum sample size of 10 observations required")
 
         # Check treatment variation
-        if isinstance(treatment.values, (pd.Series, np.ndarray)):
+        if isinstance(treatment.values, pd.Series | np.ndarray):
             if treatment.treatment_type == "binary":
                 if len(np.unique(treatment.values)) < 2:
                     raise DataValidationError("Binary treatment must have both treated and control units")

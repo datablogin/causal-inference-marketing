@@ -1,7 +1,7 @@
 """Database management compatible with analytics-backend-monorepo patterns."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -30,7 +30,7 @@ class DatabaseManager:
                 url = url.replace("sqlite+aiosqlite://", "sqlite://")
             elif url.startswith("postgresql+asyncpg://"):
                 url = url.replace("postgresql+asyncpg://", "postgresql://")
-            
+
             self._engine = create_engine(
                 url,
                 pool_size=self.config.database_pool_size,
@@ -48,7 +48,7 @@ class DatabaseManager:
                 url = url.replace("sqlite://", "sqlite+aiosqlite://")
             elif url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://")
-            
+
             self._async_engine = create_async_engine(
                 url,
                 pool_size=self.config.database_pool_size,
@@ -105,7 +105,7 @@ class DatabaseManager:
 
 
 # Global database manager instance
-_database_manager: Optional[DatabaseManager] = None
+_database_manager: DatabaseManager | None = None
 
 
 def get_database_manager() -> DatabaseManager:

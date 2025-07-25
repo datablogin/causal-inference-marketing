@@ -134,6 +134,7 @@ indent-style = "space"
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
+"shared/config/causal_config.py" = ["N805"]  # Pydantic validators use cls, not self
 
 [tool.ruff.lint.isort]
 known-first-party = ["causal_inference", "shared"]

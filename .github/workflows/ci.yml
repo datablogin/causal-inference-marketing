@@ -52,7 +52,7 @@ jobs:
     - name: Run tests
       timeout-minutes: 10  # Most tests should complete quickly
       run: |
-        uv run pytest --cov=causal_inference --cov=shared --cov-report=xml --cov-report=term
+        uv run pytest libs/causal_inference/tests/ --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
