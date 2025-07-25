@@ -17,12 +17,12 @@ Example Usage:
     >>> import numpy as np
     >>> from causal_inference.core.base import TreatmentData, OutcomeData, CovariateData
     >>> from causal_inference.estimators.ipw import IPWEstimator
-    >>> 
+    >>>
     >>> # Prepare your data
     >>> treatment = TreatmentData(values=treatment_series, treatment_type="binary")
     >>> outcome = OutcomeData(values=outcome_series, outcome_type="continuous")
     >>> covariates = CovariateData(values=covariate_df, names=list(covariate_df.columns))
-    >>> 
+    >>>
     >>> # Initialize and fit the estimator
     >>> estimator = IPWEstimator(
     ...     propensity_model_type="logistic",
@@ -32,15 +32,15 @@ Example Usage:
     ...     bootstrap_samples=1000,
     ...     random_state=42
     ... )
-    >>> 
+    >>>
     >>> # Fit the model
     >>> estimator.fit(treatment, outcome, covariates)
-    >>> 
+    >>>
     >>> # Estimate causal effect
     >>> effect = estimator.estimate_ate()
     >>> print(f"Average Treatment Effect: {effect.ate:.3f}")
     >>> print(f"95% CI: [{effect.ate_ci_lower:.3f}, {effect.ate_ci_upper:.3f}]")
-    >>> 
+    >>>
     >>> # Check diagnostics
     >>> overlap_diag = estimator.get_overlap_diagnostics()
     >>> weight_diag = estimator.get_weight_diagnostics()
@@ -59,21 +59,21 @@ Advanced Usage with Random Forest and Custom Options:
     ...     overlap_threshold=0.05,
     ...     verbose=True
     ... )
-    >>> 
+    >>>
     >>> estimator_rf.fit(treatment, outcome, covariates)
     >>> effect_rf = estimator_rf.estimate_ate()
 
 Propensity Score Diagnostics:
     >>> # Get propensity scores for diagnostic purposes
     >>> propensity_scores = estimator.get_propensity_scores()
-    >>> 
+    >>>
     >>> # Check overlap assumption
     >>> overlap_diagnostics = estimator.get_overlap_diagnostics()
     >>> if not overlap_diagnostics["overlap_satisfied"]:
     ...     print("Warning: Overlap assumption violated!")
     ...     for violation in overlap_diagnostics["violations"]:
     ...         print(f"  - {violation}")
-    >>> 
+    >>>
     >>> # Examine weight distribution
     >>> weight_diagnostics = estimator.get_weight_diagnostics()
     >>> print(f"Weight range: [{weight_diagnostics['min_weight']:.3f}, {weight_diagnostics['max_weight']:.3f}]")
@@ -319,7 +319,7 @@ class IPWEstimator(BaseEstimator):
         """
         violations: list[str] = []
         warnings: list[str] = []
-        
+
         diagnostics = {
             "overlap_satisfied": True,
             "violations": violations,

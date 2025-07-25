@@ -6,7 +6,6 @@ import pytest
 from sklearn.datasets import make_classification
 
 from causal_inference.core.base import (
-    AssumptionViolationError,
     CovariateData,
     EstimationError,
     OutcomeData,
@@ -74,8 +73,8 @@ class TestIPWEstimator:
         )
 
         self.outcome_data_binary = OutcomeData(
-            values=pd.Series(self.outcome_binary), 
-            name="outcome", 
+            values=pd.Series(self.outcome_binary),
+            name="outcome",
             outcome_type="binary"
         )
 
@@ -337,7 +336,7 @@ class TestIPWEstimator:
         # Stabilized weights should have mean closer to 1
         weight_diagnostics = estimator.get_weight_diagnostics()
         assert weight_diagnostics is not None
-        
+
         # Mean weight should be closer to 1 for stabilized weights
         assert abs(weight_diagnostics["mean_weight"] - 1.0) < 2.0
 
@@ -358,7 +357,7 @@ class TestIPWEstimator:
             name="outcome",
             outcome_type="continuous",
         )
-        
+
         estimator.fit(
             treatment=self.treatment_data_poor_overlap,  # Use poor overlap data
             outcome=poor_overlap_outcome,
@@ -391,7 +390,7 @@ class TestIPWEstimator:
             name="outcome",
             outcome_type="continuous",
         )
-        
+
         estimator.fit(
             treatment=self.treatment_data_poor_overlap,
             outcome=poor_overlap_outcome_2,
@@ -447,7 +446,7 @@ class TestIPWEstimator:
             name="outcome",
             outcome_type="continuous",
         )
-        
+
         estimator_poor.fit(
             treatment=self.treatment_data_poor_overlap,
             outcome=poor_overlap_outcome_3,
@@ -491,10 +490,10 @@ class TestIPWEstimator:
             "weight_ratio",
             "extreme_weights_pct",
         ]
-        
+
         for key in expected_keys:
             assert key in weight_diag
-            assert isinstance(weight_diag[key], (int, float))
+            assert isinstance(weight_diag[key], int | float)
 
         # Check that effective sample size makes sense
         assert 0 < weight_diag["effective_sample_size"] <= len(self.treatment_data.values)
@@ -551,7 +550,7 @@ class TestIPWEstimator:
         # IPW should require covariates
         with pytest.raises(EstimationError, match="IPW requires covariates"):
             estimator.fit(
-                treatment=self.treatment_data, 
+                treatment=self.treatment_data,
                 outcome=self.outcome_data_continuous
             )
 
@@ -609,9 +608,9 @@ class TestIPWEstimator:
         """Test with sklearn generated datasets."""
         # Generate classification dataset for more realistic propensity scores
         X, y_class = make_classification(
-            n_samples=200, 
-            n_features=3, 
-            n_redundant=0, 
+            n_samples=200,
+            n_features=3,
+            n_redundant=0,
             n_informative=3,
             n_clusters_per_class=1,
             random_state=42
@@ -660,26 +659,26 @@ class TestIPWEstimator:
         # Create data with very extreme selection
         n = 100
         X_extreme = np.random.randn(n, 2)
-        
+
         # Create extreme logits that will result in propensity scores very close to 0 or 1
         extreme_logits = 8 * X_extreme[:, 0] + 6 * X_extreme[:, 1]  # Very large coefficients
         extreme_probs = 1 / (1 + np.exp(-extreme_logits))
         treatment_extreme = np.random.binomial(1, extreme_probs)
-        
+
         # Create outcome
         outcome_extreme = (
-            X_extreme[:, 0] + X_extreme[:, 1] + 2.0 * treatment_extreme + 
+            X_extreme[:, 0] + X_extreme[:, 1] + 2.0 * treatment_extreme +
             np.random.randn(n) * 0.2
         )
 
         treatment_data_extreme = TreatmentData(
             values=pd.Series(treatment_extreme), treatment_type="binary"
         )
-        
+
         outcome_data_extreme = OutcomeData(
             values=pd.Series(outcome_extreme), outcome_type="continuous"
         )
-        
+
         covariate_data_extreme = CovariateData(
             values=pd.DataFrame(X_extreme, columns=["X1", "X2"]),
             names=["X1", "X2"],
@@ -742,16 +741,16 @@ class TestIPWEstimator:
         n = 200
         treatment_cat = np.random.choice([0, 1, 2], size=n)
 
-        treatment_data_cat = TreatmentData(
-            values=pd.Series(treatment_cat),
-            name="treatment_cat",
-            treatment_type="categorical",
-            categories=[0, 1, 2],
-        )
+        # treatment_data_cat = TreatmentData(
+        #     values=pd.Series(treatment_cat),
+        #     name="treatment_cat",
+        #     treatment_type="categorical",
+        #     categories=[0, 1, 2],
+        # )
 
         estimator = IPWEstimator(
-            propensity_model_type="logistic", 
-            bootstrap_samples=0, 
+            propensity_model_type="logistic",
+            bootstrap_samples=0,
             random_state=42
         )
 
@@ -770,7 +769,7 @@ class TestIPWEstimator:
             name="outcome",
             outcome_type="continuous",
         )
-        
+
         # This should work with binary treatment
         estimator.fit(
             treatment=binary_treatment,
@@ -787,3 +786,4 @@ class TestIPWEstimator:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
