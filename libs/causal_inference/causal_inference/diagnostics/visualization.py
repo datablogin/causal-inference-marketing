@@ -69,25 +69,37 @@ class DiagnosticVisualizer:
         variables = list(balance_results.standardized_mean_differences.keys())
         smds = list(balance_results.standardized_mean_differences.values())
 
-        colors = ['red' if abs(smd) > threshold else 'green' for smd in smds]
+        colors = ["red" if abs(smd) > threshold else "green" for smd in smds]
         ax1.barh(variables, smds, color=colors, alpha=0.7)
-        ax1.axvline(threshold, color='red', linestyle='--', alpha=0.8, label=f'Threshold: ±{threshold}')
-        ax1.axvline(-threshold, color='red', linestyle='--', alpha=0.8)
-        ax1.axvline(0, color='black', linestyle='-', alpha=0.5)
-        ax1.set_xlabel('Standardized Mean Difference')
-        ax1.set_title('Standardized Mean Differences')
+        ax1.axvline(
+            threshold,
+            color="red",
+            linestyle="--",
+            alpha=0.8,
+            label=f"Threshold: ±{threshold}",
+        )
+        ax1.axvline(-threshold, color="red", linestyle="--", alpha=0.8)
+        ax1.axvline(0, color="black", linestyle="-", alpha=0.5)
+        ax1.set_xlabel("Standardized Mean Difference")
+        ax1.set_title("Standardized Mean Differences")
         ax1.legend()
 
         # 2. Variance Ratios
         ax2 = axes[0, 1]
         var_ratios = list(balance_results.variance_ratios.values())
-        colors = ['red' if vr < 0.5 or vr > 2.0 else 'green' for vr in var_ratios]
+        colors = ["red" if vr < 0.5 or vr > 2.0 else "green" for vr in var_ratios]
         ax2.barh(variables, var_ratios, color=colors, alpha=0.7)
-        ax2.axvline(0.5, color='red', linestyle='--', alpha=0.8, label='Acceptable range: 0.5-2.0')
-        ax2.axvline(2.0, color='red', linestyle='--', alpha=0.8)
-        ax2.axvline(1.0, color='black', linestyle='-', alpha=0.5)
-        ax2.set_xlabel('Variance Ratio')
-        ax2.set_title('Variance Ratios')
+        ax2.axvline(
+            0.5,
+            color="red",
+            linestyle="--",
+            alpha=0.8,
+            label="Acceptable range: 0.5-2.0",
+        )
+        ax2.axvline(2.0, color="red", linestyle="--", alpha=0.8)
+        ax2.axvline(1.0, color="black", linestyle="-", alpha=0.5)
+        ax2.set_xlabel("Variance Ratio")
+        ax2.set_title("Variance Ratios")
         ax2.legend()
 
         # 3. Balance Assessment Summary
@@ -96,28 +108,31 @@ class DiagnosticVisualizer:
         balanced_count = len(variables) - len(imbalanced_vars)
         imbalanced_count = len(imbalanced_vars)
 
-        ax3.pie([balanced_count, imbalanced_count],
-                labels=['Balanced', 'Imbalanced'],
-                colors=['green', 'red'], autopct='%1.1f%%')
-        ax3.set_title('Overall Balance Assessment')
+        ax3.pie(
+            [balanced_count, imbalanced_count],
+            labels=["Balanced", "Imbalanced"],
+            colors=["green", "red"],
+            autopct="%1.1f%%",
+        )
+        ax3.set_title("Overall Balance Assessment")
 
         # 4. Love Plot (SMD distribution)
         ax4 = axes[1, 1]
-        colors = ['red' if var in imbalanced_vars else 'green' for var in variables]
+        colors = ["red" if var in imbalanced_vars else "green" for var in variables]
         ax4.scatter(smds, range(len(smds)), c=colors, alpha=0.7, s=60)
-        ax4.axvline(threshold, color='red', linestyle='--', alpha=0.8)
-        ax4.axvline(-threshold, color='red', linestyle='--', alpha=0.8)
-        ax4.axvline(0, color='black', linestyle='-', alpha=0.5)
-        ax4.set_xlabel('Standardized Mean Difference')
-        ax4.set_ylabel('Variables')
-        ax4.set_title('Love Plot (SMD Distribution)')
+        ax4.axvline(threshold, color="red", linestyle="--", alpha=0.8)
+        ax4.axvline(-threshold, color="red", linestyle="--", alpha=0.8)
+        ax4.axvline(0, color="black", linestyle="-", alpha=0.5)
+        ax4.set_xlabel("Standardized Mean Difference")
+        ax4.set_ylabel("Variables")
+        ax4.set_title("Love Plot (SMD Distribution)")
         ax4.set_yticks(range(len(variables)))
         ax4.set_yticklabels(variables)
 
         plt.tight_layout()
 
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
         return fig
 
@@ -147,14 +162,28 @@ class DiagnosticVisualizer:
             ps_scores = overlap_results.propensity_scores
 
             # Plot histograms for treated and control
-            ax1.hist(ps_scores[treatment_vals == 0], alpha=0.7, label='Control', bins=30, color='blue')
-            ax1.hist(ps_scores[treatment_vals == 1], alpha=0.7, label='Treated', bins=30, color='red')
-            ax1.set_xlabel('Propensity Score')
-            ax1.set_ylabel('Frequency')
-            ax1.set_title('Propensity Score Distribution')
+            ax1.hist(
+                ps_scores[treatment_vals == 0],
+                alpha=0.7,
+                label="Control",
+                bins=30,
+                color="blue",
+            )
+            ax1.hist(
+                ps_scores[treatment_vals == 1],
+                alpha=0.7,
+                label="Treated",
+                bins=30,
+                color="red",
+            )
+            ax1.set_xlabel("Propensity Score")
+            ax1.set_ylabel("Frequency")
+            ax1.set_title("Propensity Score Distribution")
             ax1.legend()
-            ax1.axvline(0.1, color='red', linestyle='--', alpha=0.8, label='Common support')
-            ax1.axvline(0.9, color='red', linestyle='--', alpha=0.8)
+            ax1.axvline(
+                0.1, color="red", linestyle="--", alpha=0.8, label="Common support"
+            )
+            ax1.axvline(0.9, color="red", linestyle="--", alpha=0.8)
 
         # 2. Common Support Region
         ax2 = axes[0, 1]
@@ -162,56 +191,87 @@ class DiagnosticVisualizer:
             lower, upper = overlap_results.common_support_range
             support_width = upper - lower
 
-            ax2.barh(['Common Support'], [support_width],
-                    left=[lower], color='green', alpha=0.7)
-            ax2.barh(['Outside Support'], [lower + (1 - upper)],
-                    left=[0], color='red', alpha=0.7)
+            ax2.barh(
+                ["Common Support"],
+                [support_width],
+                left=[lower],
+                color="green",
+                alpha=0.7,
+            )
+            ax2.barh(
+                ["Outside Support"],
+                [lower + (1 - upper)],
+                left=[0],
+                color="red",
+                alpha=0.7,
+            )
             ax2.set_xlim(0, 1)
-            ax2.set_xlabel('Propensity Score Range')
-            ax2.set_title(f'Common Support: [{lower:.3f}, {upper:.3f}]')
+            ax2.set_xlabel("Propensity Score Range")
+            ax2.set_title(f"Common Support: [{lower:.3f}, {upper:.3f}]")
 
         # 3. Overlap Quality Metrics
         ax3 = axes[1, 0]
         # Calculate common support percentage
-        common_support_pct = overlap_results.units_in_common_support / overlap_results.total_units
+        common_support_pct = (
+            overlap_results.units_in_common_support / overlap_results.total_units
+        )
 
         metrics = {
-            'Positivity Met': 1.0 if overlap_results.overall_positivity_met else 0.0,
-            'Common Support %': common_support_pct,
+            "Positivity Met": 1.0 if overlap_results.overall_positivity_met else 0.0,
+            "Common Support %": common_support_pct,
         }
 
-        colors = ['green' if v > 0.8 else 'orange' if v > 0.6 else 'red'
-                 for v in metrics.values()]
+        colors = [
+            "green" if v > 0.8 else "orange" if v > 0.6 else "red"
+            for v in metrics.values()
+        ]
         bars = ax3.bar(metrics.keys(), metrics.values(), color=colors, alpha=0.7)
-        ax3.set_ylabel('Score/Percentage')
-        ax3.set_title('Overlap Quality Metrics')
+        ax3.set_ylabel("Score/Percentage")
+        ax3.set_title("Overlap Quality Metrics")
         ax3.set_ylim(0, 1)
 
         # Add value labels on bars
         for bar, value in zip(bars, metrics.values()):
-            ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                    f'{value:.3f}', ha='center', va='bottom')
+            ax3.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.01,
+                f"{value:.3f}",
+                ha="center",
+                va="bottom",
+            )
 
         # 4. Positivity Assessment
         ax4 = axes[1, 1]
         if overlap_results.violations:
             regions_text = "Violations Detected:\n"
-            regions_text += "\n".join([f"• {violation.get('description', 'Violation')}" for violation in overlap_results.violations[:5]])
+            regions_text += "\n".join(
+                [
+                    f"• {violation.get('description', 'Violation')}"
+                    for violation in overlap_results.violations[:5]
+                ]
+            )
             if len(overlap_results.violations) > 5:
                 regions_text += f"\n... and {len(overlap_results.violations) - 5} more"
         else:
             regions_text = "✅ No Violations\nDetected"
 
-        ax4.text(0.5, 0.5, regions_text, ha='center', va='center',
-                transform=ax4.transAxes, fontsize=12,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.5))
-        ax4.set_title('Positivity Assessment')
-        ax4.axis('off')
+        ax4.text(
+            0.5,
+            0.5,
+            regions_text,
+            ha="center",
+            va="center",
+            transform=ax4.transAxes,
+            fontsize=12,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.5),
+        )
+        ax4.set_title("Positivity Assessment")
+        ax4.axis("off")
 
         plt.tight_layout()
 
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
         return fig
 
@@ -238,13 +298,20 @@ class DiagnosticVisualizer:
             evalue = sensitivity_results.evalue
 
             # Create a gauge-like visualization
-            categories = ['Weak\n(< 1.5)', 'Moderate\n(1.5-3)', 'Strong\n(3-5)', 'Very Strong\n(> 5)']
+            categories = [
+                "Weak\n(< 1.5)",
+                "Moderate\n(1.5-3)",
+                "Strong\n(3-5)",
+                "Very Strong\n(> 5)",
+            ]
             thresholds = [1.5, 3, 5, 10]
-            colors = ['red', 'orange', 'yellow', 'green']
+            colors = ["red", "orange", "yellow", "green"]
 
-            for i, (cat, thresh, color) in enumerate(zip(categories, thresholds, colors)):
-                ax1.barh([i], [1], color=color, alpha=0.3, edgecolor='black')
-                ax1.text(0.5, i, cat, ha='center', va='center', fontweight='bold')
+            for i, (cat, thresh, color) in enumerate(
+                zip(categories, thresholds, colors)
+            ):
+                ax1.barh([i], [1], color=color, alpha=0.3, edgecolor="black")
+                ax1.text(0.5, i, cat, ha="center", va="center", fontweight="bold")
 
             # Mark the E-value position
             if evalue < 1.5:
@@ -256,11 +323,17 @@ class DiagnosticVisualizer:
             else:
                 position = 3
 
-            ax1.scatter([0.8], [position], color='red', s=200, marker='>',
-                       label=f'E-value: {evalue:.2f}')
+            ax1.scatter(
+                [0.8],
+                [position],
+                color="red",
+                s=200,
+                marker=">",
+                label=f"E-value: {evalue:.2f}",
+            )
             ax1.set_xlim(0, 1)
             ax1.set_ylim(-0.5, 3.5)
-            ax1.set_title('E-value Robustness Assessment')
+            ax1.set_title("E-value Robustness Assessment")
             ax1.set_xticks([])
             ax1.set_yticks([])
             ax1.legend()
@@ -269,46 +342,73 @@ class DiagnosticVisualizer:
         ax2 = axes[0, 1]
         if sensitivity_results.sensitivity_plots_data:
             plot_data = sensitivity_results.sensitivity_plots_data
-            if 'results' in plot_data:
-                strengths = [r['strength'] for r in plot_data['results']]
-                biases = [r['bias'] for r in plot_data['results']]
+            if "results" in plot_data:
+                strengths = [r["strength"] for r in plot_data["results"]]
+                biases = [r["bias"] for r in plot_data["results"]]
 
-                ax2.plot(strengths, biases, 'o-', color='blue', alpha=0.7)
-                ax2.axhline(0, color='black', linestyle='--', alpha=0.5)
-                ax2.set_xlabel('Confounder Strength')
-                ax2.set_ylabel('Bias in Effect Estimate')
-                ax2.set_title('Unmeasured Confounding Impact')
+                ax2.plot(strengths, biases, "o-", color="blue", alpha=0.7)
+                ax2.axhline(0, color="black", linestyle="--", alpha=0.5)
+                ax2.set_xlabel("Confounder Strength")
+                ax2.set_ylabel("Bias in Effect Estimate")
+                ax2.set_title("Unmeasured Confounding Impact")
                 ax2.grid(True, alpha=0.3)
 
         # 3. Robustness Summary
         ax3 = axes[1, 0]
         robustness_text = sensitivity_results.robustness_assessment
-        robustness_color = 'green' if 'robust' in robustness_text.lower() else 'red'
+        robustness_color = "green" if "robust" in robustness_text.lower() else "red"
 
-        ax3.text(0.5, 0.5, robustness_text, ha='center', va='center',
-                transform=ax3.transAxes, fontsize=12, fontweight='bold',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor=robustness_color, alpha=0.3))
-        ax3.set_title('Robustness Assessment')
-        ax3.axis('off')
+        ax3.text(
+            0.5,
+            0.5,
+            robustness_text,
+            ha="center",
+            va="center",
+            transform=ax3.transAxes,
+            fontsize=12,
+            fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=robustness_color, alpha=0.3),
+        )
+        ax3.set_title("Robustness Assessment")
+        ax3.axis("off")
 
         # 4. Recommendations
         ax4 = axes[1, 1]
-        recommendations_text = "\n".join([f"• {rec}" for rec in sensitivity_results.recommendations[:5]])
+        recommendations_text = "\n".join(
+            [f"• {rec}" for rec in sensitivity_results.recommendations[:5]]
+        )
         if len(sensitivity_results.recommendations) > 5:
-            recommendations_text += f"\n... and {len(sensitivity_results.recommendations) - 5} more"
+            recommendations_text += (
+                f"\n... and {len(sensitivity_results.recommendations) - 5} more"
+            )
 
-        ax4.text(0.05, 0.95, "Recommendations:", ha='left', va='top',
-                transform=ax4.transAxes, fontsize=12, fontweight='bold')
-        ax4.text(0.05, 0.85, recommendations_text, ha='left', va='top',
-                transform=ax4.transAxes, fontsize=10,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.3))
-        ax4.set_title('Analysis Recommendations')
-        ax4.axis('off')
+        ax4.text(
+            0.05,
+            0.95,
+            "Recommendations:",
+            ha="left",
+            va="top",
+            transform=ax4.transAxes,
+            fontsize=12,
+            fontweight="bold",
+        )
+        ax4.text(
+            0.05,
+            0.85,
+            recommendations_text,
+            ha="left",
+            va="top",
+            transform=ax4.transAxes,
+            fontsize=10,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.3),
+        )
+        ax4.set_title("Analysis Recommendations")
+        ax4.axis("off")
 
         plt.tight_layout()
 
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
         return fig
 
@@ -333,14 +433,24 @@ class DiagnosticVisualizer:
         ax1 = axes[0, 0]
         if spec_results.linearity_tests:
             variables = list(spec_results.linearity_tests.keys())
-            p_values = [test.get('p_value', 1.0) for test in spec_results.linearity_tests.values()]
+            p_values = [
+                test.get("p_value", 1.0)
+                for test in spec_results.linearity_tests.values()
+            ]
 
-            colors = ['red' if p < 0.05 else 'green' for p in p_values]
-            bars = ax1.barh(variables, [-np.log10(p) for p in p_values], color=colors, alpha=0.7)
-            ax1.axvline(-np.log10(0.05), color='red', linestyle='--', alpha=0.8,
-                       label='p = 0.05')
-            ax1.set_xlabel('-log10(p-value)')
-            ax1.set_title('Linearity Tests')
+            colors = ["red" if p < 0.05 else "green" for p in p_values]
+            bars = ax1.barh(
+                variables, [-np.log10(p) for p in p_values], color=colors, alpha=0.7
+            )
+            ax1.axvline(
+                -np.log10(0.05),
+                color="red",
+                linestyle="--",
+                alpha=0.8,
+                label="p = 0.05",
+            )
+            ax1.set_xlabel("-log10(p-value)")
+            ax1.set_title("Linearity Tests")
             ax1.legend()
 
         # 2. Functional Form Assessment
@@ -348,66 +458,86 @@ class DiagnosticVisualizer:
         if spec_results.functional_form_tests:
             form_tests = spec_results.functional_form_tests
             test_names = list(form_tests.keys())
-            test_stats = [test.get('test_statistic', 0) for test in form_tests.values()]
+            test_stats = [test.get("test_statistic", 0) for test in form_tests.values()]
 
-            ax2.bar(test_names, test_stats, alpha=0.7, color='skyblue')
-            ax2.set_ylabel('Test Statistic')
-            ax2.set_title('Functional Form Tests')
-            ax2.tick_params(axis='x', rotation=45)
+            ax2.bar(test_names, test_stats, alpha=0.7, color="skyblue")
+            ax2.set_ylabel("Test Statistic")
+            ax2.set_title("Functional Form Tests")
+            ax2.tick_params(axis="x", rotation=45)
 
         # 3. Overall Specification Assessment
         ax3 = axes[1, 0]
         # Create a summary of specification issues
         issues = []
         if spec_results.linearity_tests:
-            linearity_issues = sum(1 for test in spec_results.linearity_tests.values()
-                                 if test.get('p_value', 1.0) < 0.05)
+            linearity_issues = sum(
+                1
+                for test in spec_results.linearity_tests.values()
+                if test.get("p_value", 1.0) < 0.05
+            )
             if linearity_issues > 0:
                 issues.append(f"Linearity violations: {linearity_issues}")
 
         if spec_results.interaction_tests:
-            interaction_issues = sum(1 for test in spec_results.interaction_tests.values()
-                                   if test.get('p_value', 1.0) < 0.05)
+            interaction_issues = sum(
+                1
+                for test in spec_results.interaction_tests.values()
+                if test.get("p_value", 1.0) < 0.05
+            )
             if interaction_issues > 0:
                 issues.append(f"Missing interactions: {interaction_issues}")
 
         if not issues:
             status_text = "✅ No Major Specification\nIssues Detected"
-            status_color = 'green'
+            status_color = "green"
         else:
             status_text = "⚠️ Specification Issues:\n" + "\n".join(issues)
-            status_color = 'orange'
+            status_color = "orange"
 
-        ax3.text(0.5, 0.5, status_text, ha='center', va='center',
-                transform=ax3.transAxes, fontsize=12,
-                bbox=dict(boxstyle="round,pad=0.3", facecolor=status_color, alpha=0.3))
-        ax3.set_title('Overall Specification Assessment')
-        ax3.axis('off')
+        ax3.text(
+            0.5,
+            0.5,
+            status_text,
+            ha="center",
+            va="center",
+            transform=ax3.transAxes,
+            fontsize=12,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor=status_color, alpha=0.3),
+        )
+        ax3.set_title("Overall Specification Assessment")
+        ax3.axis("off")
 
         # 4. Model Comparison (if available)
         ax4 = axes[1, 1]
         if spec_results.model_comparison:
             comparison = spec_results.model_comparison
             models = list(comparison.keys())
-            metrics = [comp.get('aic', 0) for comp in comparison.values()]
+            metrics = [comp.get("aic", 0) for comp in comparison.values()]
 
-            bars = ax4.bar(models, metrics, alpha=0.7, color='lightcoral')
-            ax4.set_ylabel('AIC Score')
-            ax4.set_title('Model Comparison (Lower AIC = Better)')
-            ax4.tick_params(axis='x', rotation=45)
+            bars = ax4.bar(models, metrics, alpha=0.7, color="lightcoral")
+            ax4.set_ylabel("AIC Score")
+            ax4.set_title("Model Comparison (Lower AIC = Better)")
+            ax4.tick_params(axis="x", rotation=45)
 
             # Highlight best model
             best_idx = np.argmin(metrics)
-            bars[best_idx].set_color('green')
+            bars[best_idx].set_color("green")
         else:
-            ax4.text(0.5, 0.5, "No Model Comparison\nData Available",
-                    ha='center', va='center', transform=ax4.transAxes, fontsize=12)
-            ax4.axis('off')
+            ax4.text(
+                0.5,
+                0.5,
+                "No Model Comparison\nData Available",
+                ha="center",
+                va="center",
+                transform=ax4.transAxes,
+                fontsize=12,
+            )
+            ax4.axis("off")
 
         plt.tight_layout()
 
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
         return fig
 
@@ -438,7 +568,7 @@ class DiagnosticVisualizer:
         if balance_results:
             fig = self.plot_balance_diagnostics(
                 balance_results,
-                save_path=f"{save_path}_balance.png" if save_path else None
+                save_path=f"{save_path}_balance.png" if save_path else None,
             )
             figures.append(fig)
 
@@ -446,21 +576,21 @@ class DiagnosticVisualizer:
             fig = self.plot_overlap_diagnostics(
                 overlap_results,
                 treatment,
-                save_path=f"{save_path}_overlap.png" if save_path else None
+                save_path=f"{save_path}_overlap.png" if save_path else None,
             )
             figures.append(fig)
 
         if sensitivity_results:
             fig = self.plot_sensitivity_analysis(
                 sensitivity_results,
-                save_path=f"{save_path}_sensitivity.png" if save_path else None
+                save_path=f"{save_path}_sensitivity.png" if save_path else None,
             )
             figures.append(fig)
 
         if spec_results:
             fig = self.plot_specification_tests(
                 spec_results,
-                save_path=f"{save_path}_specification.png" if save_path else None
+                save_path=f"{save_path}_specification.png" if save_path else None,
             )
             figures.append(fig)
 

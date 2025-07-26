@@ -60,6 +60,7 @@ try:
         plot_sensitivity_analysis,
         plot_specification_tests,
     )
+
     _VISUALIZATION_AVAILABLE = True
 except ImportError:
     _VISUALIZATION_AVAILABLE = False
@@ -108,10 +109,12 @@ __all__ = [
 
 # Add visualization exports if available
 if _VISUALIZATION_AVAILABLE:
-    __all__.extend([
-        "DiagnosticVisualizer",
-        "plot_balance_diagnostics",
-        "plot_overlap_diagnostics",
-        "plot_sensitivity_analysis",
-        "plot_specification_tests",
-    ])
+    __all__.extend(
+        [
+            "DiagnosticVisualizer",
+            "plot_balance_diagnostics",
+            "plot_overlap_diagnostics",
+            "plot_sensitivity_analysis",
+            "plot_specification_tests",
+        ]
+    )

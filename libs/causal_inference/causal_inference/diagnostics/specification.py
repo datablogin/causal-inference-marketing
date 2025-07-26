@@ -250,8 +250,10 @@ def functional_form_tests(
     # Performance warning for large datasets
     n_obs, n_features = covariates.values.shape
     if n_obs > 50000 and "random_forest" in comparison_models:
-        print(f"⚠️  Performance warning: Large dataset ({n_obs:,} observations) with RandomForest. "
-              f"Consider using n_estimators=50 or sampling for faster computation.")
+        print(
+            f"⚠️  Performance warning: Large dataset ({n_obs:,} observations) with RandomForest. "
+            f"Consider using n_estimators=50 or sampling for faster computation."
+        )
 
     y = np.asarray(outcome.values)
     X = covariates.values.fillna(covariates.values.mean())

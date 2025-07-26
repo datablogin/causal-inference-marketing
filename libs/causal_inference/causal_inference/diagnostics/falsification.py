@@ -310,7 +310,9 @@ class FalsificationTester:
             elif abs(control_effect.ate) < 0.2:
                 assessment = "CAUTION - Small effect on negative control"
             else:
-                assessment = "FAIL - Significant effect on negative control suggests bias"
+                assessment = (
+                    "FAIL - Significant effect on negative control suggests bias"
+                )
 
             return {
                 "estimated_effect": control_effect.ate,
@@ -349,11 +351,14 @@ class FalsificationTester:
         try:
             # Run balance diagnostics on pre-treatment covariates
             balance_checker = BalanceDiagnostics()
-            balance_results = balance_checker.assess_balance(treatment, pre_treatment_covariates)
+            balance_results = balance_checker.assess_balance(
+                treatment, pre_treatment_covariates
+            )
 
             # Calculate summary statistics
             imbalanced_vars = [
-                var for var, balanced in balance_results.is_balanced.items()
+                var
+                for var, balanced in balance_results.is_balanced.items()
                 if not balanced
             ]
 
@@ -383,7 +388,9 @@ class FalsificationTester:
             }
         except Exception as e:
             # Re-raise unexpected errors
-            raise RuntimeError(f"Unexpected error in pre-treatment balance test: {e}") from e
+            raise RuntimeError(
+                f"Unexpected error in pre-treatment balance test: {e}"
+            ) from e
 
     def dose_response_test(
         self,
@@ -415,7 +422,9 @@ class FalsificationTester:
                 }
 
             # Create dose level bins
-            dose_bins = np.quantile(treatment_vals, np.linspace(0, 1, n_dose_levels + 1))
+            dose_bins = np.quantile(
+                treatment_vals, np.linspace(0, 1, n_dose_levels + 1)
+            )
             dose_labels = np.digitize(treatment_vals, dose_bins) - 1
             dose_labels = np.clip(dose_labels, 0, n_dose_levels - 1)
 
@@ -551,26 +560,46 @@ class FalsificationTester:
         elif cautions > passes:
             overall = f"MIXED - {cautions} test(s) show caution, {passes} passed"
         else:
-            overall = f"ROBUST - {passes} test(s) passed, suggesting valid causal inference"
+            overall = (
+                f"ROBUST - {passes} test(s) passed, suggesting valid causal inference"
+            )
 
         # Generate recommendations
         recommendations = []
         if placebo_outcome["false_positive_rate"] > 0.1:
-            recommendations.append("High false positive rate in placebo outcomes suggests model mis-specification")
+            recommendations.append(
+                "High false positive rate in placebo outcomes suggests model mis-specification"
+            )
         if placebo_treatment["false_positive_rate"] > 0.1:
-            recommendations.append("High false positive rate in placebo treatments suggests unmeasured confounding")
+            recommendations.append(
+                "High false positive rate in placebo treatments suggests unmeasured confounding"
+            )
         if future_outcome and future_outcome["is_significant"]:
-            recommendations.append("Significant effect on pre-treatment outcome indicates confounding")
+            recommendations.append(
+                "Significant effect on pre-treatment outcome indicates confounding"
+            )
         if negative_control and negative_control["is_significant"]:
-            recommendations.append("Significant effect on negative control suggests bias or model issues")
-        if pre_balance and pre_balance["imbalance_rate"] and pre_balance["imbalance_rate"] > 0.3:
-            recommendations.append("Poor balance on pre-treatment covariates suggests systematic differences")
+            recommendations.append(
+                "Significant effect on negative control suggests bias or model issues"
+            )
+        if (
+            pre_balance
+            and pre_balance["imbalance_rate"]
+            and pre_balance["imbalance_rate"] > 0.3
+        ):
+            recommendations.append(
+                "Poor balance on pre-treatment covariates suggests systematic differences"
+            )
         if dose_response["is_monotonic"] is False:
-            recommendations.append("Non-monotonic dose-response relationship may indicate confounding or effect modification")
+            recommendations.append(
+                "Non-monotonic dose-response relationship may indicate confounding or effect modification"
+            )
 
         if not recommendations:
             recommendations.append("Falsification tests support causal interpretation")
-            recommendations.append("Consider additional robustness checks for stronger evidence")
+            recommendations.append(
+                "Consider additional robustness checks for stronger evidence"
+            )
 
         return FalsificationResults(
             placebo_outcome_test=placebo_outcome,
@@ -594,39 +623,52 @@ class FalsificationTester:
 
         print("Placebo Outcome Test:")
         print(f"  Assessment: {results.placebo_outcome_test['assessment']}")
-        print(f"  False Positive Rate: {results.placebo_outcome_test['false_positive_rate']:.3f}")
+        print(
+            f"  False Positive Rate: {results.placebo_outcome_test['false_positive_rate']:.3f}"
+        )
         print()
 
         print("Placebo Treatment Test:")
         print(f"  Assessment: {results.placebo_treatment_test['assessment']}")
-        print(f"  False Positive Rate: {results.placebo_treatment_test['false_positive_rate']:.3f}")
+        print(
+            f"  False Positive Rate: {results.placebo_treatment_test['false_positive_rate']:.3f}"
+        )
         print()
 
         if results.future_outcome_test:
             print("Future Outcome Test:")
             print(f"  Assessment: {results.future_outcome_test['assessment']}")
-            if results.future_outcome_test['estimated_effect'] is not None:
-                print(f"  Effect Estimate: {results.future_outcome_test['estimated_effect']:.3f}")
+            if results.future_outcome_test["estimated_effect"] is not None:
+                print(
+                    f"  Effect Estimate: {results.future_outcome_test['estimated_effect']:.3f}"
+                )
             print()
 
         if results.negative_control_test:
             print("Negative Control Test:")
             print(f"  Assessment: {results.negative_control_test['assessment']}")
-            if results.negative_control_test['estimated_effect'] is not None:
-                print(f"  Effect Estimate: {results.negative_control_test['estimated_effect']:.3f}")
+            if results.negative_control_test["estimated_effect"] is not None:
+                print(
+                    f"  Effect Estimate: {results.negative_control_test['estimated_effect']:.3f}"
+                )
             print()
 
         if results.pre_treatment_balance:
             print("Pre-treatment Balance Test:")
             print(f"  Assessment: {results.pre_treatment_balance['assessment']}")
-            if results.pre_treatment_balance['imbalance_rate'] is not None:
-                print(f"  Imbalance Rate: {results.pre_treatment_balance['imbalance_rate']:.3f}")
+            if results.pre_treatment_balance["imbalance_rate"] is not None:
+                print(
+                    f"  Imbalance Rate: {results.pre_treatment_balance['imbalance_rate']:.3f}"
+                )
             print()
 
-        if results.dose_response_test and results.dose_response_test['assessment'] != "SKIP":
+        if (
+            results.dose_response_test
+            and results.dose_response_test["assessment"] != "SKIP"
+        ):
             print("Dose-Response Test:")
             print(f"  Assessment: {results.dose_response_test['assessment']}")
-            if results.dose_response_test['is_monotonic'] is not None:
+            if results.dose_response_test["is_monotonic"] is not None:
                 print(f"  Is Monotonic: {results.dose_response_test['is_monotonic']}")
             print()
 

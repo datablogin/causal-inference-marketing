@@ -38,11 +38,13 @@ def _ensure_dataframe(covariates: CovariateData) -> pd.DataFrame:
         if covariates.names and len(covariates.names) == covariates.values.shape[1]:
             column_names = covariates.names
         else:
-            column_names = [f"X{i+1}" for i in range(covariates.values.shape[1])]
+            column_names = [f"X{i + 1}" for i in range(covariates.values.shape[1])]
 
         return pd.DataFrame(covariates.values, columns=column_names)
     else:
-        raise ValueError(f"Covariates must be DataFrame or numpy array, got {type(covariates.values)}")
+        raise ValueError(
+            f"Covariates must be DataFrame or numpy array, got {type(covariates.values)}"
+        )
 
 
 @dataclass
@@ -172,11 +174,15 @@ def assess_outcome_prediction(
     # Performance warning for large datasets
     n_obs, n_features = X.shape
     if n_obs > 50000:
-        print(f"⚠️  Performance warning: Large dataset ({n_obs:,} observations). "
-              f"Consider sampling for faster computation.")
+        print(
+            f"⚠️  Performance warning: Large dataset ({n_obs:,} observations). "
+            f"Consider sampling for faster computation."
+        )
     if n_features > 100:
-        print(f"⚠️  Performance warning: Many features ({n_features} features). "
-              f"RandomForest computation may be slow.")
+        print(
+            f"⚠️  Performance warning: Many features ({n_features} features). "
+            f"RandomForest computation may be slow."
+        )
 
     # Prepare data
     X = X.fillna(X.mean())

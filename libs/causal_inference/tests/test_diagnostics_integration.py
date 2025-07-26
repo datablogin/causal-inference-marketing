@@ -20,17 +20,15 @@ class TestDiagnosticsIntegration:
     def setup_method(self):
         """Set up test data for diagnostics integration tests."""
         # Generate synthetic data
-        self.treatment_data, self.outcome_data, self.covariate_data = generate_simple_rct(
-            n_samples=500,
-            treatment_effect=2.0,
-            random_state=42
+        self.treatment_data, self.outcome_data, self.covariate_data = (
+            generate_simple_rct(n_samples=500, treatment_effect=2.0, random_state=42)
         )
 
         # Create some additional test data
         self.pre_treatment_outcome = OutcomeData(
             values=np.random.normal(0, 1, 500),
             name="pre_treatment_outcome",
-            outcome_type="continuous"
+            outcome_type="continuous",
         )
 
     def test_g_computation_diagnostics_integration(self):
@@ -41,8 +39,8 @@ class TestDiagnosticsIntegration:
         # Test run_diagnostics method
         report = estimator.run_diagnostics(verbose=False)
         assert report is not None
-        assert hasattr(report, 'balance_results')
-        assert hasattr(report, 'overlap_results')
+        assert hasattr(report, "balance_results")
+        assert hasattr(report, "overlap_results")
 
         # Test check_assumptions method
         assumptions = estimator.check_assumptions(verbose=False)
@@ -57,8 +55,8 @@ class TestDiagnosticsIntegration:
         # Test run_diagnostics method
         report = estimator.run_diagnostics(verbose=False)
         assert report is not None
-        assert hasattr(report, 'balance_results')
-        assert hasattr(report, 'overlap_results')
+        assert hasattr(report, "balance_results")
+        assert hasattr(report, "overlap_results")
 
         # Test check_assumptions method
         assumptions = estimator.check_assumptions(verbose=False)
@@ -73,8 +71,8 @@ class TestDiagnosticsIntegration:
         # Test run_diagnostics method
         report = estimator.run_diagnostics(verbose=False)
         assert report is not None
-        assert hasattr(report, 'balance_results')
-        assert hasattr(report, 'overlap_results')
+        assert hasattr(report, "balance_results")
+        assert hasattr(report, "overlap_results")
 
         # Test check_assumptions method
         assumptions = estimator.check_assumptions(verbose=False)
@@ -93,14 +91,14 @@ class TestDiagnosticsIntegration:
             self.outcome_data,
             self.covariate_data,
             estimator,
-            pre_treatment_outcome=self.pre_treatment_outcome
+            pre_treatment_outcome=self.pre_treatment_outcome,
         )
 
         assert results is not None
-        assert hasattr(results, 'placebo_outcome_test')
-        assert hasattr(results, 'placebo_treatment_test')
-        assert hasattr(results, 'future_outcome_test')
-        assert hasattr(results, 'overall_assessment')
+        assert hasattr(results, "placebo_outcome_test")
+        assert hasattr(results, "placebo_treatment_test")
+        assert hasattr(results, "future_outcome_test")
+        assert hasattr(results, "overall_assessment")
         assert len(results.recommendations) > 0
 
     def test_diagnostics_error_handling(self):
@@ -136,8 +134,7 @@ class TestDiagnosticsIntegration:
             # Test overlap plots
             if report.overlap_results:
                 fig = visualizer.plot_overlap_diagnostics(
-                    report.overlap_results,
-                    self.treatment_data
+                    report.overlap_results, self.treatment_data
                 )
                 assert fig is not None
 
@@ -163,7 +160,7 @@ class TestDiagnosticsIntegration:
             include_assumptions=True,
             include_specification=True,
             include_sensitivity=True,
-            verbose=False
+            verbose=False,
         )
 
         # Verify all components are present
@@ -183,7 +180,7 @@ class TestDiagnosticsIntegration:
             self.outcome_data,
             self.covariate_data,
             estimator,
-            pre_treatment_outcome=self.pre_treatment_outcome
+            pre_treatment_outcome=self.pre_treatment_outcome,
         )
 
         assert falsification_results is not None
@@ -202,18 +199,13 @@ class TestDiagnosticsIntegration:
 
         # Create new data objects
         treatment_missing = TreatmentData(
-            values=treatment_vals,
-            name="treatment",
-            treatment_type="binary"
+            values=treatment_vals, name="treatment", treatment_type="binary"
         )
         outcome_missing = OutcomeData(
-            values=outcome_vals,
-            name="outcome",
-            outcome_type="continuous"
+            values=outcome_vals, name="outcome", outcome_type="continuous"
         )
         covariate_missing = CovariateData(
-            values=cov_vals,
-            names=self.covariate_data.names
+            values=cov_vals, names=self.covariate_data.names
         )
 
         # Fit estimator (should handle missing data)
@@ -234,9 +226,7 @@ class TestDiagnosticsIntegration:
         """Test diagnostic performance with larger datasets."""
         # Generate larger dataset
         treatment_large, outcome_large, covariate_large = generate_simple_rct(
-            n_samples=2000,
-            treatment_effect=1.5,
-            random_state=42
+            n_samples=2000, treatment_effect=1.5, random_state=42
         )
 
         # Fit estimator
