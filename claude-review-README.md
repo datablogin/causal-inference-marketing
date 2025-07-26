@@ -28,6 +28,7 @@ This enhanced version of `claude-review.sh` provides comprehensive PR review fun
 
 ### 🔧 **Enhanced Functionality**
 - **Dry run mode**: Preview what would be reviewed
+- **Diff size management**: Configurable limits to prevent execution errors
 - **Token usage estimation**: Rough cost tracking
 - **Robust error handling**: Validates dependencies and PR existence
 - **Smart file naming**: Includes focus area and timestamp
@@ -49,6 +50,12 @@ This enhanced version of `claude-review.sh` provides comprehensive PR review fun
 
 # Draft comment for team review
 ./claude-review.sh --draft-comment --focus performance 54
+
+# Handle large PRs with diff limiting
+./claude-review.sh --max-diff-lines 500 54
+
+# No diff limit for comprehensive review
+./claude-review.sh --max-diff-lines 0 54
 ```
 
 ## Dependencies
@@ -102,6 +109,29 @@ The enhanced script is backward compatible:
 - All new features are opt-in via flags
 - Preserves existing file organization
 
+## Diff Size Management
+
+The script includes intelligent diff handling to prevent execution errors with large PRs:
+
+- **Default limit**: 500 lines (configurable with `--max-diff-lines`)
+- **Smart truncation**: Shows first N lines with summary message
+- **GitHub link**: Provides link to full diff when truncated
+- **No limit option**: Use `--max-diff-lines 0` for full diff inclusion
+
+### Large PR Handling
+
+For PRs over 1182 lines (common execution threshold):
+```bash
+# Use default 500-line limit (recommended)
+./claude-review.sh 54
+
+# Increase limit for comprehensive review
+./claude-review.sh --max-diff-lines 1000 54
+
+# Focus on specific aspects to reduce scope
+./claude-review.sh --focus security --max-diff-lines 300 54
+```
+
 ## Integration with Development Workflow
 
 Add to your workflow:
@@ -111,7 +141,7 @@ make ci                           # Run tests
 ./claude-review.sh --dry-run     # Preview review
 
 # After creating PR  
-./claude-review.sh --post-comment  # Share with team
+./claude-review.sh               # Post review comment (default behavior)
 ```
 
 This enhanced script brings the full power of the GitHub Action to your local development environment!

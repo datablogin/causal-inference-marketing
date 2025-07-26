@@ -19,6 +19,7 @@ MODEL=""
 POST_COMMENT=true
 OUTPUT_MODE="comment"
 DRY_RUN=false
+MAX_DIFF_LINES=500  # Maximum diff lines to include for review
 
 # Get current branch to return to later
 ORIGINAL_BRANCH=$(git branch --show-current)
@@ -34,6 +35,7 @@ usage() {
     echo "  --model MODEL       Use specific Claude model"
     echo "  --save-file         Save review to file instead of posting as comment (default: post comment)"
     echo "  --draft-comment     Post review as draft PR comment"
+    echo "  --max-diff-lines N  Maximum diff lines to include (default: 500, 0 = no limit)"
     echo "  --dry-run          Show what would be reviewed without calling Claude"
     echo "  --help             Show this help message"
     echo ""
@@ -44,6 +46,8 @@ usage() {
     echo "  $0 --focus causal-inference 54  # Focus on causal inference patterns and post as comment"
     echo "  $0 --save-file 54               # Save review to file instead of posting"
     echo "  $0 --draft-comment 54           # Post as draft PR comment"
+    echo "  $0 --max-diff-lines 1000 54     # Include up to 1000 diff lines"
+    echo "  $0 --max-diff-lines 0 54        # Include full diff (no limit)"
     echo "  $0 --dry-run 54                 # Preview what would be reviewed"
     exit 1
 }
@@ -95,6 +99,10 @@ while [[ $# -gt 0 ]]; do
             POST_COMMENT=true
             OUTPUT_MODE="draft-comment"
             shift
+            ;;
+        --max-diff-lines)
+            MAX_DIFF_LINES="$2"
+            shift 2
             ;;
         --dry-run)
             DRY_RUN=true
@@ -216,6 +224,42 @@ Focus specifically on code style:
     echo "${base_prompt}${additional_prompt}"
 }
 
+# Helper function to create intelligent diff summary
+create_diff_summary() {
+    local pr_num="$1"
+    local max_lines="$2"
+    
+    if [ "$max_lines" -eq 0 ]; then
+        # No limit - include full diff
+        gh pr diff "$pr_num"
+        return
+    fi
+    
+    local full_diff
+    full_diff=$(gh pr diff "$pr_num")
+    local diff_line_count
+    diff_line_count=$(echo "$full_diff" | wc -l | tr -d ' ')
+    
+    if [ "$diff_line_count" -le "$max_lines" ]; then
+        # Diff is within limits - include it all
+        echo "$full_diff"
+    else
+        # Diff is too long - create intelligent summary
+        echo "### ⚠️ Large Diff Summary (${diff_line_count} lines total, showing first ${max_lines} lines)"
+        echo ""
+        echo "\`\`\`diff"
+        echo "$full_diff" | head -n "$max_lines"
+        echo ""
+        echo "... (diff truncated - ${diff_line_count} total lines, showing first ${max_lines})"
+        local repo_owner
+        local repo_name
+        repo_owner=$(gh repo view --json owner -q '.owner.login')
+        repo_name=$(gh repo view --json name -q '.name')
+        echo "Full diff available at: https://github.com/${repo_owner}/${repo_name}/pull/${pr_num}/files"
+        echo "\`\`\`"
+    fi
+}
+
 # Get comprehensive PR info
 PR_INFO=$(gh pr view "$PR_NUM" --json title,author,baseRefName,headRefName,additions,deletions,changedFiles,commits)
 PR_TITLE=$(echo "$PR_INFO" | jq -r .title)
@@ -240,19 +284,6 @@ fi
 
 echo ""
 
-# Dry run mode - show what would be reviewed
-if [ "$DRY_RUN" = true ]; then
-    echo -e "${BLUE}DRY RUN MODE - Preview of review context:${NC}"
-    echo ""
-    echo "Files to be reviewed:"
-    gh pr diff "$PR_NUM" --name-only | sed 's/^/  - /'
-    echo ""
-    echo "Generated prompt:"
-    echo "$(generate_review_prompt)" | sed 's/^/  /'
-    echo ""
-    echo -e "${YELLOW}Use without --dry-run to perform actual review${NC}"
-    exit 0
-fi
 
 # Checkout PR if not already on it
 CURRENT_BRANCH=$(git branch --show-current)
@@ -264,7 +295,9 @@ fi
 # Generate the review prompt
 REVIEW_PROMPT=$(generate_review_prompt)
 
-# Prepare context information (optimized for token usage)
+# Prepare context information with intelligent diff handling
+echo -e "${BLUE}Preparing PR context (max diff lines: $MAX_DIFF_LINES)...${NC}"
+
 PR_CONTEXT="
 ### PR Context
 - **Title:** $PR_TITLE
@@ -279,7 +312,25 @@ PR_CONTEXT="
 \`\`\`
 $(gh pr diff "$PR_NUM" --name-only)
 \`\`\`
+
+### Code Changes:
+$(create_diff_summary "$PR_NUM" "$MAX_DIFF_LINES")
 "
+
+# Dry run mode - show what would be reviewed
+if [ "$DRY_RUN" = true ]; then
+    echo -e "${BLUE}DRY RUN MODE - Preview of review context:${NC}"
+    echo ""
+    echo "Files to be reviewed:"
+    gh pr diff "$PR_NUM" --name-only | sed 's/^/  - /'
+    echo ""
+    echo "Generated prompt:"
+    echo "$(generate_review_prompt)" | sed 's/^/  /'
+    echo ""
+    echo -e "${YELLOW}Diff handling: Max lines set to $MAX_DIFF_LINES${NC}"
+    echo -e "${YELLOW}Use without --dry-run to perform actual review${NC}"
+    exit 0
+fi
 
 # Execute review based on output mode
 case "$OUTPUT_MODE" in
