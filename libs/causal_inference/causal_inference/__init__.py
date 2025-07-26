@@ -9,12 +9,13 @@ __author__ = "Robert Welborn"
 
 from .core import *
 from .data import *
-from .estimators import GComputationEstimator, IPWEstimator
+from .estimators import AIPWEstimator, GComputationEstimator, IPWEstimator
 from .utils import *
 
 __all__ = [
     "__version__",
     "__author__",
+    "AIPWEstimator",
     "GComputationEstimator",
     "IPWEstimator",
 ]
