@@ -376,11 +376,13 @@ class SyntheticDataGenerator:
             if len(new_cov_values.columns) > 1:
                 first_covariate = new_cov_values.columns[0]
                 # Higher missingness for treated units and high values of first covariate
-                treatment_numeric = (
-                    (new_treatment.values == 1).astype(int)
-                    if new_treatment.treatment_type == "binary"
-                    else new_treatment.values
-                )
+                if new_treatment.treatment_type == "binary":
+                    treatment_numeric = (new_treatment.values == 1).astype(int)
+                elif new_treatment.treatment_type == "categorical":
+                    # For categorical treatments, encode as 1 for non-control, 0 for control
+                    treatment_numeric = (new_treatment.values != "control").astype(int)
+                else:  # continuous
+                    treatment_numeric = pd.to_numeric(new_treatment.values, errors='coerce').fillna(0)
 
                 for i, col in enumerate(
                     new_cov_values.columns[1:], 1

@@ -9,21 +9,23 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..core.base import CovariateData, OutcomeData, TreatmentData, DataValidationError
+from ..core.base import CovariateData, DataValidationError, OutcomeData, TreatmentData
 
 
 class CausalDataValidator:
     """Validator for causal inference datasets."""
 
-    def __init__(self, verbose: bool = True, outlier_threshold: float = 5.0):
+    def __init__(self, verbose: bool = True, outlier_threshold: float = 5.0, sample_size_for_checks: int | None = None) -> None:
         """Initialize the validator.
 
         Args:
             verbose: Whether to print detailed validation messages
             outlier_threshold: Number of standard deviations for outlier detection
+            sample_size_for_checks: If provided, sample this many observations for expensive checks (correlation, overlap) to improve performance
         """
-        self.verbose = verbose
-        self.outlier_threshold = outlier_threshold
+        self.verbose: bool = verbose
+        self.outlier_threshold: float = outlier_threshold
+        self.sample_size_for_checks: int | None = sample_size_for_checks
         self.warnings: list[str] = []
         self.errors: list[str] = []
 
@@ -198,7 +200,14 @@ class CausalDataValidator:
             # Check for highly correlated variables
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 1:
-                corr_matrix = df[numeric_cols].corr().abs()
+                # For large datasets, sample data for correlation check to improve performance
+                if self.sample_size_for_checks and len(df) > self.sample_size_for_checks:
+                    sample_df = df.sample(n=self.sample_size_for_checks, random_state=42)
+                    corr_matrix = sample_df[numeric_cols].corr().abs()
+                    if self.verbose:
+                        print(f"  - Correlation check performed on sample of {self.sample_size_for_checks:,} observations")
+                else:
+                    corr_matrix = df[numeric_cols].corr().abs()
                 # Find pairs with correlation > 0.95
                 high_corr_pairs = []
                 for i in range(len(corr_matrix.columns)):
@@ -257,6 +266,12 @@ class CausalDataValidator:
         if isinstance(covariates.values, pd.DataFrame):
             df = covariates.values.copy()
             df["treatment"] = treatment.values
+
+            # For large datasets, sample data for overlap check to improve performance
+            if self.sample_size_for_checks and len(df) > self.sample_size_for_checks:
+                df = df.sample(n=self.sample_size_for_checks, random_state=42)
+                if self.verbose:
+                    print(f"  - Overlap check performed on sample of {self.sample_size_for_checks:,} observations")
 
             # For continuous variables, create quintiles
             for col in df.select_dtypes(include=[np.number]).columns:
@@ -374,6 +389,7 @@ def validate_causal_data(
     check_overlap: bool = True,
     verbose: bool = True,
     outlier_threshold: float = 5.0,
+    sample_size_for_checks: int | None = None,
 ) -> tuple[list[str], list[str]]:
     """Convenience function to validate causal inference data.
 
@@ -384,6 +400,7 @@ def validate_causal_data(
         check_overlap: Whether to check overlap assumption
         verbose: Whether to print validation details
         outlier_threshold: Number of standard deviations for outlier detection
+        sample_size_for_checks: If provided, sample this many observations for expensive checks
 
     Returns:
         Tuple of (warnings, errors) lists
@@ -392,7 +409,7 @@ def validate_causal_data(
         DataValidationError: If critical validation errors are found
     """
     validator = CausalDataValidator(
-        verbose=verbose, outlier_threshold=outlier_threshold
+        verbose=verbose, outlier_threshold=outlier_threshold, sample_size_for_checks=sample_size_for_checks
     )
     validator.validate_all(treatment, outcome, covariates, check_overlap)
     return validator.warnings, validator.errors

@@ -6,8 +6,6 @@ datasets, including listwise deletion, imputation methods, and missing data diag
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pandas as pd
 from sklearn.experimental import enable_iterative_imputer  # noqa
@@ -71,8 +69,8 @@ class MissingDataHandler:
         """
         self.strategy = strategy
         self.verbose = verbose
-        self.imputer = None
-        self._fitted = False
+        self.imputer: SimpleImputer | KNNImputer | IterativeImputer | None = None
+        self._fitted: bool = False
 
         # Validate strategy
         valid_strategies = ["listwise", "mean", "median", "mode", "knn", "iterative"]
@@ -81,7 +79,7 @@ class MissingDataHandler:
                 f"Strategy must be one of {valid_strategies}, got '{strategy}'"
             )
 
-    def _create_imputer(self, data: pd.DataFrame) -> Any:
+    def _create_imputer(self, data: pd.DataFrame) -> SimpleImputer | KNNImputer | IterativeImputer:
         """Create appropriate imputer based on strategy.
 
         Args:
@@ -319,7 +317,7 @@ def diagnose_missing_data(
     treatment: TreatmentData,
     outcome: OutcomeData,
     covariates: CovariateData | None = None,
-) -> dict[str, Any]:
+) -> dict[str, int | float | dict]:
     """Diagnose missing data patterns in causal inference dataset.
 
     Args:
