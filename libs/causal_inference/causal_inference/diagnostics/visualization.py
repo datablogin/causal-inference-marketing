@@ -431,11 +431,11 @@ class DiagnosticVisualizer:
 
         # 1. Linearity Test Results
         ax1 = axes[0, 0]
-        if spec_results.linearity_tests:
-            variables = list(spec_results.linearity_tests.keys())
+        if spec_results.linearity_test_results:
+            variables = list(spec_results.linearity_test_results.keys())
             p_values = [
                 test.get("p_value", 1.0)
-                for test in spec_results.linearity_tests.values()
+                for test in spec_results.linearity_test_results.values()
             ]
 
             colors = ["red" if p < 0.05 else "green" for p in p_values]
@@ -455,8 +455,8 @@ class DiagnosticVisualizer:
 
         # 2. Functional Form Assessment
         ax2 = axes[0, 1]
-        if spec_results.functional_form_tests:
-            form_tests = spec_results.functional_form_tests
+        if spec_results.functional_form_results:
+            form_tests = spec_results.functional_form_results
             test_names = list(form_tests.keys())
             test_stats = [test.get("test_statistic", 0) for test in form_tests.values()]
 
@@ -469,19 +469,19 @@ class DiagnosticVisualizer:
         ax3 = axes[1, 0]
         # Create a summary of specification issues
         issues = []
-        if spec_results.linearity_tests:
+        if spec_results.linearity_test_results:
             linearity_issues = sum(
                 1
-                for test in spec_results.linearity_tests.values()
+                for test in spec_results.linearity_test_results.values()
                 if test.get("p_value", 1.0) < 0.05
             )
             if linearity_issues > 0:
                 issues.append(f"Linearity violations: {linearity_issues}")
 
-        if spec_results.interaction_tests:
+        if spec_results.interaction_test_results:
             interaction_issues = sum(
                 1
-                for test in spec_results.interaction_tests.values()
+                for test in spec_results.interaction_test_results.values()
                 if test.get("p_value", 1.0) < 0.05
             )
             if interaction_issues > 0:
@@ -509,8 +509,8 @@ class DiagnosticVisualizer:
 
         # 4. Model Comparison (if available)
         ax4 = axes[1, 1]
-        if spec_results.model_comparison:
-            comparison = spec_results.model_comparison
+        if hasattr(spec_results.functional_form_results, "get") and spec_results.functional_form_results.get("model_comparisons"):
+            comparison = spec_results.functional_form_results["model_comparisons"]
             models = list(comparison.keys())
             metrics = [comp.get("aic", 0) for comp in comparison.values()]
 

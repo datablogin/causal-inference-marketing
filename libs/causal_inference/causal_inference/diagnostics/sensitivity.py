@@ -34,7 +34,7 @@ def evalue_calculation(
     observed_estimate: float,
     ci_lower: float | None = None,
     rare_outcome: bool = False,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Calculate E-value for sensitivity analysis.
 
     The E-value quantifies the minimum strength of association that an unmeasured

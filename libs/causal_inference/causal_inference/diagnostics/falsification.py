@@ -66,12 +66,12 @@ class FalsificationTester:
 
         # Get real outcome statistics for generating realistic placebo outcomes
         if isinstance(outcome.values, pd.Series):
-            outcome_values = outcome.values.values
+            outcome_values = outcome.values.to_numpy()
         else:
             outcome_values = np.asarray(outcome.values)
 
-        outcome_mean = np.mean(outcome_values)
-        outcome_std = np.std(outcome_values)
+        outcome_mean = float(np.mean(outcome_values))
+        outcome_std = float(np.std(outcome_values))
 
         for i in range(n_placebo_outcomes):
             # Generate placebo outcome with similar distribution but no causal effect
@@ -84,8 +84,8 @@ class FalsificationTester:
                 cov_matrix = covariates.values.select_dtypes(include=[np.number])
                 if not cov_matrix.empty:
                     # Add small correlation with first covariate
-                    first_cov = cov_matrix.iloc[:, 0].values
-                    placebo_values += 0.1 * (first_cov - np.mean(first_cov))
+                    first_cov = np.asarray(cov_matrix.iloc[:, 0])
+                    placebo_values += 0.1 * (first_cov - float(np.mean(first_cov)))
 
             # Create placebo outcome data
             placebo_outcome = OutcomeData(
@@ -356,13 +356,10 @@ class FalsificationTester:
             )
 
             # Calculate summary statistics
-            imbalanced_vars = [
-                var
-                for var, balanced in balance_results.is_balanced.items()
-                if not balanced
-            ]
+            imbalanced_vars = balance_results.imbalanced_covariates
 
-            imbalance_rate = len(imbalanced_vars) / len(balance_results.is_balanced)
+            total_vars = len(balance_results.standardized_mean_differences)
+            imbalance_rate = len(imbalanced_vars) / total_vars if total_vars > 0 else 0.0
 
             # Assessment
             if imbalance_rate <= 0.1:

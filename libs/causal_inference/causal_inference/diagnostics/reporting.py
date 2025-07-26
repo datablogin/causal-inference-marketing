@@ -6,7 +6,7 @@ that summarize all assumption checks and provide actionable recommendations.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import pandas as pd
@@ -38,15 +38,9 @@ class DiagnosticReport:
 
     # Summary assessments
     overall_assessment: str = ""
-    critical_issues: list[str] = None
-    recommendations: list[str] = None
+    critical_issues: list[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
 
-    def __post_init__(self) -> None:
-        """Initialize default empty lists."""
-        if self.critical_issues is None:
-            self.critical_issues = []
-        if self.recommendations is None:
-            self.recommendations = []
 
 
 class DiagnosticReportGenerator:
