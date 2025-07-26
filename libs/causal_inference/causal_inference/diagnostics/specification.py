@@ -228,6 +228,7 @@ def functional_form_tests(
     outcome: OutcomeData,
     covariates: CovariateData,
     comparison_models: list[str] | None = None,
+    random_state: int = 42,
 ) -> dict[str, Any]:
     """Test functional form specification using model comparison.
 
@@ -235,6 +236,7 @@ def functional_form_tests(
         outcome: Outcome data
         covariates: Covariate data
         comparison_models: List of models to compare ('linear', 'polynomial', 'random_forest')
+        random_state: Random seed for RandomForest
 
     Returns:
         Dictionary with functional form test results
@@ -244,6 +246,12 @@ def functional_form_tests(
 
     if not isinstance(covariates.values, pd.DataFrame):
         raise ValueError("Covariates must be a DataFrame")
+
+    # Performance warning for large datasets
+    n_obs, n_features = covariates.values.shape
+    if n_obs > 50000 and "random_forest" in comparison_models:
+        print(f"⚠️  Performance warning: Large dataset ({n_obs:,} observations) with RandomForest. "
+              f"Consider using n_estimators=50 or sampling for faster computation.")
 
     y = np.asarray(outcome.values)
     X = covariates.values.fillna(covariates.values.mean())
@@ -291,7 +299,7 @@ def functional_form_tests(
 
     # Random Forest model
     if "random_forest" in comparison_models:
-        rf_model = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf_model = RandomForestRegressor(n_estimators=100, random_state=random_state)
         rf_model.fit(X_clean, y_clean)
         rf_pred = rf_model.predict(X_clean)
         rf_r2 = r2_score(y_clean, rf_pred)

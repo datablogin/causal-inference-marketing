@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from ..diagnostics.reporting import DiagnosticReport
 
 import numpy as np
 import pandas as pd
@@ -169,6 +172,17 @@ class CausalEffect:
         if self.ate_ci_lower is None or self.ate_ci_upper is None:
             return False
         return self.ate_ci_lower > 0 or self.ate_ci_upper < 0
+
+    @property
+    def confidence_interval(self) -> tuple[float, float] | None:
+        """Get confidence interval as a tuple.
+
+        Returns:
+            Tuple of (lower_bound, upper_bound) or None if not available
+        """
+        if self.ate_ci_lower is not None and self.ate_ci_upper is not None:
+            return (self.ate_ci_lower, self.ate_ci_upper)
+        return None
 
     @property
     def effect_size_interpretation(self) -> str:
@@ -618,7 +632,7 @@ class BaseEstimator(abc.ABC):
         include_specification: bool = True,
         include_sensitivity: bool = False,
         verbose: bool = True,
-    ) -> Any:
+    ) -> DiagnosticReport:
         """Run comprehensive diagnostics for the fitted estimator.
 
         Args:

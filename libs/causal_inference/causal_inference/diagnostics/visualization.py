@@ -70,7 +70,7 @@ class DiagnosticVisualizer:
         smds = list(balance_results.standardized_mean_differences.values())
 
         colors = ['red' if abs(smd) > threshold else 'green' for smd in smds]
-        bars = ax1.barh(variables, smds, color=colors, alpha=0.7)
+        ax1.barh(variables, smds, color=colors, alpha=0.7)
         ax1.axvline(threshold, color='red', linestyle='--', alpha=0.8, label=f'Threshold: ±{threshold}')
         ax1.axvline(-threshold, color='red', linestyle='--', alpha=0.8)
         ax1.axvline(0, color='black', linestyle='-', alpha=0.5)
@@ -424,7 +424,7 @@ class DiagnosticVisualizer:
 
         Args:
             balance_results: Balance diagnostic results
-            overlap_results: Overlap diagnostic results  
+            overlap_results: Overlap diagnostic results
             sensitivity_results: Sensitivity analysis results
             spec_results: Specification test results
             treatment: Treatment data for context

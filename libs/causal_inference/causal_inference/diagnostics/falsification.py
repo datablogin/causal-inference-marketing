@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ..core.base import CovariateData, OutcomeData, TreatmentData
+from ..core.base import CovariateData, EstimationError, OutcomeData, TreatmentData
 
 
 @dataclass
@@ -263,13 +263,16 @@ class FalsificationTester:
                 "assessment": assessment,
             }
 
-        except Exception as e:
+        except (ValueError, RuntimeError, EstimationError) as e:
             return {
                 "estimated_effect": None,
                 "confidence_interval": None,
                 "is_significant": None,
                 "assessment": f"ERROR - Could not perform test: {str(e)}",
             }
+        except Exception as e:
+            # Re-raise unexpected errors
+            raise RuntimeError(f"Unexpected error in future outcome test: {e}") from e
 
     def negative_control_test(
         self,
@@ -316,13 +319,16 @@ class FalsificationTester:
                 "assessment": assessment,
             }
 
-        except Exception as e:
+        except (ValueError, RuntimeError, EstimationError) as e:
             return {
                 "estimated_effect": None,
                 "confidence_interval": None,
                 "is_significant": None,
                 "assessment": f"ERROR - Could not perform test: {str(e)}",
             }
+        except Exception as e:
+            # Re-raise unexpected errors
+            raise RuntimeError(f"Unexpected error in negative control test: {e}") from e
 
     def pre_treatment_balance_test(
         self,
@@ -368,13 +374,16 @@ class FalsificationTester:
                 "assessment": assessment,
             }
 
-        except Exception as e:
+        except (ValueError, RuntimeError, EstimationError) as e:
             return {
                 "balance_results": None,
                 "imbalanced_variables": [],
                 "imbalance_rate": None,
                 "assessment": f"ERROR - Could not perform test: {str(e)}",
             }
+        except Exception as e:
+            # Re-raise unexpected errors
+            raise RuntimeError(f"Unexpected error in pre-treatment balance test: {e}") from e
 
     def dose_response_test(
         self,
@@ -448,13 +457,16 @@ class FalsificationTester:
                 "assessment": assessment,
             }
 
-        except Exception as e:
+        except (ValueError, RuntimeError, EstimationError) as e:
             return {
                 "dose_levels": None,
                 "effects": None,
                 "is_monotonic": None,
                 "assessment": f"ERROR - Could not perform test: {str(e)}",
             }
+        except Exception as e:
+            # Re-raise unexpected errors
+            raise RuntimeError(f"Unexpected error in dose response test: {e}") from e
 
     def run_all_falsification_tests(
         self,

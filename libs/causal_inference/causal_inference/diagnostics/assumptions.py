@@ -19,6 +19,32 @@ from sklearn.metrics import r2_score
 from ..core.base import CovariateData, OutcomeData, TreatmentData
 
 
+def _ensure_dataframe(covariates: CovariateData) -> pd.DataFrame:
+    """Convert covariate data to DataFrame format.
+
+    Args:
+        covariates: Covariate data that may be array or DataFrame
+
+    Returns:
+        DataFrame representation of covariates
+
+    Raises:
+        ValueError: If covariates cannot be converted to DataFrame
+    """
+    if isinstance(covariates.values, pd.DataFrame):
+        return covariates.values
+    elif isinstance(covariates.values, np.ndarray):
+        # Use provided names or generate default names
+        if covariates.names and len(covariates.names) == covariates.values.shape[1]:
+            column_names = covariates.names
+        else:
+            column_names = [f"X{i+1}" for i in range(covariates.values.shape[1])]
+
+        return pd.DataFrame(covariates.values, columns=column_names)
+    else:
+        raise ValueError(f"Covariates must be DataFrame or numpy array, got {type(covariates.values)}")
+
+
 @dataclass
 class AssumptionResults:
     """Results from causal inference assumption checking."""
@@ -55,15 +81,15 @@ def detect_confounding_associations(
     Returns:
         Dictionary with association results for each covariate
     """
-    if not isinstance(covariates.values, pd.DataFrame):
-        raise ValueError("Covariates must be a DataFrame for confounding detection")
+    # Convert to DataFrame if needed
+    cov_df = _ensure_dataframe(covariates)
 
     results = {}
     treatment_vals = np.asarray(treatment.values)
     outcome_vals = np.asarray(outcome.values)
 
-    for covariate_name in covariates.values.columns:
-        covariate_vals = np.asarray(covariates.values[covariate_name])
+    for covariate_name in cov_df.columns:
+        covariate_vals = np.asarray(cov_df[covariate_name])
 
         # Remove missing values
         mask = ~(
@@ -125,6 +151,7 @@ def assess_outcome_prediction(
     outcome: OutcomeData,
     covariates: CovariateData,
     include_interactions: bool = False,
+    random_state: int = 42,
 ) -> dict[str, float]:
     """Assess how well covariates predict the outcome.
 
@@ -134,15 +161,25 @@ def assess_outcome_prediction(
         outcome: Outcome data
         covariates: Covariate data
         include_interactions: Whether to include interaction terms
+        random_state: Random seed for RandomForest
 
     Returns:
         Dictionary with prediction results
     """
-    if not isinstance(covariates.values, pd.DataFrame):
-        raise ValueError("Covariates must be a DataFrame")
+    # Convert to DataFrame if needed
+    X = _ensure_dataframe(covariates)
+
+    # Performance warning for large datasets
+    n_obs, n_features = X.shape
+    if n_obs > 50000:
+        print(f"⚠️  Performance warning: Large dataset ({n_obs:,} observations). "
+              f"Consider sampling for faster computation.")
+    if n_features > 100:
+        print(f"⚠️  Performance warning: Many features ({n_features} features). "
+              f"RandomForest computation may be slow.")
 
     # Prepare data
-    X = covariates.values.fillna(covariates.values.mean())
+    X = X.fillna(X.mean())
     y = np.asarray(outcome.values)
 
     # Remove missing outcomes
@@ -169,7 +206,7 @@ def assess_outcome_prediction(
         lr_r2 = r2_score(y_clean, lr.predict(X_clean))
 
         # Random Forest for feature importance
-        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf = RandomForestRegressor(n_estimators=100, random_state=random_state)
         rf.fit(X_clean, y_clean)
         rf_r2 = r2_score(y_clean, rf.predict(X_clean))
 
@@ -185,8 +222,11 @@ def assess_outcome_prediction(
             )[:5],
         }
 
-    except Exception as e:
+    except (ValueError, RuntimeError) as e:
         return {"error": str(e), "r2_score": 0.0, "feature_importance": {}}
+    except Exception as e:
+        # Re-raise unexpected errors rather than silently handling them
+        raise RuntimeError(f"Unexpected error in outcome prediction: {e}") from e
 
 
 def check_collider_bias_risk(
