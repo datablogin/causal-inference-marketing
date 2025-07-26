@@ -44,19 +44,27 @@ class TestDataUtilitiesIntegration:
         )
 
         # 2. Introduce missing data
-        treatment_miss, outcome_miss, covariates_miss = generator.generate_missing_data_scenario(
-            treatment, outcome, covariates, missing_mechanism="MAR", missing_rate=0.15
+        treatment_miss, outcome_miss, covariates_miss = (
+            generator.generate_missing_data_scenario(
+                treatment,
+                outcome,
+                covariates,
+                missing_mechanism="MAR",
+                missing_rate=0.15,
+            )
         )
 
         # 3. Handle missing data
         handler = MissingDataHandler(strategy="mean", verbose=False)
-        processed_treatment, processed_outcome, processed_covariates = handler.fit_transform(
-            treatment_miss, outcome_miss, covariates_miss
+        processed_treatment, processed_outcome, processed_covariates = (
+            handler.fit_transform(treatment_miss, outcome_miss, covariates_miss)
         )
 
         # 4. Validate the processed data
         validator = CausalDataValidator(verbose=False)
-        validator.validate_all(processed_treatment, processed_outcome, processed_covariates)
+        validator.validate_all(
+            processed_treatment, processed_outcome, processed_covariates
+        )
 
         # Should have no missing data after processing
         if isinstance(processed_covariates.values, pd.DataFrame):
@@ -68,16 +76,18 @@ class TestDataUtilitiesIntegration:
     def test_nhefs_validation_integration(self):
         """Test NHEFS data loading with validation."""
         # Create mock NHEFS data
-        mock_data = pd.DataFrame({
-            "qsmk": [0, 1, 0, 1, 0] * 20,
-            "wt82_71": np.random.normal(0, 5, 100),
-            "age": np.random.randint(18, 80, 100),
-            "sex": np.random.binomial(1, 0.5, 100),
-            "race": np.random.choice([0, 1, 2], 100),
-        })
+        mock_data = pd.DataFrame(
+            {
+                "qsmk": [0, 1, 0, 1, 0] * 20,
+                "wt82_71": np.random.normal(0, 5, 100),
+                "age": np.random.randint(18, 80, 100),
+                "sex": np.random.binomial(1, 0.5, 100),
+                "race": np.random.choice([0, 1, 2], 100),
+            }
+        )
 
         # Save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             mock_data.to_csv(f.name, index=False)
             temp_file = f.name
 
@@ -112,11 +122,19 @@ class TestDataUtilitiesIntegration:
         """Test different missing data strategies with validation."""
         # Generate base data with known properties
         generator = SyntheticDataGenerator(random_state=42)
-        treatment, outcome, covariates = generator.generate_linear_binary_treatment(n_samples=150)
+        treatment, outcome, covariates = generator.generate_linear_binary_treatment(
+            n_samples=150
+        )
 
         # Add missing data
-        treatment_miss, outcome_miss, covariates_miss = generator.generate_missing_data_scenario(
-            treatment, outcome, covariates, missing_mechanism="MCAR", missing_rate=0.2
+        treatment_miss, outcome_miss, covariates_miss = (
+            generator.generate_missing_data_scenario(
+                treatment,
+                outcome,
+                covariates,
+                missing_mechanism="MCAR",
+                missing_rate=0.2,
+            )
         )
 
         strategies = ["listwise", "mean", "median"]
@@ -126,13 +144,15 @@ class TestDataUtilitiesIntegration:
             handler = MissingDataHandler(strategy=strategy, verbose=False)
 
             try:
-                processed_treatment, processed_outcome, processed_covariates = handler.fit_transform(
-                    treatment_miss, outcome_miss, covariates_miss
+                processed_treatment, processed_outcome, processed_covariates = (
+                    handler.fit_transform(treatment_miss, outcome_miss, covariates_miss)
                 )
 
                 # Validate processed data
                 validator = CausalDataValidator(verbose=False)
-                validator.validate_all(processed_treatment, processed_outcome, processed_covariates)
+                validator.validate_all(
+                    processed_treatment, processed_outcome, processed_covariates
+                )
 
                 # Should have no critical errors regardless of strategy
                 assert len(validator.errors) == 0
@@ -177,10 +197,12 @@ class TestDataUtilitiesIntegration:
             )
 
             covariates = CovariateData(
-                values=pd.DataFrame({
-                    "x1": [1, 2, 3, 4, 5],
-                    "x2": [0.1, 0.2, 0.3, 0.4, 0.5],
-                }),
+                values=pd.DataFrame(
+                    {
+                        "x1": [1, 2, 3, 4, 5],
+                        "x2": [0.1, 0.2, 0.3, 0.4, 0.5],
+                    }
+                ),
                 names=["x1", "x2"],
             )
 
@@ -192,10 +214,12 @@ class TestDataUtilitiesIntegration:
             assert len(validator.errors) == 0
 
             # Test missing data handling (only for strategies that work with mixed types)
-            if treatment_type != "categorical":  # Skip categorical for numeric strategies
+            if (
+                treatment_type != "categorical"
+            ):  # Skip categorical for numeric strategies
                 handler = MissingDataHandler(strategy="listwise", verbose=False)
-                processed_treatment, processed_outcome, processed_covariates = handler.fit_transform(
-                    treatment, outcome, covariates
+                processed_treatment, processed_outcome, processed_covariates = (
+                    handler.fit_transform(treatment, outcome, covariates)
                 )
 
                 # Types should be preserved
@@ -211,19 +235,27 @@ class TestDataUtilitiesIntegration:
         )
 
         # Add some missing data
-        treatment_miss, outcome_miss, covariates_miss = generator.generate_missing_data_scenario(
-            treatment, outcome, covariates, missing_mechanism="MAR", missing_rate=0.1
+        treatment_miss, outcome_miss, covariates_miss = (
+            generator.generate_missing_data_scenario(
+                treatment,
+                outcome,
+                covariates,
+                missing_mechanism="MAR",
+                missing_rate=0.1,
+            )
         )
 
         # Process missing data
         handler = MissingDataHandler(strategy="mean", verbose=False)
-        processed_treatment, processed_outcome, processed_covariates = handler.fit_transform(
-            treatment_miss, outcome_miss, covariates_miss
+        processed_treatment, processed_outcome, processed_covariates = (
+            handler.fit_transform(treatment_miss, outcome_miss, covariates_miss)
         )
 
         # Validate
         validator = CausalDataValidator(verbose=False)
-        validator.validate_all(processed_treatment, processed_outcome, processed_covariates)
+        validator.validate_all(
+            processed_treatment, processed_outcome, processed_covariates
+        )
 
         # Should handle larger datasets without issues
         assert len(processed_treatment.values) == 1000
@@ -232,10 +264,13 @@ class TestDataUtilitiesIntegration:
         # Performance check - validation should complete quickly
         # (This is more of a smoke test than a rigorous performance test)
         import time
+
         start_time = time.time()
 
         validator_new = CausalDataValidator(verbose=False)
-        validator_new.validate_all(processed_treatment, processed_outcome, processed_covariates)
+        validator_new.validate_all(
+            processed_treatment, processed_outcome, processed_covariates
+        )
 
         end_time = time.time()
         validation_time = end_time - start_time

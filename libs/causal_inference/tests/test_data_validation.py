@@ -444,9 +444,19 @@ class TestParametrizedDataValidation:
         [
             ("binary", [0, 1, 0, 1, 0], "continuous", [1.2, 2.3, 1.1, 2.5, 1.0]),
             ("binary", [0, 1, 0, 1, 0], "binary", [0, 1, 0, 1, 0]),
-            ("categorical", ["A", "B", "C", "A", "B"], "continuous", [1.2, 2.3, 1.1, 2.5, 1.0]),
-            ("continuous", [0.5, 1.2, 0.8, 1.5, 0.9], "continuous", [1.2, 2.3, 1.1, 2.5, 1.0]),
-        ]
+            (
+                "categorical",
+                ["A", "B", "C", "A", "B"],
+                "continuous",
+                [1.2, 2.3, 1.1, 2.5, 1.0],
+            ),
+            (
+                "continuous",
+                [0.5, 1.2, 0.8, 1.5, 0.9],
+                "continuous",
+                [1.2, 2.3, 1.1, 2.5, 1.0],
+            ),
+        ],
     )
     def test_validate_different_data_types(
         self, treatment_type, treatment_values, outcome_type, outcome_values
@@ -483,7 +493,7 @@ class TestParametrizedDataValidation:
             (0.1, "knn"),
             (0.2, "listwise"),
             (0.2, "mean"),
-        ]
+        ],
     )
     def test_missing_data_strategies_parametrized(self, missing_rate, strategy):
         """Test different missing data strategies with various missing rates."""
@@ -504,10 +514,12 @@ class TestParametrizedDataValidation:
         )
 
         covariates = CovariateData(
-            values=pd.DataFrame({
-                "x1": np.random.normal(0, 1, n_samples),
-                "x2": np.random.normal(0, 1, n_samples),
-            }),
+            values=pd.DataFrame(
+                {
+                    "x1": np.random.normal(0, 1, n_samples),
+                    "x2": np.random.normal(0, 1, n_samples),
+                }
+            ),
             names=["x1", "x2"],
         )
 
@@ -526,8 +538,8 @@ class TestParametrizedDataValidation:
         handler = MissingDataHandler(strategy=strategy, verbose=False)
 
         try:
-            processed_treatment, processed_outcome, processed_covariates = handler.fit_transform(
-                treatment, outcome, covariates_with_missing
+            processed_treatment, processed_outcome, processed_covariates = (
+                handler.fit_transform(treatment, outcome, covariates_with_missing)
             )
 
             # Verify processing worked
@@ -543,15 +555,16 @@ class TestParametrizedDataValidation:
 
         except Exception as e:
             # Some strategies might fail with certain data - that's ok for testing
-            pytest.skip(f"Strategy {strategy} failed with missing rate {missing_rate}: {e}")
+            pytest.skip(
+                f"Strategy {strategy} failed with missing rate {missing_rate}: {e}"
+            )
 
-    @pytest.mark.parametrize(
-        "outlier_threshold",
-        [3.0, 5.0, 7.0]
-    )
+    @pytest.mark.parametrize("outlier_threshold", [3.0, 5.0, 7.0])
     def test_configurable_outlier_threshold(self, outlier_threshold):
         """Test that outlier detection threshold is properly configurable."""
-        validator = CausalDataValidator(verbose=False, outlier_threshold=outlier_threshold)
+        validator = CausalDataValidator(
+            verbose=False, outlier_threshold=outlier_threshold
+        )
 
         # Create data with known outliers
         values = [1, 2, 3, 4, 5] * 10  # Normal values

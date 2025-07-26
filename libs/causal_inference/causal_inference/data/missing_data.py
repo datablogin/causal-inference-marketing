@@ -79,7 +79,9 @@ class MissingDataHandler:
                 f"Strategy must be one of {valid_strategies}, got '{strategy}'"
             )
 
-    def _create_imputer(self, data: pd.DataFrame) -> SimpleImputer | KNNImputer | IterativeImputer:
+    def _create_imputer(
+        self, data: pd.DataFrame
+    ) -> SimpleImputer | KNNImputer | IterativeImputer:
         """Create appropriate imputer based on strategy.
 
         Args:

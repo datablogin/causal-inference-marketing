@@ -15,7 +15,12 @@ from ..core.base import CovariateData, DataValidationError, OutcomeData, Treatme
 class CausalDataValidator:
     """Validator for causal inference datasets."""
 
-    def __init__(self, verbose: bool = True, outlier_threshold: float = 5.0, sample_size_for_checks: int | None = None) -> None:
+    def __init__(
+        self,
+        verbose: bool = True,
+        outlier_threshold: float = 5.0,
+        sample_size_for_checks: int | None = None,
+    ) -> None:
         """Initialize the validator.
 
         Args:
@@ -201,11 +206,18 @@ class CausalDataValidator:
             numeric_cols = df.select_dtypes(include=[np.number]).columns
             if len(numeric_cols) > 1:
                 # For large datasets, sample data for correlation check to improve performance
-                if self.sample_size_for_checks and len(df) > self.sample_size_for_checks:
-                    sample_df = df.sample(n=self.sample_size_for_checks, random_state=42)
+                if (
+                    self.sample_size_for_checks
+                    and len(df) > self.sample_size_for_checks
+                ):
+                    sample_df = df.sample(
+                        n=self.sample_size_for_checks, random_state=42
+                    )
                     corr_matrix = sample_df[numeric_cols].corr().abs()
                     if self.verbose:
-                        print(f"  - Correlation check performed on sample of {self.sample_size_for_checks:,} observations")
+                        print(
+                            f"  - Correlation check performed on sample of {self.sample_size_for_checks:,} observations"
+                        )
                 else:
                     corr_matrix = df[numeric_cols].corr().abs()
                 # Find pairs with correlation > 0.95
@@ -271,7 +283,9 @@ class CausalDataValidator:
             if self.sample_size_for_checks and len(df) > self.sample_size_for_checks:
                 df = df.sample(n=self.sample_size_for_checks, random_state=42)
                 if self.verbose:
-                    print(f"  - Overlap check performed on sample of {self.sample_size_for_checks:,} observations")
+                    print(
+                        f"  - Overlap check performed on sample of {self.sample_size_for_checks:,} observations"
+                    )
 
             # For continuous variables, create quintiles
             for col in df.select_dtypes(include=[np.number]).columns:
@@ -409,7 +423,9 @@ def validate_causal_data(
         DataValidationError: If critical validation errors are found
     """
     validator = CausalDataValidator(
-        verbose=verbose, outlier_threshold=outlier_threshold, sample_size_for_checks=sample_size_for_checks
+        verbose=verbose,
+        outlier_threshold=outlier_threshold,
+        sample_size_for_checks=sample_size_for_checks,
     )
     validator.validate_all(treatment, outcome, covariates, check_overlap)
     return validator.warnings, validator.errors
