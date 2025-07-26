@@ -21,6 +21,8 @@ help:
 	@echo "  ci          - Run full CI pipeline (lint, typecheck, test)"
 	@echo "  clean       - Clean build artifacts"
 	@echo "  api         - Start causal inference API server"
+	@echo "  review      - Run Claude review of current PR"
+	@echo "  review-dry  - Preview Claude review without executing"
 
 # Installation targets
 .PHONY: install
@@ -74,6 +76,17 @@ ci-causal-inference:
 	$(PYTEST) libs/causal_inference/tests/
 	$(MYPY) libs/causal_inference/
 	$(RUFF) check libs/causal_inference/
+
+# Review targets
+.PHONY: review
+review:
+	@echo "Running Claude review of current PR..."
+	./claude-review.sh --focus causal-inference
+
+.PHONY: review-dry
+review-dry:
+	@echo "Previewing Claude review of current PR..."
+	./claude-review.sh --dry-run --focus causal-inference
 
 # Clean targets
 .PHONY: clean
