@@ -261,7 +261,9 @@ class TestSmallSample:
 
                 # Confidence intervals should be wide due to uncertainty (if available)
                 if effect.confidence_interval is not None:
-                    ci_width = effect.confidence_interval[1] - effect.confidence_interval[0]
+                    ci_width = (
+                        effect.confidence_interval[1] - effect.confidence_interval[0]
+                    )
                     assert ci_width > 0, f"{name} CI width should be positive"
 
                 # With very small samples, CI might be very wide - this is expected
@@ -327,4 +329,3 @@ class TestEdgeCaseIntegration:
             assert n_treatment == n_outcome == n_covariates, (
                 f"{scenario_name} has inconsistent sample sizes: {n_treatment}, {n_outcome}, {n_covariates}"
             )
-

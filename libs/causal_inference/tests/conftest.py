@@ -296,12 +296,16 @@ def edge_case_data(random_state):
         "small_sample": {
             # Use minimum sample size of 12 (just above the 10 minimum requirement)
             "treatment": TreatmentData(
-                values=np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), treatment_type="binary"
+                values=np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+                treatment_type="binary",
             ),
             "outcome": OutcomeData(
-                values=np.array([1, 3, 2, 4, 1, 5, 2, 6, 3, 7, 4, 8]), outcome_type="continuous"
+                values=np.array([1, 3, 2, 4, 1, 5, 2, 6, 3, 7, 4, 8]),
+                outcome_type="continuous",
             ),
-            "covariates": CovariateData(values=pd.DataFrame({"X1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]})),
+            "covariates": CovariateData(
+                values=pd.DataFrame({"X1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]})
+            ),
         },
         "perfect_separation": {
             # Perfect separation: treatment perfectly predicted by covariates
