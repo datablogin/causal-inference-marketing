@@ -64,7 +64,7 @@ class CausalDataValidator:
 
         # Check treatment type consistency
         if treatment.treatment_type == "binary":
-            unique_vals = np.unique(treatment.values)
+            unique_vals = np.unique(np.asarray(treatment.values))
             unique_vals = unique_vals[~pd.isnull(unique_vals)]
 
             if len(unique_vals) != 2:
@@ -77,7 +77,7 @@ class CausalDataValidator:
                 )
 
         elif treatment.treatment_type == "categorical":
-            unique_vals = np.unique(treatment.values)
+            unique_vals = np.unique(np.asarray(treatment.values))
             unique_vals = unique_vals[~pd.isnull(unique_vals)]
 
             if len(unique_vals) < 2:
@@ -131,13 +131,13 @@ class CausalDataValidator:
 
         # Check for infinite values
         if len(values) > 0:
-            inf_count = np.isinf(values).sum()
+            inf_count = np.isinf(np.asarray(values)).sum()
             if inf_count > 0:
                 self.errors.append(f"Outcome has {inf_count} infinite values")
 
         # Check outcome type consistency
         if outcome.outcome_type == "binary":
-            unique_vals = np.unique(values)
+            unique_vals = np.unique(np.asarray(values))
             if len(unique_vals) != 2:
                 self.errors.append(
                     f"Binary outcome should have exactly 2 unique values, found {len(unique_vals)}"
@@ -150,15 +150,16 @@ class CausalDataValidator:
         elif outcome.outcome_type == "continuous":
             if len(values) > 0:
                 # Check for outliers (values > outlier_threshold standard deviations from mean)
-                mean_val = np.mean(values)
-                std_val = np.std(values)
+                values_array = np.asarray(values)
+                mean_val = np.mean(values_array)
+                std_val = np.std(values_array)
                 if std_val > 0:
                     outliers = (
-                        np.abs(values - mean_val) > self.outlier_threshold * std_val
+                        np.abs(values_array - mean_val) > self.outlier_threshold * std_val
                     )
                     outlier_count = outliers.sum()
                     if outlier_count > 0:
-                        pct_outliers = 100 * outlier_count / len(values)
+                        pct_outliers = 100 * outlier_count / len(values_array)
                         self.warnings.append(
                             f"Outcome has {outlier_count} potential outliers ({pct_outliers:.1f}%)"
                         )
@@ -167,8 +168,9 @@ class CausalDataValidator:
             print(f"  - {total_count:,} observations")
             print(f"  - {missing_count} missing values")
             if len(values) > 0:
-                print(f"  - Range: [{np.min(values):.3f}, {np.max(values):.3f}]")
-                print(f"  - Mean: {np.mean(values):.3f}, Std: {np.std(values):.3f}")
+                values_array = np.asarray(values)
+                print(f"  - Range: [{np.min(values_array):.3f}, {np.max(values_array):.3f}]")
+                print(f"  - Mean: {np.mean(values_array):.3f}, Std: {np.std(values_array):.3f}")
 
     def validate_covariate_data(self, covariates: CovariateData) -> None:
         """Validate covariate data.
@@ -198,7 +200,7 @@ class CausalDataValidator:
 
             # Check for constant variables
             for col in df.columns:
-                if df[col].dtype in ["int64", "float64"]:
+                if df[col].dtype.name in ["int64", "float64"]:
                     if df[col].nunique() == 1:
                         self.warnings.append(f"Covariate '{col}' is constant")
 
@@ -224,9 +226,9 @@ class CausalDataValidator:
                 high_corr_pairs = []
                 for i in range(len(corr_matrix.columns)):
                     for j in range(i + 1, len(corr_matrix.columns)):
-                        if corr_matrix.iloc[i, j] > 0.95:
+                        corr_val = corr_matrix.iloc[i, j]
+                        if pd.notna(corr_val) and isinstance(corr_val, (int, float)) and corr_val > 0.95:
                             pair = (corr_matrix.columns[i], corr_matrix.columns[j])
-                            corr_val = corr_matrix.iloc[i, j]
                             high_corr_pairs.append((pair, corr_val))
 
                 for (var1, var2), corr_val in high_corr_pairs:

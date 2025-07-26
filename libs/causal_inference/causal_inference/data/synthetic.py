@@ -382,9 +382,14 @@ class SyntheticDataGenerator:
                     # For categorical treatments, encode as 1 for non-control, 0 for control
                     treatment_numeric = (new_treatment.values != "control").astype(int)
                 else:  # continuous
-                    treatment_numeric = pd.to_numeric(
-                        new_treatment.values, errors="coerce"
-                    ).fillna(0)
+                    if isinstance(new_treatment.values, pd.Series):
+                        treatment_numeric = pd.to_numeric(
+                            new_treatment.values, errors="coerce"
+                        ).fillna(0)
+                    else:
+                        treatment_numeric = pd.to_numeric(
+                            pd.Series(new_treatment.values), errors="coerce"
+                        ).fillna(0)
 
                 for i, col in enumerate(
                     new_cov_values.columns[1:], 1

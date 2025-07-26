@@ -319,7 +319,7 @@ def diagnose_missing_data(
     treatment: TreatmentData,
     outcome: OutcomeData,
     covariates: CovariateData | None = None,
-) -> dict[str, int | float | dict]:
+) -> dict[str, object]:
     """Diagnose missing data patterns in causal inference dataset.
 
     Args:
@@ -353,9 +353,10 @@ def diagnose_missing_data(
 
     # Calculate percentages
     diagnostics["complete_case_rate"] = complete_cases / total_obs
+    missing_by_var = diagnostics["missing_by_variable"]  # type: ignore
     diagnostics["missing_rate_by_variable"] = {
         var: count / total_obs
-        for var, count in diagnostics["missing_by_variable"].items()
+        for var, count in missing_by_var.items()  # type: ignore
     }
 
     return diagnostics
@@ -384,25 +385,33 @@ def print_missing_data_report(
     print()
 
     # Variables with missing data
+    missing_by_var = diagnostics["missing_by_variable"]
+    assert isinstance(missing_by_var, dict)
     vars_with_missing = {
-        k: v for k, v in diagnostics["missing_by_variable"].items() if v > 0
+        k: v for k, v in missing_by_var.items() if v > 0
     }
     if vars_with_missing:
         print("Variables with missing data:")
         for var, count in sorted(
             vars_with_missing.items(), key=lambda x: x[1], reverse=True
         ):
-            pct = diagnostics["missing_rate_by_variable"][var]
+            missing_rate_by_var = diagnostics["missing_rate_by_variable"]
+            assert isinstance(missing_rate_by_var, dict)
+            pct = missing_rate_by_var[var]
             print(f"  {var}: {count:,} ({pct:.1%})")
     else:
         print("No missing data found.")
     print()
 
     # Missing data patterns
-    if len(diagnostics["missing_patterns"]) > 1:
+    missing_patterns = diagnostics["missing_patterns"]
+    assert isinstance(missing_patterns, dict)
+    if len(missing_patterns) > 1:
         print("Top missing data patterns:")
-        for i, (pattern, count) in enumerate(diagnostics["missing_patterns"].items()):
-            pct = count / diagnostics["total_observations"]
+        for i, (pattern, count) in enumerate(missing_patterns.items()):
+            total_obs = diagnostics["total_observations"]
+            assert isinstance(total_obs, int)
+            pct = count / total_obs
             pattern_str = ", ".join(
                 [
                     f"{col}={val}"
@@ -419,6 +428,7 @@ def print_missing_data_report(
 
     # Recommendations
     complete_rate = diagnostics["complete_case_rate"]
+    assert isinstance(complete_rate, float)
     if complete_rate > 0.95:
         print(
             "✅ Recommendation: Listwise deletion is appropriate (>95% complete cases)"
