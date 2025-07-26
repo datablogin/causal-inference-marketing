@@ -82,6 +82,8 @@ test = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-timeout>=2.3.1",
+    "pytest-benchmark>=4.0.0",
+    "hypothesis>=6.88.0",
     "httpx>=0.25.0",
 ]
 
@@ -170,8 +172,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
-timeout = 300
-timeout_method = "thread"
+# timeout = 300
+# timeout_method = "thread"
 addopts = [
     "--strict-markers",
     "--strict-config",
@@ -184,6 +186,8 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests that require external resources",
+    "benchmark: marks performance benchmark tests",
+    "property: marks property-based tests using hypothesis",
 ]
 
 # Coverage configuration
@@ -212,4 +216,8 @@ exclude_lines = [
 [dependency-groups]
 dev = [
     "pandas-stubs>=2.3.0.250703",
+]
+test = [
+    "hypothesis>=6.136.4",
+    "pytest-benchmark>=5.1.0",
 ]
