@@ -263,7 +263,7 @@ fi
 # Generate the review prompt
 REVIEW_PROMPT=$(generate_review_prompt)
 
-# Prepare context information
+# Prepare context information (optimized for token usage)
 PR_CONTEXT="
 ### PR Context
 - **Title:** $PR_TITLE
@@ -277,11 +277,6 @@ PR_CONTEXT="
 ### Files in this PR:
 \`\`\`
 $(gh pr diff "$PR_NUM" --name-only)
-\`\`\`
-
-### Code Changes:
-\`\`\`diff
-$(gh pr diff "$PR_NUM")
 \`\`\`
 "
 
@@ -304,14 +299,10 @@ EOF
         
         # Run Claude and capture output
         if claude chat < "$TEMP_FILE" > "${TEMP_FILE}.output" 2>&1; then
-            # Prepare comment body with header
+            # Prepare comment body with header (exclude full context to save space)
             COMMENT_FILE=$(mktemp)
             cat > "$COMMENT_FILE" << EOF
 # 🔍 Claude Code Review
-
-$PR_CONTEXT
-
----
 
 ## Review Feedback
 
@@ -362,7 +353,7 @@ EOF
         
         echo -e "${YELLOW}Running Claude review and saving to file...${NC}"
         
-        # Create header for the review file
+        # Create header for the review file (include full context for local files)
         cat > "$OUTPUT_FILE" << EOF
 # 🔍 Claude Code Review: PR #$PR_NUM
 
