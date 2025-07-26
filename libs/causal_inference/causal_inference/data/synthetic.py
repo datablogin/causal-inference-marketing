@@ -19,7 +19,7 @@ class SyntheticDataGenerator:
 
     def __init__(self, random_state: int | None = None):
         """Initialize the synthetic data generator.
-        
+
         Args:
             random_state: Random seed for reproducible results
         """
@@ -37,7 +37,7 @@ class SyntheticDataGenerator:
         selection_bias: float = 0.5,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Generate synthetic data with linear relationships and binary treatment.
-        
+
         Args:
             n_samples: Number of observations to generate
             n_confounders: Number of confounding variables
@@ -45,20 +45,20 @@ class SyntheticDataGenerator:
             confounding_strength: Strength of confounding relationships
             noise_std: Standard deviation of noise terms
             selection_bias: Strength of treatment selection bias
-            
+
         Returns:
             Tuple of (treatment, outcome, covariates) data objects
         """
         # Generate confounding variables
         X = np.random.multivariate_normal(
-            mean=np.zeros(n_confounders),
-            cov=np.eye(n_confounders),
-            size=n_samples
+            mean=np.zeros(n_confounders), cov=np.eye(n_confounders), size=n_samples
         )
 
         # Generate treatment with confounding
         # Treatment probability depends on confounders
-        treatment_logits = selection_bias * np.sum(X[:, :3], axis=1)  # Use first 3 confounders
+        treatment_logits = selection_bias * np.sum(
+            X[:, :3], axis=1
+        )  # Use first 3 confounders
         treatment_probs = 1 / (1 + np.exp(-treatment_logits))
         treatment = np.random.binomial(1, treatment_probs)
 
@@ -82,7 +82,7 @@ class SyntheticDataGenerator:
             outcome_type="continuous",
         )
 
-        covariate_names = [f"X{i+1}" for i in range(n_confounders)]
+        covariate_names = [f"X{i + 1}" for i in range(n_confounders)]
         covariate_data = CovariateData(
             values=pd.DataFrame(X, columns=covariate_names),
             names=covariate_names,
@@ -98,13 +98,13 @@ class SyntheticDataGenerator:
         noise_std: float = 0.5,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Generate synthetic data with nonlinear relationships and continuous treatment.
-        
+
         Args:
             n_samples: Number of observations to generate
             n_confounders: Number of confounding variables
             treatment_effect_fn: Type of dose-response function ('linear', 'quadratic', 'threshold')
             noise_std: Standard deviation of noise terms
-            
+
         Returns:
             Tuple of (treatment, outcome, covariates) data objects
         """
@@ -117,10 +117,10 @@ class SyntheticDataGenerator:
 
         # Generate outcome with nonlinear treatment effect
         confounder_effects = (
-            1.5 * X[:, 0] +
-            0.8 * X[:, 1] +
-            0.5 * X[:, 2] * X[:, 3] +  # Interaction effect
-            0.3 * np.sin(X[:, 0])  # Nonlinear confounder effect
+            1.5 * X[:, 0]
+            + 0.8 * X[:, 1]
+            + 0.5 * X[:, 2] * X[:, 3]  # Interaction effect
+            + 0.3 * np.sin(X[:, 0])  # Nonlinear confounder effect
         )
 
         # Apply different dose-response functions
@@ -131,7 +131,9 @@ class SyntheticDataGenerator:
         elif treatment_effect_fn == "threshold":
             treatment_effects = 2.0 * (treatment > 2.0).astype(float)
         else:
-            raise ValueError(f"Unknown treatment effect function: {treatment_effect_fn}")
+            raise ValueError(
+                f"Unknown treatment effect function: {treatment_effect_fn}"
+            )
 
         noise = np.random.normal(0, noise_std, n_samples)
         outcome = confounder_effects + treatment_effects + noise
@@ -149,7 +151,7 @@ class SyntheticDataGenerator:
             outcome_type="continuous",
         )
 
-        covariate_names = [f"X{i+1}" for i in range(n_confounders)]
+        covariate_names = [f"X{i + 1}" for i in range(n_confounders)]
         covariate_data = CovariateData(
             values=pd.DataFrame(X, columns=covariate_names),
             names=covariate_names,
@@ -164,12 +166,12 @@ class SyntheticDataGenerator:
         include_seasonality: bool = True,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Generate synthetic marketing campaign dataset.
-        
+
         Args:
             n_samples: Number of observations (customers)
             campaign_types: List of campaign types. If None, uses default marketing campaigns.
             include_seasonality: Whether to include seasonal effects
-            
+
         Returns:
             Tuple of (treatment, outcome, covariates) data objects representing
             marketing campaign assignment, customer response, and customer attributes
@@ -186,14 +188,18 @@ class SyntheticDataGenerator:
         customer_income = np.random.lognormal(10.5, 0.5, n_samples)  # Log-normal income
         customer_income = np.clip(customer_income, 20000, 200000)
 
-        previous_purchases = np.random.poisson(3, n_samples)  # Historical purchase count
+        previous_purchases = np.random.poisson(
+            3, n_samples
+        )  # Historical purchase count
 
         # Customer segment (affects both treatment assignment and outcome)
         segment_probs = np.array([0.3, 0.4, 0.2, 0.1])  # Premium, Standard, Budget, New
         customer_segment = np.random.choice(4, n_samples, p=segment_probs)
 
         # Email engagement score (affects treatment assignment)
-        email_engagement = np.random.beta(2, 5, n_samples)  # Skewed toward lower engagement
+        email_engagement = np.random.beta(
+            2, 5, n_samples
+        )  # Skewed toward lower engagement
 
         # Seasonality (if enabled)
         if include_seasonality:
@@ -209,41 +215,46 @@ class SyntheticDataGenerator:
 
         # Email campaign: higher for high engagement customers
         treatment_logits[:, 0] = (
-            2.0 * email_engagement +
-            0.3 * (customer_segment == 0) +  # Premium customers
-            0.1 * (customer_age < 40)  # Younger customers
+            2.0 * email_engagement
+            + 0.3 * (customer_segment == 0)  # Premium customers
+            + 0.1 * (customer_age < 40)  # Younger customers
         )
 
         # Social media: higher for younger customers
         treatment_logits[:, 1] = (
-            -0.05 * customer_age + 2.0 +
-            0.2 * (customer_segment <= 1)  # Premium/Standard
+            -0.05 * customer_age
+            + 2.0
+            + 0.2 * (customer_segment <= 1)  # Premium/Standard
         )
 
         # Direct mail: higher for older, premium customers
         treatment_logits[:, 2] = (
-            0.03 * customer_age +
-            0.5 * (customer_segment == 0) +  # Premium
-            0.01 * customer_income / 1000
+            0.03 * customer_age
+            + 0.5 * (customer_segment == 0)  # Premium
+            + 0.01 * customer_income / 1000
         )
 
         # Control group: baseline probability
         treatment_logits[:, 3] = np.ones(n_samples)
 
         # Convert to probabilities and sample treatment
-        treatment_probs = np.exp(treatment_logits) / np.sum(np.exp(treatment_logits), axis=1, keepdims=True)
-        treatment_idx = np.array([np.random.choice(n_campaigns, p=probs) for probs in treatment_probs])
+        treatment_probs = np.exp(treatment_logits) / np.sum(
+            np.exp(treatment_logits), axis=1, keepdims=True
+        )
+        treatment_idx = np.array(
+            [np.random.choice(n_campaigns, p=probs) for probs in treatment_probs]
+        )
         treatment = np.array([campaign_types[idx] for idx in treatment_idx])
 
         # Generate outcome (customer response/purchase amount)
         # Base response depends on customer characteristics
         base_response = (
-            0.02 * customer_age +
-            0.00005 * customer_income +
-            2.0 * previous_purchases +
-            5.0 * (customer_segment == 0) +  # Premium customers spend more
-            2.0 * (customer_segment == 1) +  # Standard customers
-            10.0 * seasonal_effect  # Seasonal effects
+            0.02 * customer_age
+            + 0.00005 * customer_income
+            + 2.0 * previous_purchases
+            + 5.0 * (customer_segment == 0)  # Premium customers spend more
+            + 2.0 * (customer_segment == 1)  # Standard customers
+            + 10.0 * seasonal_effect  # Seasonal effects
         )
 
         # Treatment effects (different for each campaign type)
@@ -273,7 +284,7 @@ class SyntheticDataGenerator:
             values=pd.Series(treatment),
             name="campaign_type",
             treatment_type="categorical",
-            categories=campaign_types,
+            categories=list(campaign_types),
         )
 
         outcome_data = OutcomeData(
@@ -283,13 +294,15 @@ class SyntheticDataGenerator:
         )
 
         # Create covariate dataframe
-        covariates_df = pd.DataFrame({
-            "customer_age": customer_age,
-            "customer_income": customer_income,
-            "previous_purchases": previous_purchases,
-            "customer_segment": customer_segment,
-            "email_engagement": email_engagement,
-        })
+        covariates_df = pd.DataFrame(
+            {
+                "customer_age": customer_age,
+                "customer_income": customer_income,
+                "previous_purchases": previous_purchases,
+                "customer_segment": customer_segment,
+                "email_engagement": email_engagement,
+            }
+        )
 
         if include_seasonality:
             covariates_df["month"] = month
@@ -310,14 +323,14 @@ class SyntheticDataGenerator:
         missing_rate: float = 0.1,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Add missing data to existing dataset according to specified mechanism.
-        
+
         Args:
             treatment: Original treatment data
             outcome: Original outcome data
             covariates: Original covariate data
             missing_mechanism: Type of missingness ('MCAR', 'MAR', 'MNAR')
             missing_rate: Overall proportion of data to make missing
-            
+
         Returns:
             Tuple of data objects with missing values introduced
         """
@@ -342,7 +355,8 @@ class SyntheticDataGenerator:
         else:
             new_cov_values = pd.DataFrame(
                 covariates.values.copy(),
-                columns=covariates.names or [f"X{i}" for i in range(covariates.values.shape[1])]
+                columns=covariates.names
+                or [f"X{i}" for i in range(covariates.values.shape[1])],
             )
 
         new_covariates = CovariateData(
@@ -362,16 +376,27 @@ class SyntheticDataGenerator:
             if len(new_cov_values.columns) > 1:
                 first_covariate = new_cov_values.columns[0]
                 # Higher missingness for treated units and high values of first covariate
-                treatment_numeric = (new_treatment.values == 1).astype(int) if new_treatment.treatment_type == "binary" else new_treatment.values
+                treatment_numeric = (
+                    (new_treatment.values == 1).astype(int)
+                    if new_treatment.treatment_type == "binary"
+                    else new_treatment.values
+                )
 
-                for i, col in enumerate(new_cov_values.columns[1:], 1):  # Skip first covariate
+                for i, col in enumerate(
+                    new_cov_values.columns[1:], 1
+                ):  # Skip first covariate
                     missing_logits = (
-                        -2.0 +  # Base probability
-                        1.0 * treatment_numeric +  # Treatment increases missingness
-                        0.5 * np.array(new_cov_values[first_covariate])  # First covariate affects missingness
+                        -2.0  # Base probability
+                        + 1.0 * treatment_numeric  # Treatment increases missingness
+                        + 0.5
+                        * np.array(
+                            new_cov_values[first_covariate]
+                        )  # First covariate affects missingness
                     )
                     missing_probs = 1 / (1 + np.exp(-missing_logits))
-                    missing_mask = np.random.random(n_samples) < missing_probs * missing_rate * 3  # Scale to get desired rate
+                    missing_mask = (
+                        np.random.random(n_samples) < missing_probs * missing_rate * 3
+                    )  # Scale to get desired rate
                     new_cov_values.loc[missing_mask, col] = np.nan
 
         elif missing_mechanism == "MNAR":
@@ -384,7 +409,9 @@ class SyntheticDataGenerator:
                 # Higher values more likely to be missing
                 missing_logits = -2.0 + 1.0 * standardized
                 missing_probs = 1 / (1 + np.exp(-missing_logits))
-                missing_mask = np.random.random(n_samples) < missing_probs * missing_rate * 2
+                missing_mask = (
+                    np.random.random(n_samples) < missing_probs * missing_rate * 2
+                )
                 new_cov_values.loc[missing_mask, col] = np.nan
 
         new_covariates.values = new_cov_values
@@ -398,17 +425,19 @@ def generate_simple_rct(
     random_state: int | None = None,
 ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
     """Generate simple randomized controlled trial data.
-    
+
     Args:
         n_samples: Number of observations
         treatment_effect: True average treatment effect
         noise_std: Standard deviation of noise
         random_state: Random seed
-        
+
     Returns:
         Tuple of (treatment, outcome, covariates) data objects
     """
-    generator = SyntheticDataGenerator(random_state=random_state)
+    # Set random seed if provided
+    if random_state is not None:
+        np.random.seed(random_state)
 
     # Purely random treatment assignment
     treatment = np.random.binomial(1, 0.5, n_samples)
@@ -447,14 +476,14 @@ def generate_confounded_observational(
     random_state: int | None = None,
 ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
     """Generate confounded observational data.
-    
+
     Args:
         n_samples: Number of observations
         treatment_effect: True average treatment effect
         confounding_strength: Strength of confounding
         selection_bias: Strength of treatment selection bias
         random_state: Random seed
-        
+
     Returns:
         Tuple of (treatment, outcome, covariates) data objects
     """

@@ -16,10 +16,10 @@ from ..core.base import CovariateData, OutcomeData, TreatmentData
 
 class NHEFSDataLoader:
     """Loader for the NHEFS dataset with proper preprocessing and validation.
-    
+
     The NHEFS dataset contains information about smoking cessation and weight change
     among participants in the National Health and Nutrition Examination Survey.
-    
+
     Key variables:
     - qsmk: Treatment (1 = quit smoking, 0 = continued smoking)
     - wt82_71: Outcome (weight change from 1971 to 1982)
@@ -28,9 +28,9 @@ class NHEFSDataLoader:
 
     def __init__(self, data_path: str | None = None):
         """Initialize the NHEFS data loader.
-        
+
         Args:
-            data_path: Path to NHEFS CSV file. If None, will search for 'nhefs.csv' 
+            data_path: Path to NHEFS CSV file. If None, will search for 'nhefs.csv'
                       in the current directory and parent directories.
         """
         self.data_path = self._find_nhefs_file(data_path)
@@ -39,13 +39,13 @@ class NHEFSDataLoader:
 
     def _find_nhefs_file(self, data_path: str | None) -> Path:
         """Find the NHEFS dataset file.
-        
+
         Args:
             data_path: Explicitly provided path, or None to search
-            
+
         Returns:
             Path to the NHEFS CSV file
-            
+
         Raises:
             FileNotFoundError: If NHEFS file cannot be found
         """
@@ -74,7 +74,7 @@ class NHEFSDataLoader:
 
     def load_raw_data(self) -> pd.DataFrame:
         """Load the raw NHEFS dataset.
-        
+
         Returns:
             Raw NHEFS dataframe with all original columns
         """
@@ -92,22 +92,31 @@ class NHEFSDataLoader:
         exclude_missing_treatment: bool = True,
     ) -> pd.DataFrame:
         """Load and preprocess the NHEFS dataset for causal inference.
-        
+
         Args:
             outcome: Name of outcome variable (default: weight change)
-            treatment: Name of treatment variable (default: smoking cessation)  
+            treatment: Name of treatment variable (default: smoking cessation)
             confounders: List of confounder variables. If None, uses standard set.
             exclude_missing_outcome: Whether to exclude observations with missing outcomes
             exclude_missing_treatment: Whether to exclude observations with missing treatment
-            
+
         Returns:
             Processed NHEFS dataframe ready for causal inference
         """
         if confounders is None:
             # Standard confounders from Hernán & Robins book
             confounders = [
-                "sex", "age", "race", "education", "smokeintensity", "smokeyrs",
-                "exercise", "active", "wt71", "asthma", "bronch"
+                "sex",
+                "age",
+                "race",
+                "education",
+                "smokeintensity",
+                "smokeyrs",
+                "exercise",
+                "active",
+                "wt71",
+                "asthma",
+                "bronch",
             ]
 
         # Load raw data
@@ -129,21 +138,27 @@ class NHEFSDataLoader:
             df_subset = df_subset.dropna(subset=[outcome])
             dropped_outcome = initial_n - len(df_subset)
             if dropped_outcome > 0:
-                print(f"Excluded {dropped_outcome} observations with missing outcome '{outcome}'")
+                print(
+                    f"Excluded {dropped_outcome} observations with missing outcome '{outcome}'"
+                )
 
         if exclude_missing_treatment and treatment in df_subset.columns:
             initial_n = len(df_subset)
             df_subset = df_subset.dropna(subset=[treatment])
             dropped_treatment = initial_n - len(df_subset)
             if dropped_treatment > 0:
-                print(f"Excluded {dropped_treatment} observations with missing treatment '{treatment}'")
+                print(
+                    f"Excluded {dropped_treatment} observations with missing treatment '{treatment}'"
+                )
 
         # Convert treatment to binary if needed
         if treatment in df_subset.columns:
             unique_vals = df_subset[treatment].dropna().unique()
             if len(unique_vals) == 2 and not all(val in [0, 1] for val in unique_vals):
                 print(f"Converting treatment '{treatment}' to binary (0/1)")
-                df_subset[treatment] = (df_subset[treatment] == unique_vals[1]).astype(int)
+                df_subset[treatment] = (df_subset[treatment] == unique_vals[1]).astype(
+                    int
+                )
 
         self._processed_data = df_subset
         return df_subset.copy()
@@ -156,21 +171,18 @@ class NHEFSDataLoader:
         **kwargs: Any,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Get the NHEFS data as causal inference data objects.
-        
+
         Args:
             outcome: Name of outcome variable
             treatment: Name of treatment variable
             confounders: List of confounder variables
             **kwargs: Additional arguments passed to load_processed_data
-            
+
         Returns:
             Tuple of (TreatmentData, OutcomeData, CovariateData) objects
         """
         df = self.load_processed_data(
-            outcome=outcome,
-            treatment=treatment,
-            confounders=confounders,
-            **kwargs
+            outcome=outcome, treatment=treatment, confounders=confounders, **kwargs
         )
 
         # Create treatment data
@@ -189,10 +201,7 @@ class NHEFSDataLoader:
 
         # Create covariate data
         if confounders is None:
-            confounders = [
-                col for col in df.columns
-                if col not in [outcome, treatment]
-            ]
+            confounders = [col for col in df.columns if col not in [outcome, treatment]]
 
         available_confounders = [col for col in confounders if col in df.columns]
 
@@ -212,7 +221,7 @@ class NHEFSDataLoader:
 
     def get_dataset_info(self) -> dict[str, Any]:
         """Get information about the NHEFS dataset.
-        
+
         Returns:
             Dictionary with dataset statistics and information
         """
@@ -282,7 +291,7 @@ def load_nhefs(
     **kwargs: Any,
 ) -> tuple[TreatmentData, OutcomeData, CovariateData] | pd.DataFrame:
     """Convenience function to load NHEFS data.
-    
+
     Args:
         data_path: Path to NHEFS CSV file
         outcome: Name of outcome variable
@@ -290,7 +299,7 @@ def load_nhefs(
         confounders: List of confounder variables
         return_objects: If True, return causal data objects; if False, return DataFrame
         **kwargs: Additional arguments passed to load_processed_data
-        
+
     Returns:
         Either tuple of causal data objects or processed DataFrame
     """
@@ -298,15 +307,9 @@ def load_nhefs(
 
     if return_objects:
         return loader.get_causal_data_objects(
-            outcome=outcome,
-            treatment=treatment,
-            confounders=confounders,
-            **kwargs
+            outcome=outcome, treatment=treatment, confounders=confounders, **kwargs
         )
     else:
         return loader.load_processed_data(
-            outcome=outcome,
-            treatment=treatment,
-            confounders=confounders,
-            **kwargs
+            outcome=outcome, treatment=treatment, confounders=confounders, **kwargs
         )

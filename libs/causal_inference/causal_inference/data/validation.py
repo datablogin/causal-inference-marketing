@@ -9,33 +9,30 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..core.base import CovariateData, OutcomeData, TreatmentData
-
-
-class DataValidationError(Exception):
-    """Exception raised when data validation fails."""
-    pass
+from ..core.base import CovariateData, OutcomeData, TreatmentData, DataValidationError
 
 
 class CausalDataValidator:
     """Validator for causal inference datasets."""
 
-    def __init__(self, verbose: bool = True):
+    def __init__(self, verbose: bool = True, outlier_threshold: float = 5.0):
         """Initialize the validator.
-        
+
         Args:
             verbose: Whether to print detailed validation messages
+            outlier_threshold: Number of standard deviations for outlier detection
         """
         self.verbose = verbose
+        self.outlier_threshold = outlier_threshold
         self.warnings: list[str] = []
         self.errors: list[str] = []
 
     def validate_treatment_data(self, treatment: TreatmentData) -> None:
         """Validate treatment data.
-        
+
         Args:
             treatment: Treatment data to validate
-            
+
         Raises:
             DataValidationError: If validation fails
         """
@@ -97,10 +94,10 @@ class CausalDataValidator:
 
     def validate_outcome_data(self, outcome: OutcomeData) -> None:
         """Validate outcome data.
-        
+
         Args:
             outcome: Outcome data to validate
-            
+
         Raises:
             DataValidationError: If validation fails
         """
@@ -145,11 +142,13 @@ class CausalDataValidator:
 
         elif outcome.outcome_type == "continuous":
             if len(values) > 0:
-                # Check for outliers (values > 5 standard deviations from mean)
+                # Check for outliers (values > outlier_threshold standard deviations from mean)
                 mean_val = np.mean(values)
                 std_val = np.std(values)
                 if std_val > 0:
-                    outliers = np.abs(values - mean_val) > 5 * std_val
+                    outliers = (
+                        np.abs(values - mean_val) > self.outlier_threshold * std_val
+                    )
                     outlier_count = outliers.sum()
                     if outlier_count > 0:
                         pct_outliers = 100 * outlier_count / len(values)
@@ -166,7 +165,7 @@ class CausalDataValidator:
 
     def validate_covariate_data(self, covariates: CovariateData) -> None:
         """Validate covariate data.
-        
+
         Args:
             covariates: Covariate data to validate
         """
@@ -192,7 +191,7 @@ class CausalDataValidator:
 
             # Check for constant variables
             for col in df.columns:
-                if df[col].dtype in ['int64', 'float64']:
+                if df[col].dtype in ["int64", "float64"]:
                     if df[col].nunique() == 1:
                         self.warnings.append(f"Covariate '{col}' is constant")
 
@@ -203,7 +202,7 @@ class CausalDataValidator:
                 # Find pairs with correlation > 0.95
                 high_corr_pairs = []
                 for i in range(len(corr_matrix.columns)):
-                    for j in range(i+1, len(corr_matrix.columns)):
+                    for j in range(i + 1, len(corr_matrix.columns)):
                         if corr_matrix.iloc[i, j] > 0.95:
                             pair = (corr_matrix.columns[i], corr_matrix.columns[j])
                             corr_val = corr_matrix.iloc[i, j]
@@ -238,13 +237,13 @@ class CausalDataValidator:
         self,
         treatment: TreatmentData,
         covariates: CovariateData,
-        min_overlap: float = 0.1
+        min_overlap: float = 0.1,
     ) -> None:
         """Check for sufficient overlap in covariate distributions between treatment groups.
-        
+
         Args:
             treatment: Treatment data
-            covariates: Covariate data  
+            covariates: Covariate data
             min_overlap: Minimum required overlap proportion
         """
         if self.verbose:
@@ -257,22 +256,28 @@ class CausalDataValidator:
         # Simple overlap check: ensure both treatment groups are present in most covariate strata
         if isinstance(covariates.values, pd.DataFrame):
             df = covariates.values.copy()
-            df['treatment'] = treatment.values
+            df["treatment"] = treatment.values
 
             # For continuous variables, create quintiles
             for col in df.select_dtypes(include=[np.number]).columns:
-                if col != 'treatment' and df[col].nunique() > 10:
+                if col != "treatment" and df[col].nunique() > 10:
                     try:
-                        df[f'{col}_quintile'] = pd.qcut(df[col], q=5, labels=False, duplicates='drop')
-                    except:
-                        # Handle case where qcut fails
+                        df[f"{col}_quintile"] = pd.qcut(
+                            df[col], q=5, labels=False, duplicates="drop"
+                        )
+                    except (ValueError, IndexError) as e:
+                        # Handle case where qcut fails (insufficient unique values, etc.)
+                        if self.verbose:
+                            print(
+                                f"Warning: Could not create quintiles for '{col}': {e}"
+                            )
                         continue
 
             # Check categorical variables for overlap
-            categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+            categorical_cols = df.select_dtypes(include=["object", "category"]).columns
             for col in categorical_cols:
-                if col != 'treatment':
-                    overlap_check = df.groupby(col)['treatment'].apply(
+                if col != "treatment":
+                    overlap_check = df.groupby(col)["treatment"].apply(
                         lambda x: (x == 0).any() and (x == 1).any()
                     )
                     overlap_rate = overlap_check.mean()
@@ -293,13 +298,13 @@ class CausalDataValidator:
         check_overlap: bool = True,
     ) -> None:
         """Run all validation checks.
-        
+
         Args:
             treatment: Treatment data
             outcome: Outcome data
             covariates: Optional covariate data
             check_overlap: Whether to check overlap assumption
-            
+
         Raises:
             DataValidationError: If critical validation errors are found
         """
@@ -368,22 +373,26 @@ def validate_causal_data(
     covariates: CovariateData | None = None,
     check_overlap: bool = True,
     verbose: bool = True,
+    outlier_threshold: float = 5.0,
 ) -> tuple[list[str], list[str]]:
     """Convenience function to validate causal inference data.
-    
+
     Args:
         treatment: Treatment data
-        outcome: Outcome data  
+        outcome: Outcome data
         covariates: Optional covariate data
         check_overlap: Whether to check overlap assumption
         verbose: Whether to print validation details
-        
+        outlier_threshold: Number of standard deviations for outlier detection
+
     Returns:
         Tuple of (warnings, errors) lists
-        
+
     Raises:
         DataValidationError: If critical validation errors are found
     """
-    validator = CausalDataValidator(verbose=verbose)
+    validator = CausalDataValidator(
+        verbose=verbose, outlier_threshold=outlier_threshold
+    )
     validator.validate_all(treatment, outcome, covariates, check_overlap)
     return validator.warnings, validator.errors

@@ -4,10 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData, DataValidationError
 from causal_inference.data.validation import (
     CausalDataValidator,
-    DataValidationError,
     validate_causal_data,
 )
 
@@ -31,12 +30,14 @@ class TestCausalDataValidator:
         )
 
         self.good_covariates = CovariateData(
-            values=pd.DataFrame({
-                'age': [25, 30, 35, 40, 45, 50] * 50,
-                'income': [30000, 40000, 50000, 60000, 70000, 80000] * 50,
-                'education': [1, 2, 3, 1, 2, 3] * 50,
-            }),
-            names=['age', 'income', 'education'],
+            values=pd.DataFrame(
+                {
+                    "age": [25, 30, 35, 40, 45, 50] * 50,
+                    "income": [30000, 40000, 50000, 60000, 70000, 80000] * 50,
+                    "education": [1, 2, 3, 1, 2, 3] * 50,
+                }
+            ),
+            names=["age", "income", "education"],
         )
 
         self.validator = CausalDataValidator(verbose=False)
@@ -49,8 +50,9 @@ class TestCausalDataValidator:
 
     def test_validate_treatment_with_missing_values(self):
         """Test validation of treatment data with missing values."""
+        # Create data with high missing rate for errors (> 5%)
         treatment_with_missing = TreatmentData(
-            values=pd.Series([0, 1, np.nan, 1, 0, np.nan] * 20),
+            values=pd.Series([0, 1, 0, 1, 0, np.nan] * 20),  # 1/6 = 16.7% missing, > 5%
             name="treatment",
             treatment_type="binary",
         )
@@ -59,11 +61,36 @@ class TestCausalDataValidator:
         self.validator.errors.clear()
         self.validator.validate_treatment_data(treatment_with_missing)
 
-        # Should have warnings about missing values
+        # Should have errors about missing values (16.7% > 5% threshold)
+        assert any("missing values" in error for error in self.validator.errors)
+
+    def test_validate_treatment_with_low_missing_values(self):
+        """Test validation of treatment data with low missing values for warnings."""
+        # Create data with low missing rate for warnings (< 5%)
+        # 100 values with 2 missing = 2% missing
+        treatment_values = [0, 1, 0, 1, 0] * 19 + [
+            0,
+            1,
+            0,
+            np.nan,
+            np.nan,
+        ]  # 2/100 = 2% missing
+        treatment_with_missing = TreatmentData(
+            values=pd.Series(treatment_values),
+            name="treatment",
+            treatment_type="binary",
+        )
+
+        self.validator.warnings.clear()
+        self.validator.errors.clear()
+        self.validator.validate_treatment_data(treatment_with_missing)
+
+        # Should have warnings about missing values (2% < 5% threshold)
         assert any("missing values" in warning for warning in self.validator.warnings)
 
     def test_validate_treatment_wrong_binary_values(self):
         """Test validation of binary treatment with wrong values."""
+        # Test case 1: Binary treatment with non-0/1 values (should warn)
         wrong_binary_treatment = TreatmentData(
             values=pd.Series([0, 2, 0, 2, 0, 2] * 20),
             name="treatment",
@@ -74,13 +101,34 @@ class TestCausalDataValidator:
         self.validator.errors.clear()
         self.validator.validate_treatment_data(wrong_binary_treatment)
 
-        # Should have errors about wrong binary values
-        assert any("exactly 2 unique values" in error for error in self.validator.errors)
+        # Should have warnings about non-0/1 binary values
+        assert any(
+            "Binary treatment values are not 0/1" in warning
+            for warning in self.validator.warnings
+        )
+
+    def test_validate_treatment_too_many_binary_values(self):
+        """Test validation of binary treatment with too many unique values."""
+        # Test case 2: Binary treatment with too many unique values (should error)
+        wrong_binary_treatment = TreatmentData(
+            values=pd.Series([0, 1, 2, 0, 1, 2] * 20),
+            name="treatment",
+            treatment_type="binary",
+        )
+
+        self.validator.warnings.clear()
+        self.validator.errors.clear()
+        self.validator.validate_treatment_data(wrong_binary_treatment)
+
+        # Should have errors about wrong number of unique values
+        assert any(
+            "exactly 2 unique values" in error for error in self.validator.errors
+        )
 
     def test_validate_treatment_non_standard_binary(self):
         """Test validation of binary treatment with non-0/1 values."""
         non_standard_binary = TreatmentData(
-            values=pd.Series(['A', 'B', 'A', 'B'] * 25),
+            values=pd.Series(["A", "B", "A", "B"] * 25),
             name="treatment",
             treatment_type="binary",
         )
@@ -101,7 +149,9 @@ class TestCausalDataValidator:
         self.validator.validate_treatment_data(small_treatment)
 
         # Should have warnings about small sample size
-        assert any("small sample size" in warning for warning in self.validator.warnings)
+        assert any(
+            "small sample size" in warning for warning in self.validator.warnings
+        )
 
     def test_validate_good_outcome_data(self):
         """Test validation of good outcome data."""
@@ -111,8 +161,11 @@ class TestCausalDataValidator:
 
     def test_validate_outcome_with_missing_values(self):
         """Test validation of outcome data with missing values."""
+        # Create data with moderate missing rate for errors (> 10%)
         outcome_with_missing = OutcomeData(
-            values=pd.Series([1.2, np.nan, 1.1, 2.5, np.nan, 2.8] * 20),
+            values=pd.Series(
+                [1.2, np.nan, 1.1, 2.5, np.nan, 2.8] * 20
+            ),  # 33% missing > 10%
             name="outcome",
             outcome_type="continuous",
         )
@@ -121,7 +174,31 @@ class TestCausalDataValidator:
         self.validator.errors.clear()
         self.validator.validate_outcome_data(outcome_with_missing)
 
-        # Should have warnings about missing values
+        # Should have errors about missing values (33% > 10% threshold)
+        assert any("missing values" in error for error in self.validator.errors)
+
+    def test_validate_outcome_with_low_missing_values(self):
+        """Test validation of outcome data with low missing values for warnings."""
+        # Create data with low missing rate for warnings (< 10%)
+        # 100 values with 5 missing = 5% missing
+        outcome_values = [1.2, 1.1, 2.5, 2.8, 1.5] * 19 + [
+            1.2,
+            1.1,
+            2.5,
+            np.nan,
+            np.nan,
+        ]  # 2/100 = 2% missing
+        outcome_with_missing = OutcomeData(
+            values=pd.Series(outcome_values),
+            name="outcome",
+            outcome_type="continuous",
+        )
+
+        self.validator.warnings.clear()
+        self.validator.errors.clear()
+        self.validator.validate_outcome_data(outcome_with_missing)
+
+        # Should have warnings about missing values (2% < 10% threshold)
         assert any("missing values" in warning for warning in self.validator.warnings)
 
     def test_validate_outcome_with_infinite_values(self):
@@ -163,11 +240,13 @@ class TestCausalDataValidator:
     def test_validate_covariates_with_missing_data(self):
         """Test validation of covariate data with missing values."""
         covariates_with_missing = CovariateData(
-            values=pd.DataFrame({
-                'age': [25, np.nan, 35, 40, np.nan, 50] * 20,
-                'income': [30000, 40000, np.nan, 60000, 70000, 80000] * 20,
-            }),
-            names=['age', 'income'],
+            values=pd.DataFrame(
+                {
+                    "age": [25, np.nan, 35, 40, np.nan, 50] * 20,
+                    "income": [30000, 40000, np.nan, 60000, 70000, 80000] * 20,
+                }
+            ),
+            names=["age", "income"],
         )
 
         self.validator.validate_covariate_data(covariates_with_missing)
@@ -179,11 +258,13 @@ class TestCausalDataValidator:
     def test_validate_covariates_with_constant_variable(self):
         """Test validation of covariate data with constant variable."""
         covariates_with_constant = CovariateData(
-            values=pd.DataFrame({
-                'age': [25, 30, 35, 40, 45, 50] * 20,
-                'constant': [1, 1, 1, 1, 1, 1] * 20,  # Constant variable
-            }),
-            names=['age', 'constant'],
+            values=pd.DataFrame(
+                {
+                    "age": [25, 30, 35, 40, 45, 50] * 20,
+                    "constant": [1, 1, 1, 1, 1, 1] * 20,  # Constant variable
+                }
+            ),
+            names=["age", "constant"],
         )
 
         self.validator.validate_covariate_data(covariates_with_constant)
@@ -198,24 +279,26 @@ class TestCausalDataValidator:
         x2 = [1.01, 2.01, 3.01, 4.01, 5.01, 6.01] * 20  # Almost identical
 
         covariates_correlated = CovariateData(
-            values=pd.DataFrame({
-                'x1': x1,
-                'x2': x2,
-            }),
-            names=['x1', 'x2'],
+            values=pd.DataFrame(
+                {
+                    "x1": x1,
+                    "x2": x2,
+                }
+            ),
+            names=["x1", "x2"],
         )
 
         self.validator.validate_covariate_data(covariates_correlated)
 
         # Should have warnings about high correlation
-        assert any("highly correlated" in warning for warning in self.validator.warnings)
+        assert any(
+            "highly correlated" in warning for warning in self.validator.warnings
+        )
 
     def test_validate_all_good_data(self):
         """Test validation of all good data."""
         self.validator.validate_all(
-            self.good_treatment,
-            self.good_outcome,
-            self.good_covariates
+            self.good_treatment, self.good_outcome, self.good_covariates
         )
 
         # Should pass without errors
@@ -229,14 +312,14 @@ class TestCausalDataValidator:
             outcome_type="continuous",
         )
 
-        self.validator.validate_all(
-            self.good_treatment,
-            mismatched_outcome,
-            self.good_covariates
-        )
+        # Should raise DataValidationError due to sample size mismatch
+        with pytest.raises(DataValidationError) as exc_info:
+            self.validator.validate_all(
+                self.good_treatment, mismatched_outcome, self.good_covariates
+            )
 
-        # Should have errors about sample size mismatch
-        assert any("Sample size mismatch" in error for error in self.validator.errors)
+        # Check that error message contains sample size mismatch
+        assert "Sample size mismatch" in str(exc_info.value)
 
     def test_validate_all_with_errors_raises_exception(self):
         """Test that validation raises exception when errors are found."""
@@ -270,8 +353,8 @@ class TestCausalDataValidator:
         )
 
         poor_overlap_covariates = CovariateData(
-            values=pd.DataFrame(X, columns=['X1', 'X2', 'X3']),
-            names=['X1', 'X2', 'X3'],
+            values=pd.DataFrame(X, columns=["X1", "X2", "X3"]),
+            names=["X1", "X2", "X3"],
         )
 
         self.validator.validate_overlap(poor_overlap_treatment, poor_overlap_covariates)
@@ -298,20 +381,19 @@ class TestValidateCausalDataConvenienceFunction:
         )
 
         self.good_covariates = CovariateData(
-            values=pd.DataFrame({
-                'age': [25, 30, 35, 40, 45, 50] * 10,
-                'income': [30000, 40000, 50000, 60000, 70000, 80000] * 10,
-            }),
-            names=['age', 'income'],
+            values=pd.DataFrame(
+                {
+                    "age": [25, 30, 35, 40, 45, 50] * 10,
+                    "income": [30000, 40000, 50000, 60000, 70000, 80000] * 10,
+                }
+            ),
+            names=["age", "income"],
         )
 
     def test_validate_causal_data_success(self):
         """Test successful validation."""
         warnings, errors = validate_causal_data(
-            self.good_treatment,
-            self.good_outcome,
-            self.good_covariates,
-            verbose=False
+            self.good_treatment, self.good_outcome, self.good_covariates, verbose=False
         )
 
         assert len(errors) == 0
@@ -326,19 +408,12 @@ class TestValidateCausalDataConvenienceFunction:
         )
 
         with pytest.raises(DataValidationError):
-            validate_causal_data(
-                bad_treatment,
-                self.good_outcome,
-                verbose=False
-            )
+            validate_causal_data(bad_treatment, self.good_outcome, verbose=False)
 
     def test_validate_causal_data_without_covariates(self):
         """Test validation without covariates."""
         warnings, errors = validate_causal_data(
-            self.good_treatment,
-            self.good_outcome,
-            covariates=None,
-            verbose=False
+            self.good_treatment, self.good_outcome, covariates=None, verbose=False
         )
 
         assert len(errors) == 0
@@ -350,7 +425,7 @@ class TestValidateCausalDataConvenienceFunction:
             self.good_outcome,
             self.good_covariates,
             check_overlap=False,
-            verbose=False
+            verbose=False,
         )
 
         assert len(errors) == 0

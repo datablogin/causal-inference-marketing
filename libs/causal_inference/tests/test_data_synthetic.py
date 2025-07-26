@@ -21,7 +21,9 @@ class TestSyntheticDataGenerator:
 
     def test_generate_linear_binary_treatment_default(self):
         """Test generation of linear binary treatment data with defaults."""
-        treatment, outcome, covariates = self.generator.generate_linear_binary_treatment()
+        treatment, outcome, covariates = (
+            self.generator.generate_linear_binary_treatment()
+        )
 
         # Check types
         assert isinstance(treatment, TreatmentData)
@@ -45,11 +47,10 @@ class TestSyntheticDataGenerator:
 
     def test_generate_linear_binary_treatment_custom_params(self):
         """Test generation with custom parameters."""
-        treatment, outcome, covariates = self.generator.generate_linear_binary_treatment(
-            n_samples=500,
-            n_confounders=3,
-            treatment_effect=1.5,
-            noise_std=0.5
+        treatment, outcome, covariates = (
+            self.generator.generate_linear_binary_treatment(
+                n_samples=500, n_confounders=3, treatment_effect=1.5, noise_std=0.5
+            )
         )
 
         assert len(treatment.values) == 500
@@ -60,30 +61,37 @@ class TestSyntheticDataGenerator:
     def test_generate_linear_binary_treatment_confounding(self):
         """Test that confounding is present in generated data."""
         # Generate data with strong confounding
-        treatment, outcome, covariates = self.generator.generate_linear_binary_treatment(
-            n_samples=2000,
-            confounding_strength=2.0,
-            selection_bias=1.0
+        treatment, outcome, covariates = (
+            self.generator.generate_linear_binary_treatment(
+                n_samples=2000, confounding_strength=2.0, selection_bias=1.0
+            )
         )
 
         # Check that treatment and outcome are both correlated with confounders
-        df = pd.DataFrame({
-            'treatment': treatment.values,
-            'outcome': outcome.values,
-            **{f'X{i+1}': covariates.values.iloc[:, i] for i in range(len(covariates.names))}
-        })
+        df = pd.DataFrame(
+            {
+                "treatment": treatment.values,
+                "outcome": outcome.values,
+                **{
+                    f"X{i + 1}": covariates.values.iloc[:, i]
+                    for i in range(len(covariates.names))
+                },
+            }
+        )
 
         # Treatment should be correlated with some confounders (due to selection bias)
-        treatment_X1_corr = df['treatment'].corr(df['X1'])
+        treatment_X1_corr = df["treatment"].corr(df["X1"])
         assert abs(treatment_X1_corr) > 0.1  # Should have some correlation
 
         # Outcome should be correlated with confounders (due to confounding)
-        outcome_corr_with_X = [df['outcome'].corr(df[f'X{i+1}']) for i in range(3)]
+        outcome_corr_with_X = [df["outcome"].corr(df[f"X{i + 1}"]) for i in range(3)]
         assert any(abs(corr) > 0.2 for corr in outcome_corr_with_X)
 
     def test_generate_nonlinear_continuous_treatment_default(self):
         """Test generation of nonlinear continuous treatment data."""
-        treatment, outcome, covariates = self.generator.generate_nonlinear_continuous_treatment()
+        treatment, outcome, covariates = (
+            self.generator.generate_nonlinear_continuous_treatment()
+        )
 
         # Check types and properties
         assert isinstance(treatment, TreatmentData)
@@ -106,9 +114,10 @@ class TestSyntheticDataGenerator:
         dose_response_functions = ["linear", "quadratic", "threshold"]
 
         for dose_fn in dose_response_functions:
-            treatment, outcome, covariates = self.generator.generate_nonlinear_continuous_treatment(
-                n_samples=500,
-                treatment_effect_fn=dose_fn
+            treatment, outcome, covariates = (
+                self.generator.generate_nonlinear_continuous_treatment(
+                    n_samples=500, treatment_effect_fn=dose_fn
+                )
             )
 
             # All should generate valid data
@@ -126,7 +135,9 @@ class TestSyntheticDataGenerator:
 
     def test_generate_marketing_campaign_data_default(self):
         """Test generation of marketing campaign data with defaults."""
-        treatment, outcome, covariates = self.generator.generate_marketing_campaign_data()
+        treatment, outcome, covariates = (
+            self.generator.generate_marketing_campaign_data()
+        )
 
         # Check types and properties
         assert isinstance(treatment, TreatmentData)
@@ -148,17 +159,22 @@ class TestSyntheticDataGenerator:
 
         # Check covariate names
         expected_covariates = [
-            "customer_age", "customer_income", "previous_purchases",
-            "customer_segment", "email_engagement", "month"
+            "customer_age",
+            "customer_income",
+            "previous_purchases",
+            "customer_segment",
+            "email_engagement",
+            "month",
         ]
         assert set(covariates.names) == set(expected_covariates)
 
     def test_generate_marketing_campaign_data_custom_campaigns(self):
         """Test generation with custom campaign types."""
         custom_campaigns = ["tv", "radio", "print", "control"]
-        treatment, outcome, covariates = self.generator.generate_marketing_campaign_data(
-            n_samples=1000,
-            campaign_types=custom_campaigns
+        treatment, outcome, covariates = (
+            self.generator.generate_marketing_campaign_data(
+                n_samples=1000, campaign_types=custom_campaigns
+            )
         )
 
         unique_treatments = set(treatment.values.unique())
@@ -167,9 +183,10 @@ class TestSyntheticDataGenerator:
 
     def test_generate_marketing_campaign_data_no_seasonality(self):
         """Test generation without seasonality."""
-        treatment, outcome, covariates = self.generator.generate_marketing_campaign_data(
-            n_samples=1000,
-            include_seasonality=False
+        treatment, outcome, covariates = (
+            self.generator.generate_marketing_campaign_data(
+                n_samples=1000, include_seasonality=False
+            )
         )
 
         # Should not include month covariate
@@ -177,23 +194,30 @@ class TestSyntheticDataGenerator:
 
         # Should have one less covariate
         expected_covariates = [
-            "customer_age", "customer_income", "previous_purchases",
-            "customer_segment", "email_engagement"
+            "customer_age",
+            "customer_income",
+            "previous_purchases",
+            "customer_segment",
+            "email_engagement",
         ]
         assert set(covariates.names) == set(expected_covariates)
 
     def test_generate_missing_data_scenario_mcar(self):
         """Test generation of MCAR missing data."""
         # First generate base data
-        treatment, outcome, covariates = self.generator.generate_linear_binary_treatment(
-            n_samples=200
+        treatment, outcome, covariates = (
+            self.generator.generate_linear_binary_treatment(n_samples=200)
         )
 
         # Add MCAR missing data
-        treatment_miss, outcome_miss, covariates_miss = self.generator.generate_missing_data_scenario(
-            treatment, outcome, covariates,
-            missing_mechanism="MCAR",
-            missing_rate=0.2
+        treatment_miss, outcome_miss, covariates_miss = (
+            self.generator.generate_missing_data_scenario(
+                treatment,
+                outcome,
+                covariates,
+                missing_mechanism="MCAR",
+                missing_rate=0.2,
+            )
         )
 
         # Check that data objects have same structure
@@ -209,15 +233,19 @@ class TestSyntheticDataGenerator:
     def test_generate_missing_data_scenario_mar(self):
         """Test generation of MAR missing data."""
         # Generate base data
-        treatment, outcome, covariates = self.generator.generate_linear_binary_treatment(
-            n_samples=200
+        treatment, outcome, covariates = (
+            self.generator.generate_linear_binary_treatment(n_samples=200)
         )
 
         # Add MAR missing data
-        treatment_miss, outcome_miss, covariates_miss = self.generator.generate_missing_data_scenario(
-            treatment, outcome, covariates,
-            missing_mechanism="MAR",
-            missing_rate=0.15
+        treatment_miss, outcome_miss, covariates_miss = (
+            self.generator.generate_missing_data_scenario(
+                treatment,
+                outcome,
+                covariates,
+                missing_mechanism="MAR",
+                missing_rate=0.15,
+            )
         )
 
         # Check that some data is missing
@@ -230,21 +258,27 @@ class TestSyntheticDataGenerator:
     def test_generate_missing_data_scenario_mnar(self):
         """Test generation of MNAR missing data."""
         # Generate base data
-        treatment, outcome, covariates = self.generator.generate_linear_binary_treatment(
-            n_samples=200
+        treatment, outcome, covariates = (
+            self.generator.generate_linear_binary_treatment(n_samples=200)
         )
 
         # Add MNAR missing data
-        treatment_miss, outcome_miss, covariates_miss = self.generator.generate_missing_data_scenario(
-            treatment, outcome, covariates,
-            missing_mechanism="MNAR",
-            missing_rate=0.1
+        treatment_miss, outcome_miss, covariates_miss = (
+            self.generator.generate_missing_data_scenario(
+                treatment,
+                outcome,
+                covariates,
+                missing_mechanism="MNAR",
+                missing_rate=0.1,
+            )
         )
 
         # Check that some data is missing
         if isinstance(covariates_miss.values, pd.DataFrame):
             total_missing = covariates_miss.values.isnull().sum().sum()
-            assert total_missing >= 0  # MNAR might result in variable amounts of missingness
+            assert (
+                total_missing >= 0
+            )  # MNAR might result in variable amounts of missingness
 
 
 class TestSyntheticDataConvenienceFunctions:
@@ -253,9 +287,7 @@ class TestSyntheticDataConvenienceFunctions:
     def test_generate_simple_rct(self):
         """Test simple RCT generation."""
         treatment, outcome, covariates = generate_simple_rct(
-            n_samples=500,
-            treatment_effect=1.5,
-            random_state=42
+            n_samples=500, treatment_effect=1.5, random_state=42
         )
 
         # Check basic properties
@@ -268,13 +300,10 @@ class TestSyntheticDataConvenienceFunctions:
         assert 0.4 < treatment_prop < 0.6  # Should be close to 50/50
 
         # Check that there's a treatment effect
-        df = pd.DataFrame({
-            'treatment': treatment.values,
-            'outcome': outcome.values
-        })
+        df = pd.DataFrame({"treatment": treatment.values, "outcome": outcome.values})
 
-        mean_treated = df[df['treatment'] == 1]['outcome'].mean()
-        mean_control = df[df['treatment'] == 0]['outcome'].mean()
+        mean_treated = df[df["treatment"] == 1]["outcome"].mean()
+        mean_control = df[df["treatment"] == 0]["outcome"].mean()
         observed_effect = mean_treated - mean_control
 
         # Should be close to true effect (1.5) but allow for sampling variation
@@ -286,7 +315,7 @@ class TestSyntheticDataConvenienceFunctions:
             n_samples=1000,
             treatment_effect=2.0,
             confounding_strength=1.5,
-            random_state=42
+            random_state=42,
         )
 
         # Check basic properties
@@ -295,13 +324,10 @@ class TestSyntheticDataConvenienceFunctions:
         assert outcome.outcome_type == "continuous"
 
         # Should have confounding - naive treatment effect should be biased
-        df = pd.DataFrame({
-            'treatment': treatment.values,
-            'outcome': outcome.values
-        })
+        df = pd.DataFrame({"treatment": treatment.values, "outcome": outcome.values})
 
-        mean_treated = df[df['treatment'] == 1]['outcome'].mean()
-        mean_control = df[df['treatment'] == 0]['outcome'].mean()
+        mean_treated = df[df["treatment"] == 1]["outcome"].mean()
+        mean_control = df[df["treatment"] == 0]["outcome"].mean()
         naive_effect = mean_treated - mean_control
 
         # Due to confounding, naive effect should be different from true effect (2.0)
@@ -311,13 +337,11 @@ class TestSyntheticDataConvenienceFunctions:
     def test_reproducibility_with_random_state(self):
         """Test that results are reproducible with same random state."""
         treatment1, outcome1, covariates1 = generate_simple_rct(
-            n_samples=100,
-            random_state=123
+            n_samples=100, random_state=123
         )
 
         treatment2, outcome2, covariates2 = generate_simple_rct(
-            n_samples=100,
-            random_state=123
+            n_samples=100, random_state=123
         )
 
         # Results should be identical
@@ -328,13 +352,11 @@ class TestSyntheticDataConvenienceFunctions:
     def test_different_results_with_different_random_state(self):
         """Test that results differ with different random states."""
         treatment1, outcome1, covariates1 = generate_simple_rct(
-            n_samples=100,
-            random_state=123
+            n_samples=100, random_state=123
         )
 
         treatment2, outcome2, covariates2 = generate_simple_rct(
-            n_samples=100,
-            random_state=456
+            n_samples=100, random_state=456
         )
 
         # Results should be different
