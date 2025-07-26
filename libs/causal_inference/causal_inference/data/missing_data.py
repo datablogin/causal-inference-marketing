@@ -387,9 +387,7 @@ def print_missing_data_report(
     # Variables with missing data
     missing_by_var = diagnostics["missing_by_variable"]
     assert isinstance(missing_by_var, dict)
-    vars_with_missing = {
-        k: v for k, v in missing_by_var.items() if v > 0
-    }
+    vars_with_missing = {k: v for k, v in missing_by_var.items() if v > 0}
     if vars_with_missing:
         print("Variables with missing data:")
         for var, count in sorted(

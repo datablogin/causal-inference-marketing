@@ -155,7 +155,8 @@ class CausalDataValidator:
                 std_val = np.std(values_array)
                 if std_val > 0:
                     outliers = (
-                        np.abs(values_array - mean_val) > self.outlier_threshold * std_val
+                        np.abs(values_array - mean_val)
+                        > self.outlier_threshold * std_val
                     )
                     outlier_count = outliers.sum()
                     if outlier_count > 0:
@@ -169,8 +170,12 @@ class CausalDataValidator:
             print(f"  - {missing_count} missing values")
             if len(values) > 0:
                 values_array = np.asarray(values)
-                print(f"  - Range: [{np.min(values_array):.3f}, {np.max(values_array):.3f}]")
-                print(f"  - Mean: {np.mean(values_array):.3f}, Std: {np.std(values_array):.3f}")
+                print(
+                    f"  - Range: [{np.min(values_array):.3f}, {np.max(values_array):.3f}]"
+                )
+                print(
+                    f"  - Mean: {np.mean(values_array):.3f}, Std: {np.std(values_array):.3f}"
+                )
 
     def validate_covariate_data(self, covariates: CovariateData) -> None:
         """Validate covariate data.
@@ -227,7 +232,11 @@ class CausalDataValidator:
                 for i in range(len(corr_matrix.columns)):
                     for j in range(i + 1, len(corr_matrix.columns)):
                         corr_val = corr_matrix.iloc[i, j]
-                        if pd.notna(corr_val) and isinstance(corr_val, int | float) and corr_val > 0.95:
+                        if (
+                            pd.notna(corr_val)
+                            and isinstance(corr_val, int | float)
+                            and corr_val > 0.95
+                        ):
                             pair = (corr_matrix.columns[i], corr_matrix.columns[j])
                             high_corr_pairs.append((pair, corr_val))
 
