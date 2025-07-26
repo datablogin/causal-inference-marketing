@@ -609,3 +609,123 @@ class BaseEstimator(abc.ABC):
                 )
 
         return "\n".join(summary_lines)
+
+    def run_diagnostics(
+        self,
+        include_balance: bool = True,
+        include_overlap: bool = True,
+        include_assumptions: bool = True,
+        include_specification: bool = True,
+        include_sensitivity: bool = False,
+        verbose: bool = True,
+    ) -> Any:
+        """Run comprehensive diagnostics for the fitted estimator.
+
+        Args:
+            include_balance: Whether to include balance diagnostics
+            include_overlap: Whether to include overlap diagnostics
+            include_assumptions: Whether to include assumption checking
+            include_specification: Whether to include specification tests
+            include_sensitivity: Whether to include sensitivity analysis
+            verbose: Whether to print detailed output
+
+        Returns:
+            DiagnosticReport with comprehensive assessment
+
+        Raises:
+            EstimationError: If estimator is not fitted
+        """
+        if not self.is_fitted:
+            raise EstimationError("Estimator must be fitted before running diagnostics")
+
+        if self.treatment_data is None or self.outcome_data is None:
+            raise EstimationError("No data available for diagnostics")
+
+        # Import here to avoid circular imports
+        from ..diagnostics.reporting import DiagnosticReportGenerator
+
+        # Get causal effect for sensitivity analysis
+        causal_effect = None
+        if include_sensitivity and self._causal_effect is not None:
+            causal_effect = self._causal_effect
+        elif include_sensitivity:
+            try:
+                causal_effect = self.estimate_ate()
+            except Exception:
+                if verbose:
+                    print(
+                        "Warning: Could not estimate causal effect for sensitivity analysis"
+                    )
+                include_sensitivity = False
+
+        # Generate diagnostic report
+        generator = DiagnosticReportGenerator(
+            include_balance=include_balance,
+            include_overlap=include_overlap,
+            include_assumptions=include_assumptions,
+            include_specification=include_specification,
+            include_sensitivity=include_sensitivity,
+        )
+
+        report = generator.generate_comprehensive_report(
+            self.treatment_data,
+            self.outcome_data,
+            self.covariate_data,
+            causal_effect=causal_effect,
+            verbose=False,
+        )
+
+        if verbose:
+            generator.print_diagnostic_report(report)
+
+        return report
+
+    def check_assumptions(self, verbose: bool = True) -> dict[str, bool]:
+        """Quick assumption check for the fitted estimator.
+
+        Args:
+            verbose: Whether to print results
+
+        Returns:
+            Dictionary with assumption check results
+
+        Raises:
+            EstimationError: If estimator is not fitted
+        """
+        if not self.is_fitted:
+            raise EstimationError(
+                "Estimator must be fitted before checking assumptions"
+            )
+
+        if (
+            self.treatment_data is None
+            or self.outcome_data is None
+            or self.covariate_data is None
+        ):
+            raise EstimationError("No data available for assumption checking")
+
+        # Import here to avoid circular imports
+        from ..diagnostics.reporting import create_assumption_summary
+
+        assumptions = create_assumption_summary(
+            self.treatment_data,
+            self.outcome_data,
+            self.covariate_data,
+        )
+
+        if verbose:
+            print("=== Quick Assumption Check ===")
+            for assumption, met in assumptions.items():
+                status = "✅" if met else "❌"
+                print(f"{assumption.replace('_', ' ').title()}: {status}")
+            print()
+
+            overall = assumptions.get("overall_assessment", False)
+            if overall:
+                print("✅ Overall: Key assumptions appear to be met")
+            else:
+                print(
+                    "⚠️ Overall: Some assumptions may be violated - run full diagnostics"
+                )
+
+        return assumptions
