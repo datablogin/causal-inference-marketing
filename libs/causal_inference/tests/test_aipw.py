@@ -84,7 +84,6 @@ class TestAIPWEstimator:
             propensity_model_type="logistic",
             cross_fitting=True,
             n_folds=5,
-            use_tmle=True,
             influence_function_se=True,
             bootstrap_samples=100,
             confidence_level=0.95,
@@ -96,7 +95,6 @@ class TestAIPWEstimator:
         assert estimator.propensity_model_type == "logistic"
         assert estimator.cross_fitting is True
         assert estimator.n_folds == 5
-        assert estimator.use_tmle is True
         assert estimator.influence_function_se is True
         assert estimator.bootstrap_samples == 100
         assert estimator.confidence_level == 0.95
@@ -153,8 +151,8 @@ class TestAIPWEstimator:
 
     def test_cross_fitting_aipw(self):
         """Test AIPW with cross-fitting."""
-        # Cross-fitting implementation needs refinement - skip for now
-        pytest.skip("Cross-fitting implementation under development")
+        # Cross-fitting implementation needs NaN handling improvements - will be addressed in follow-up
+        pytest.skip("Cross-fitting implementation requires additional robustness improvements")
 
     def test_influence_function_se(self):
         """Test influence function standard error computation."""
@@ -284,33 +282,47 @@ class TestAIPWEstimator:
         # Even with propensity model misspecification, good outcome model should help
         assert abs(effect.ate - self.true_ate) < 1.0  # More lenient bound
 
-    def test_tmle_variant(self):
-        """Test TMLE variant of AIPW."""
+    def test_numerical_stability(self):
+        """Test numerical stability with extreme propensity scores."""
+        # Create data with extreme propensity scores to test bounds
+        n = 200
+        X = np.random.randn(n, 2)
+
+        # Create extreme treatment assignment probabilities
+        extreme_logits = 10 * X[:, 0]  # Very large logits
+        treatment_probs = 1 / (1 + np.exp(-extreme_logits))
+        treatment_binary = np.random.binomial(1, treatment_probs)
+
+        # Generate outcome
+        outcome_values = 2 * X[:, 0] + 1 * X[:, 1] + 1.5 * treatment_binary + np.random.randn(n) * 0.3
+
+        treatment_data = TreatmentData(
+            values=pd.Series(treatment_binary), treatment_type="binary"
+        )
+        outcome_data = OutcomeData(
+            values=pd.Series(outcome_values), outcome_type="continuous"
+        )
+        covariate_data = CovariateData(
+            values=pd.DataFrame(X, columns=["X1", "X2"]), names=["X1", "X2"]
+        )
+
         estimator = AIPWEstimator(
             outcome_model_type="linear",
             propensity_model_type="logistic",
-            cross_fitting=False,  # Disable cross-fitting for now
-            n_folds=3,  # Smaller for speed
-            use_tmle=True,
-            tmle_fluctuation="logistic",
-            bootstrap_samples=20,
+            cross_fitting=False,
+            bootstrap_samples=10,
             random_state=42,
+            verbose=True,
         )
 
-        estimator.fit(
-            treatment=self.treatment_data,
-            outcome=self.outcome_data_continuous,
-            covariates=self.covariate_data,
-        )
-
+        # Should not crash despite extreme propensity scores
+        estimator.fit(treatment_data, outcome_data, covariate_data)
         effect = estimator.estimate_ate()
 
-        # Should indicate TMLE was used
-        assert effect.diagnostics["use_tmle"] is True
-
-        # Should still provide reasonable estimates
+        # Should provide finite estimates
         assert isinstance(effect.ate, float)
         assert not np.isnan(effect.ate)
+        assert np.isfinite(effect.ate)
 
     def test_different_model_combinations(self):
         """Test different combinations of outcome and propensity models."""
@@ -408,10 +420,8 @@ class TestAIPWEstimator:
 
     def test_cross_fitting_prediction_error(self):
         """Test that prediction fails with cross-fitting."""
-        # Skip this test since cross-fitting is disabled for now
-        pytest.skip(
-            "Cross-fitting prediction test disabled until cross-fitting is fixed"
-        )
+        # Cross-fitting implementation needs robustness improvements - skip for now
+        pytest.skip("Cross-fitting prediction test requires cross-fitting implementation fixes")
 
     def test_sklearn_dataset_compatibility(self):
         """Test AIPW with sklearn generated datasets."""

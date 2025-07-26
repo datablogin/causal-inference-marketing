@@ -14,8 +14,8 @@ Key Features:
 - Doubly robust: consistent if either model is correct
 - Cross-fitting to reduce overfitting bias
 - Influence function-based variance estimation
-- Targeted Maximum Likelihood Estimation (TMLE) variant
 - Comprehensive diagnostics comparing component models
+- Support for multiple machine learning models
 
 Example Usage:
     Basic AIPW estimation:
@@ -54,21 +54,21 @@ Example Usage:
     >>> print(f"IPW ATE: {diagnostics['ipw_ate']:.3f}")
     >>> print(f"AIPW ATE: {effect.ate:.3f}")
 
-Advanced Usage with TMLE:
-    >>> # Use Targeted Maximum Likelihood Estimation
-    >>> estimator_tmle = AIPWEstimator(
+Advanced Usage with Different Models:
+    >>> # Use random forest models for both outcome and propensity
+    >>> estimator_rf = AIPWEstimator(
     ...     outcome_model_type="random_forest",
     ...     propensity_model_type="random_forest",
+    ...     outcome_model_params={"n_estimators": 100, "max_depth": 5},
+    ...     propensity_model_params={"n_estimators": 100, "max_depth": 3},
     ...     cross_fitting=True,
     ...     n_folds=10,
-    ...     use_tmle=True,
-    ...     tmle_fluctuation="logistic",
     ...     influence_function_se=True,
     ...     verbose=True
     ... )
     >>>
-    >>> estimator_tmle.fit(treatment, outcome, covariates)
-    >>> effect_tmle = estimator_tmle.estimate_ate()
+    >>> estimator_rf.fit(treatment, outcome, covariates)
+    >>> effect_rf = estimator_rf.estimate_ate()
 
 Cross-fitting for Bias Reduction:
     >>> # Cross-fitting reduces overfitting bias
@@ -86,7 +86,7 @@ Notes:
     - AIPW is doubly robust: consistent if either outcome or propensity model is correct
     - Cross-fitting reduces finite-sample bias from model overfitting
     - Influence function variance estimation accounts for all sources of uncertainty
-    - TMLE variant provides additional efficiency gains
+    - Propensity scores are automatically bounded to prevent numerical instability
     - Compare component models to assess which may be misspecified
 """
 
@@ -131,7 +131,6 @@ class AIPWEstimator(BaseEstimator):
         propensity_estimator: IPW estimator for propensity scores
         cross_fitting: Whether to use cross-fitting
         n_folds: Number of cross-fitting folds
-        use_tmle: Whether to use TMLE variant
         influence_function_se: Whether to use influence function standard errors
     """
 
@@ -144,8 +143,6 @@ class AIPWEstimator(BaseEstimator):
         cross_fitting: bool = True,
         n_folds: int = 5,
         stratify_folds: bool = True,
-        use_tmle: bool = False,
-        tmle_fluctuation: str = "logistic",
         influence_function_se: bool = True,
         weight_truncation: str | None = "percentile",
         truncation_threshold: float = 0.01,
@@ -165,8 +162,6 @@ class AIPWEstimator(BaseEstimator):
             cross_fitting: Whether to use cross-fitting to reduce bias
             n_folds: Number of folds for cross-fitting
             stratify_folds: Whether to stratify folds by treatment
-            use_tmle: Whether to use Targeted Maximum Likelihood Estimation
-            tmle_fluctuation: TMLE fluctuation method ('logistic', 'linear')
             influence_function_se: Whether to compute influence function standard errors
             weight_truncation: IPW weight truncation method
             truncation_threshold: Threshold for weight truncation
@@ -185,8 +180,6 @@ class AIPWEstimator(BaseEstimator):
         self.cross_fitting = cross_fitting
         self.n_folds = n_folds
         self.stratify_folds = stratify_folds
-        self.use_tmle = use_tmle
-        self.tmle_fluctuation = tmle_fluctuation
         self.influence_function_se = influence_function_se
         self.weight_truncation = weight_truncation
         self.truncation_threshold = truncation_threshold
@@ -238,6 +231,61 @@ class AIPWEstimator(BaseEstimator):
         )
 
         return outcome_estimator, propensity_estimator
+
+    def _ensure_propensity_score_bounds(
+        self, propensity_scores: NDArray[Any], min_bound: float = 1e-6, max_bound: float = 1 - 1e-6
+    ) -> NDArray[Any]:
+        """Ensure propensity scores are within safe bounds to prevent division by zero.
+
+        Args:
+            propensity_scores: Array of propensity scores
+            min_bound: Minimum allowed propensity score
+            max_bound: Maximum allowed propensity score
+
+        Returns:
+            Array of bounded propensity scores
+        """
+        bounded_scores = np.clip(propensity_scores, min_bound, max_bound)
+
+        # Count and warn about extreme values
+        n_clipped_low = np.sum(propensity_scores < min_bound)
+        n_clipped_high = np.sum(propensity_scores > max_bound)
+
+        if self.verbose and (n_clipped_low > 0 or n_clipped_high > 0):
+            total_clipped = n_clipped_low + n_clipped_high
+            print(f"  Clipped {total_clipped} extreme propensity scores to safe bounds")
+            if n_clipped_low > 0:
+                print(f"    {n_clipped_low} scores < {min_bound} (near 0)")
+            if n_clipped_high > 0:
+                print(f"    {n_clipped_high} scores > {max_bound} (near 1)")
+
+        return bounded_scores
+
+    def _validate_overlap_assumption(self, propensity_scores: NDArray[Any]) -> None:
+        """Validate the overlap/positivity assumption.
+
+        Args:
+            propensity_scores: Array of propensity scores
+
+        Raises:
+            EstimationError: If overlap assumption is violated
+        """
+        # Check for extreme propensity scores that violate overlap
+        overlap_threshold = 0.05  # Common threshold for practical overlap
+
+        n_extreme_low = np.sum(propensity_scores < overlap_threshold)
+        n_extreme_high = np.sum(propensity_scores > (1 - overlap_threshold))
+        n_total = len(propensity_scores)
+
+        if n_extreme_low > n_total * 0.05:  # More than 5% have very low PS
+            if self.verbose:
+                print(f"Warning: {n_extreme_low} observations ({n_extreme_low/n_total:.1%}) have propensity scores < {overlap_threshold}")
+                print("This may indicate poor overlap and unreliable AIPW estimates")
+
+        if n_extreme_high > n_total * 0.05:  # More than 5% have very high PS
+            if self.verbose:
+                print(f"Warning: {n_extreme_high} observations ({n_extreme_high/n_total:.1%}) have propensity scores > {1-overlap_threshold}")
+                print("This may indicate poor overlap and unreliable AIPW estimates")
 
     def _create_cross_fitting_folds(
         self, treatment: TreatmentData, n_samples: int
@@ -320,16 +368,25 @@ class AIPWEstimator(BaseEstimator):
             if self.verbose:
                 print(f"  Fitting fold {fold_idx + 1}/{self.n_folds}")
 
-            # Create fold-specific data
+            # Create fold-specific data with validation
+            fold_treatment_values = treatment_values[train_idx]
+            fold_outcome_values = outcome_values[train_idx]
+
+            # Check for NaN values in training data
+            if np.any(np.isnan(fold_treatment_values)) or np.any(np.isnan(fold_outcome_values)):
+                if self.verbose:
+                    print(f"    Warning: Fold {fold_idx + 1} has NaN values in treatment/outcome")
+                continue
+
             fold_treatment = TreatmentData(
-                values=treatment_values[train_idx],
+                values=fold_treatment_values,
                 name=treatment.name,
                 treatment_type=treatment.treatment_type,
                 categories=treatment.categories,
             )
 
             fold_outcome = OutcomeData(
-                values=outcome_values[train_idx],
+                values=fold_outcome_values,
                 name=outcome.name,
                 outcome_type=outcome.outcome_type,
             )
@@ -340,6 +397,18 @@ class AIPWEstimator(BaseEstimator):
             else:
                 fold_covariates_values = covariates.values[train_idx]
                 test_covariates_values = covariates.values[test_idx]
+
+            # Check for NaN values in covariate data
+            if isinstance(fold_covariates_values, pd.DataFrame):
+                if fold_covariates_values.isna().any().any():
+                    if self.verbose:
+                        print(f"    Warning: Fold {fold_idx + 1} has NaN values in covariates")
+                    continue
+            else:
+                if np.any(np.isnan(fold_covariates_values)):
+                    if self.verbose:
+                        print(f"    Warning: Fold {fold_idx + 1} has NaN values in covariates")
+                    continue
 
             fold_covariates = CovariateData(
                 values=fold_covariates_values,
@@ -390,9 +459,11 @@ class AIPWEstimator(BaseEstimator):
 
             # Predict propensity scores
             if hasattr(fold_propensity_estimator, "predict_propensity_scores"):
-                ps_test = fold_propensity_estimator.predict_propensity_scores(
+                ps_test_raw = fold_propensity_estimator.predict_propensity_scores(
                     test_covariates_values
                 )
+                # Apply bounds to prevent division by zero
+                ps_test = self._ensure_propensity_score_bounds(ps_test_raw)
                 self._cross_fit_predictions["propensity_scores"][test_idx] = ps_test
 
                 # Compute IPW weights for test set
@@ -462,18 +533,60 @@ class AIPWEstimator(BaseEstimator):
                     "Results may be less reliable."
                 )
 
-        # Check for missing predictions and fill with zeros if needed
+        # Check for missing predictions and handle appropriately
         for key in self._cross_fit_predictions:
             missing_mask = np.isnan(self._cross_fit_predictions[key])
             if np.any(missing_mask):
+                n_missing = np.sum(missing_mask)
                 if self.verbose:
-                    n_missing = np.sum(missing_mask)
                     print(
-                        f"Warning: {n_missing} observations missing {key} predictions. "
-                        "Filling with zeros."
+                        f"Warning: {n_missing} observations missing {key} predictions."
                     )
-                # Fill missing predictions with zeros (simple fallback)
-                self._cross_fit_predictions[key][missing_mask] = 0.0
+
+                # For critical missing predictions, raise an error
+                if n_missing > len(treatment_values) * 0.1:  # More than 10% missing
+                    raise EstimationError(
+                        f"Too many missing {key} predictions ({n_missing}/{len(treatment_values)}). "
+                        "Cross-fitting failed for too many observations. "
+                        "Consider reducing n_folds or checking data quality."
+                    )
+
+                # For small amounts of missing data, use model-based imputation
+                if key in ["mu_0", "mu_1"]:
+                    # Use mean imputation for potential outcomes
+                    valid_mask = ~missing_mask
+                    if np.any(valid_mask):
+                        mean_value = np.mean(self._cross_fit_predictions[key][valid_mask])
+                        self._cross_fit_predictions[key][missing_mask] = mean_value
+                        if self.verbose:
+                            print(f"  Imputed missing {key} with mean: {mean_value:.4f}")
+                    else:
+                        raise EstimationError(f"All {key} predictions are missing")
+
+                elif key == "propensity_scores":
+                    # Use marginal treatment probability for missing propensity scores
+                    marginal_prob = np.mean(treatment_values)
+                    self._cross_fit_predictions[key][missing_mask] = marginal_prob
+                    if self.verbose:
+                        print(f"  Imputed missing propensity scores with marginal probability: {marginal_prob:.4f}")
+
+                elif key == "ipw_weights":
+                    # Recompute weights from imputed propensity scores
+                    ps_values = self._cross_fit_predictions["propensity_scores"][missing_mask]
+                    treatment_vals = treatment_values[missing_mask]
+                    weights = np.zeros_like(ps_values)
+
+                    treated_mask = treatment_vals == 1
+                    control_mask = treatment_vals == 0
+
+                    if np.any(treated_mask):
+                        weights[treated_mask] = 1 / ps_values[treated_mask]
+                    if np.any(control_mask):
+                        weights[control_mask] = 1 / (1 - ps_values[control_mask])
+
+                    self._cross_fit_predictions[key][missing_mask] = weights
+                    if self.verbose:
+                        print("  Recomputed missing IPW weights from imputed propensity scores")
 
     def _fit_no_cross_fitting(
         self,
@@ -521,11 +634,17 @@ class AIPWEstimator(BaseEstimator):
         )
 
         # Get propensity scores and weights
-        propensity_scores = self.propensity_estimator.get_propensity_scores()
+        propensity_scores_raw = self.propensity_estimator.get_propensity_scores()
         ipw_weights = self.propensity_estimator.get_weights()
 
-        if propensity_scores is None or ipw_weights is None:
+        if propensity_scores_raw is None or ipw_weights is None:
             raise EstimationError("Failed to obtain propensity scores or weights")
+
+        # Apply bounds to propensity scores for numerical stability
+        propensity_scores = self._ensure_propensity_score_bounds(propensity_scores_raw)
+
+        # Validate overlap assumption
+        self._validate_overlap_assumption(propensity_scores)
 
         # Store predictions
         self._cross_fit_predictions = {
@@ -562,6 +681,9 @@ class AIPWEstimator(BaseEstimator):
         mu_0 = self._cross_fit_predictions["mu_0"]
         mu_1 = self._cross_fit_predictions["mu_1"]
         propensity_scores = self._cross_fit_predictions["propensity_scores"]
+
+        # Ensure propensity scores are still within safe bounds for AIPW computation
+        propensity_scores = self._ensure_propensity_score_bounds(propensity_scores)
 
         n_samples = len(treatment_values)
 
@@ -605,27 +727,6 @@ class AIPWEstimator(BaseEstimator):
 
         return aipw_estimate
 
-    def _apply_tmle_fluctuation(
-        self,
-        treatment: TreatmentData,
-        outcome: OutcomeData,
-    ) -> None:
-        """Apply TMLE fluctuation to improve efficiency.
-
-        Args:
-            treatment: Treatment assignment data
-            outcome: Outcome variable data
-        """
-        if not self.use_tmle:
-            return
-
-        if self.verbose:
-            print("Applying TMLE fluctuation...")
-
-        # TMLE implementation is complex and would require additional code
-        # For now, we'll keep the standard AIPW estimate
-        # This is a placeholder for future TMLE implementation
-        pass
 
     def _compute_influence_function_se(
         self,
@@ -696,7 +797,6 @@ class AIPWEstimator(BaseEstimator):
             print(f"Cross-fitting: {self.cross_fitting}")
             if self.cross_fitting:
                 print(f"Number of folds: {self.n_folds}")
-            print(f"TMLE: {self.use_tmle}")
             print(f"Influence function SE: {self.influence_function_se}")
 
         # Fit models (with or without cross-fitting)
@@ -704,10 +804,6 @@ class AIPWEstimator(BaseEstimator):
             self._fit_cross_fitting(treatment, outcome, covariates)
         else:
             self._fit_no_cross_fitting(treatment, outcome, covariates)
-
-        # Apply TMLE fluctuation if requested
-        if self.use_tmle:
-            self._apply_tmle_fluctuation(treatment, outcome)
 
     def _estimate_ate_implementation(self) -> CausalEffect:
         """Estimate Average Treatment Effect using AIPW.
@@ -874,7 +970,6 @@ class AIPWEstimator(BaseEstimator):
         diagnostics: dict[str, Any] = {
             "cross_fitting": self.cross_fitting,
             "n_folds": self.n_folds if self.cross_fitting else None,
-            "use_tmle": self.use_tmle,
             "influence_function_se": self.influence_function_se,
         }
 

@@ -53,6 +53,8 @@ This is a **monorepo-compatible causal inference library** designed for marketin
 
 ### Current Estimators
 - **G-computation** (`libs/causal_inference/causal_inference/estimators/g_computation.py`) - Standardization method with sklearn model integration, bootstrap confidence intervals
+- **IPW** (`libs/causal_inference/causal_inference/estimators/ipw.py`) - Inverse Probability Weighting with propensity score models and weight stabilization
+- **AIPW** (`libs/causal_inference/causal_inference/estimators/aipw.py`) - Augmented Inverse Probability Weighting doubly robust estimator combining G-computation and IPW
 
 ## Code Quality Standards
 
