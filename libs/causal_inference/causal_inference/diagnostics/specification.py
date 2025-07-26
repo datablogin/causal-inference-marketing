@@ -310,7 +310,7 @@ def functional_form_tests(
         model_results["random_forest"] = {
             "r2_score": float(rf_r2),
             "mse": float(rf_mse),
-            "aic": float('inf'),  # Use infinity instead of None for AIC
+            "aic": float("inf"),  # Use infinity instead of None for AIC
         }
 
     # Find best model

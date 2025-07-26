@@ -42,7 +42,6 @@ class DiagnosticReport:
     recommendations: list[str] = field(default_factory=list)
 
 
-
 class DiagnosticReportGenerator:
     """Generator for comprehensive diagnostic reports."""
 

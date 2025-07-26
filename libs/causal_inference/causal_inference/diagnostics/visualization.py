@@ -509,7 +509,9 @@ class DiagnosticVisualizer:
 
         # 4. Model Comparison (if available)
         ax4 = axes[1, 1]
-        if hasattr(spec_results.functional_form_results, "get") and spec_results.functional_form_results.get("model_comparisons"):
+        if hasattr(
+            spec_results.functional_form_results, "get"
+        ) and spec_results.functional_form_results.get("model_comparisons"):
             comparison = spec_results.functional_form_results["model_comparisons"]
             models = list(comparison.keys())
             metrics = [comp.get("aic", 0) for comp in comparison.values()]

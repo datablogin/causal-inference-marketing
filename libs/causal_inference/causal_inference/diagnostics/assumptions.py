@@ -383,7 +383,9 @@ class AssumptionChecker:
             selection_bias_indicators.append("Measured confounders detected")
 
         # Extract important predictors
-        outcome_predictors: dict[str, float] = outcome_prediction.get("feature_importance", {})
+        outcome_predictors: dict[str, float] = outcome_prediction.get(
+            "feature_importance", {}
+        )
         treatment_predictors: dict[str, float] = {}  # Would need separate analysis
 
         # Generate recommendations

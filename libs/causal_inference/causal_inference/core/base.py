@@ -652,7 +652,11 @@ class BaseEstimator(abc.ABC):
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted before running diagnostics")
 
-        if self.treatment_data is None or self.outcome_data is None or self.covariate_data is None:
+        if (
+            self.treatment_data is None
+            or self.outcome_data is None
+            or self.covariate_data is None
+        ):
             raise EstimationError("No data available for diagnostics")
 
         # Import here to avoid circular imports

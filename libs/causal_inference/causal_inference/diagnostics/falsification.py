@@ -359,7 +359,9 @@ class FalsificationTester:
             imbalanced_vars = balance_results.imbalanced_covariates
 
             total_vars = len(balance_results.standardized_mean_differences)
-            imbalance_rate = len(imbalanced_vars) / total_vars if total_vars > 0 else 0.0
+            imbalance_rate = (
+                len(imbalanced_vars) / total_vars if total_vars > 0 else 0.0
+            )
 
             # Assessment
             if imbalance_rate <= 0.1:
