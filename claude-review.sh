@@ -16,8 +16,8 @@ NC='\033[0m' # No Color
 # Configuration variables
 FOCUS_AREAS=""
 MODEL=""
-POST_COMMENT=false
-OUTPUT_MODE="file"
+POST_COMMENT=true
+OUTPUT_MODE="comment"
 DRY_RUN=false
 
 # Get current branch to return to later
@@ -32,17 +32,18 @@ usage() {
     echo "  --focus AREA        Focus review on specific area:"
     echo "                      security, performance, testing, causal-inference, style"
     echo "  --model MODEL       Use specific Claude model"
-    echo "  --post-comment      Post review as PR comment instead of saving to file"
+    echo "  --save-file         Save review to file instead of posting as comment (default: post comment)"
     echo "  --draft-comment     Post review as draft PR comment"
     echo "  --dry-run          Show what would be reviewed without calling Claude"
     echo "  --help             Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                               # Review current PR"
-    echo "  $0 54                           # Review PR #54"
-    echo "  $0 --focus security 54          # Focus on security review"
-    echo "  $0 --focus causal-inference 54  # Focus on causal inference patterns"
-    echo "  $0 --post-comment 54            # Post as PR comment"
+    echo "  $0                               # Review current PR and post as comment"
+    echo "  $0 54                           # Review PR #54 and post as comment"
+    echo "  $0 --focus security 54          # Focus on security review and post as comment"
+    echo "  $0 --focus causal-inference 54  # Focus on causal inference patterns and post as comment"
+    echo "  $0 --save-file 54               # Save review to file instead of posting"
+    echo "  $0 --draft-comment 54           # Post as draft PR comment"
     echo "  $0 --dry-run 54                 # Preview what would be reviewed"
     exit 1
 }
@@ -85,9 +86,9 @@ while [[ $# -gt 0 ]]; do
             MODEL="$2"
             shift 2
             ;;
-        --post-comment)
-            POST_COMMENT=true
-            OUTPUT_MODE="comment"
+        --save-file)
+            POST_COMMENT=false
+            OUTPUT_MODE="file"
             shift
             ;;
         --draft-comment)

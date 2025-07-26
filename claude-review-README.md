@@ -17,8 +17,8 @@ This enhanced version of `claude-review.sh` provides comprehensive PR review fun
 - `--focus style` - Code style and formatting
 
 ### 📤 **Multiple Output Modes**
-- **File mode** (default): Saves detailed markdown reviews to `reviews/manual/`
-- **Comment mode**: Posts review directly as PR comment
+- **Comment mode** (default): Posts review directly as PR comment
+- **File mode**: Saves detailed markdown reviews to `reviews/manual/`
 - **Draft comment mode**: Posts as draft PR comment
 
 ### 🧠 **Intelligent Prompts**
@@ -35,14 +35,14 @@ This enhanced version of `claude-review.sh` provides comprehensive PR review fun
 ## Usage Examples
 
 ```bash
-# Basic review of current PR
+# Basic review of current PR (posts as comment)
 ./claude-review.sh
 
 # Review specific PR with security focus
 ./claude-review.sh --focus security 54
 
-# Post review as comment
-./claude-review.sh --post-comment 54
+# Save review to file instead of posting
+./claude-review.sh --save-file 54
 
 # Preview causal inference review
 ./claude-review.sh --dry-run --focus causal-inference 54

@@ -21,8 +21,9 @@ help:
 	@echo "  ci          - Run full CI pipeline (lint, typecheck, test)"
 	@echo "  clean       - Clean build artifacts"
 	@echo "  api         - Start causal inference API server"
-	@echo "  review      - Run Claude review of current PR"
+	@echo "  review      - Run Claude review of current PR and post as comment"
 	@echo "  review-dry  - Preview Claude review without executing"
+	@echo "  review-file - Run Claude review and save to file"
 
 # Installation targets
 .PHONY: install
@@ -80,13 +81,18 @@ ci-causal-inference:
 # Review targets
 .PHONY: review
 review:
-	@echo "Running Claude review of current PR..."
+	@echo "Running Claude review of current PR and posting as comment..."
 	./claude-review.sh --focus causal-inference
 
 .PHONY: review-dry
 review-dry:
 	@echo "Previewing Claude review of current PR..."
 	./claude-review.sh --dry-run --focus causal-inference
+
+.PHONY: review-file
+review-file:
+	@echo "Running Claude review of current PR and saving to file..."
+	./claude-review.sh --save-file --focus causal-inference
 
 # Clean targets
 .PHONY: clean
