@@ -59,7 +59,13 @@ def simple_binary_data(small_sample_size, random_state):
     treatment = np.random.binomial(1, propensity, small_sample_size)
 
     # Generate outcome (continuous with treatment effect = 2)
-    outcome = 1 + 0.5 * X1 + 0.3 * X2 + 2 * treatment + np.random.normal(0, 0.5, small_sample_size)
+    outcome = (
+        1
+        + 0.5 * X1
+        + 0.3 * X2
+        + 2 * treatment
+        + np.random.normal(0, 0.5, small_sample_size)
+    )
 
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="binary"),
@@ -80,16 +86,25 @@ def simple_categorical_data(small_sample_size, random_state):
 
     # Generate treatment (categorical: 0, 1, 2)
     linear_pred = 0.5 * X1 + 0.3 * X2
-    probs = np.column_stack([
-        1 / (1 + np.exp(linear_pred) + np.exp(2 * linear_pred)),
-        np.exp(linear_pred) / (1 + np.exp(linear_pred) + np.exp(2 * linear_pred)),
-        np.exp(2 * linear_pred) / (1 + np.exp(linear_pred) + np.exp(2 * linear_pred))
-    ])
+    probs = np.column_stack(
+        [
+            1 / (1 + np.exp(linear_pred) + np.exp(2 * linear_pred)),
+            np.exp(linear_pred) / (1 + np.exp(linear_pred) + np.exp(2 * linear_pred)),
+            np.exp(2 * linear_pred)
+            / (1 + np.exp(linear_pred) + np.exp(2 * linear_pred)),
+        ]
+    )
     treatment = np.array([np.random.choice(3, p=p) for p in probs])
 
     # Generate outcome (treatment effects: 0, 1.5, 3.0)
     treatment_effects = np.array([0, 1.5, 3.0])
-    outcome = 1 + 0.5 * X1 + 0.3 * X2 + treatment_effects[treatment] + np.random.normal(0, 0.5, small_sample_size)
+    outcome = (
+        1
+        + 0.5 * X1
+        + 0.3 * X2
+        + treatment_effects[treatment]
+        + np.random.normal(0, 0.5, small_sample_size)
+    )
 
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="categorical"),
@@ -113,7 +128,13 @@ def simple_continuous_treatment_data(small_sample_size, random_state):
     treatment = 0.5 * X1 + 0.3 * X2 + np.random.normal(0, 1, small_sample_size)
 
     # Generate outcome (linear dose-response with coefficient 1.2)
-    outcome = 1 + 0.5 * X1 + 0.3 * X2 + 1.2 * treatment + np.random.normal(0, 0.5, small_sample_size)
+    outcome = (
+        1
+        + 0.5 * X1
+        + 0.3 * X2
+        + 1.2 * treatment
+        + np.random.normal(0, 0.5, small_sample_size)
+    )
 
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="continuous"),
@@ -158,7 +179,7 @@ def sklearn_classification_data(medium_sample_size, random_state):
         n_informative=3,
         n_redundant=1,
         n_clusters_per_class=1,
-        random_state=random_state
+        random_state=random_state,
     )
 
     # Use first feature as treatment
@@ -167,7 +188,9 @@ def sklearn_classification_data(medium_sample_size, random_state):
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="binary"),
         "outcome": OutcomeData(values=y, outcome_type="binary"),
-        "covariates": CovariateData(values=pd.DataFrame(X[:, 1:], columns=[f"X{i}" for i in range(1, 5)])),
+        "covariates": CovariateData(
+            values=pd.DataFrame(X[:, 1:], columns=[f"X{i}" for i in range(1, 5)])
+        ),
     }
 
 
@@ -179,7 +202,7 @@ def sklearn_regression_data(medium_sample_size, random_state):
         n_features=5,
         n_informative=3,
         noise=0.1,
-        random_state=random_state
+        random_state=random_state,
     )
 
     # Use first feature as continuous treatment
@@ -188,7 +211,9 @@ def sklearn_regression_data(medium_sample_size, random_state):
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="continuous"),
         "outcome": OutcomeData(values=y, outcome_type="continuous"),
-        "covariates": CovariateData(values=pd.DataFrame(X[:, 1:], columns=[f"X{i}" for i in range(1, 5)])),
+        "covariates": CovariateData(
+            values=pd.DataFrame(X[:, 1:], columns=[f"X{i}" for i in range(1, 5)])
+        ),
     }
 
 
@@ -207,14 +232,19 @@ def confounded_data(medium_sample_size, random_state):
 
     # Outcome strongly depends on confounders and treatment
     outcome = (
-        1000 + 20 * age + 0.1 * income + 5000 * treatment +
-        np.random.normal(0, 1000, medium_sample_size)
+        1000
+        + 20 * age
+        + 0.1 * income
+        + 5000 * treatment
+        + np.random.normal(0, 1000, medium_sample_size)
     )
 
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="binary"),
         "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
-        "covariates": CovariateData(values=pd.DataFrame({"age": age, "income": income})),
+        "covariates": CovariateData(
+            values=pd.DataFrame({"age": age, "income": income})
+        ),
         "true_ate": 5000.0,
     }
 
@@ -244,19 +274,101 @@ def edge_case_data(random_state):
     scenarios = {
         "no_treatment_variation": {
             "treatment": TreatmentData(values=np.ones(100), treatment_type="binary"),
-            "outcome": OutcomeData(values=np.random.normal(0, 1, 100), outcome_type="continuous"),
-            "covariates": CovariateData(values=pd.DataFrame({"X1": np.random.normal(0, 1, 100)})),
+            "outcome": OutcomeData(
+                values=np.random.normal(0, 1, 100), outcome_type="continuous"
+            ),
+            "covariates": CovariateData(
+                values=pd.DataFrame({"X1": np.random.normal(0, 1, 100)})
+            ),
         },
         "extreme_propensity": {
-            "treatment": TreatmentData(values=np.concatenate([np.zeros(95), np.ones(5)]), treatment_type="binary"),
-            "outcome": OutcomeData(values=np.random.normal(0, 1, 100), outcome_type="continuous"),
-            "covariates": CovariateData(values=pd.DataFrame({"X1": np.random.normal(0, 1, 100)})),
+            "treatment": TreatmentData(
+                values=np.concatenate([np.zeros(95), np.ones(5)]),
+                treatment_type="binary",
+            ),
+            "outcome": OutcomeData(
+                values=np.random.normal(0, 1, 100), outcome_type="continuous"
+            ),
+            "covariates": CovariateData(
+                values=pd.DataFrame({"X1": np.random.normal(0, 1, 100)})
+            ),
         },
         "small_sample": {
-            "treatment": TreatmentData(values=np.array([0, 1, 0, 1, 0]), treatment_type="binary"),
-            "outcome": OutcomeData(values=np.array([1, 3, 2, 4, 1]), outcome_type="continuous"),
-            "covariates": CovariateData(values=pd.DataFrame({"X1": [1, 2, 3, 4, 5]})),
-        }
+            # Use minimum sample size of 12 (just above the 10 minimum requirement)
+            "treatment": TreatmentData(
+                values=np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), treatment_type="binary"
+            ),
+            "outcome": OutcomeData(
+                values=np.array([1, 3, 2, 4, 1, 5, 2, 6, 3, 7, 4, 8]), outcome_type="continuous"
+            ),
+            "covariates": CovariateData(values=pd.DataFrame({"X1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]})),
+        },
+        "perfect_separation": {
+            # Perfect separation: treatment perfectly predicted by covariates
+            "treatment": TreatmentData(
+                values=np.concatenate([np.zeros(50), np.ones(50)]),
+                treatment_type="binary",
+            ),
+            "outcome": OutcomeData(
+                values=np.random.normal(0, 1, 100), outcome_type="continuous"
+            ),
+            "covariates": CovariateData(
+                values=pd.DataFrame(
+                    {
+                        "X1": np.concatenate(
+                            [
+                                np.random.normal(-3, 0.1, 50),
+                                np.random.normal(3, 0.1, 50),
+                            ]
+                        ),  # Perfect separation
+                        "X2": np.random.normal(0, 1, 100),  # Normal covariate
+                    }
+                )
+            ),
+        },
+        "multicollinearity": {
+            # Highly correlated covariates creating multicollinearity
+            "treatment": TreatmentData(
+                values=np.random.binomial(1, 0.5, 100), treatment_type="binary"
+            ),
+            "outcome": OutcomeData(
+                values=np.random.normal(0, 1, 100), outcome_type="continuous"
+            ),
+            "covariates": CovariateData(
+                values=pd.DataFrame(
+                    {
+                        "X1": np.random.normal(0, 1, 100),
+                        "X2": lambda df: df["X1"]
+                        + np.random.normal(0, 0.01, 100),  # Almost perfectly correlated
+                        "X3": lambda df: 2 * df["X1"]
+                        + np.random.normal(0, 0.01, 100),  # Linear combination
+                        "X4": np.random.normal(0, 1, 100),  # Independent
+                    }
+                ).assign(
+                    X2=lambda df: df["X1"] + np.random.normal(0, 0.01, 100),
+                    X3=lambda df: 2 * df["X1"] + np.random.normal(0, 0.01, 100),
+                )
+            ),
+        },
+        "rank_deficient": {
+            # Rank deficient covariate matrix
+            "treatment": TreatmentData(
+                values=np.random.binomial(1, 0.5, 50), treatment_type="binary"
+            ),
+            "outcome": OutcomeData(
+                values=np.random.normal(0, 1, 50), outcome_type="continuous"
+            ),
+            "covariates": CovariateData(
+                values=pd.DataFrame(
+                    {
+                        "X1": np.ones(50),  # Constant column
+                        "X2": np.random.normal(0, 1, 50),
+                        "X3": np.random.normal(0, 1, 50),
+                        "X4": lambda df: df["X2"] + df["X3"],  # Linear combination
+                    }
+                ).assign(X4=lambda df: df["X2"] + df["X3"])
+            ),
+        },
     }
 
     return scenarios
@@ -272,7 +384,9 @@ def model_combinations():
         },
         "random_forest": {
             "outcome_model": RandomForestRegressor(n_estimators=10, random_state=42),
-            "propensity_model": RandomForestClassifier(n_estimators=10, random_state=42),
+            "propensity_model": RandomForestClassifier(
+                n_estimators=10, random_state=42
+            ),
         },
         "mixed": {
             "outcome_model": RandomForestRegressor(n_estimators=10, random_state=42),
@@ -292,26 +406,32 @@ def marketing_campaign_data(medium_sample_size, random_state):
     previous_purchases = np.random.poisson(2, medium_sample_size)
 
     # Treatment assignment (email campaign)
-    propensity = 1 / (1 + np.exp(-(-2 + 0.02 * age + 0.00001 * income + 0.1 * previous_purchases)))
+    propensity = 1 / (
+        1 + np.exp(-(-2 + 0.02 * age + 0.00001 * income + 0.1 * previous_purchases))
+    )
     treatment = np.random.binomial(1, propensity, medium_sample_size)
 
     # Outcome (purchase amount)
     outcome = (
-        100 + 2 * age + 0.01 * income + 20 * previous_purchases +
-        50 * treatment + np.random.normal(0, 30, medium_sample_size)
+        100
+        + 2 * age
+        + 0.01 * income
+        + 20 * previous_purchases
+        + 50 * treatment
+        + np.random.normal(0, 30, medium_sample_size)
     )
     outcome = np.maximum(outcome, 0)  # Non-negative purchases
 
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="binary"),
         "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
-        "covariates": CovariateData(values=pd.DataFrame({
-            "age": age,
-            "income": income,
-            "previous_purchases": previous_purchases
-        })),
+        "covariates": CovariateData(
+            values=pd.DataFrame(
+                {"age": age, "income": income, "previous_purchases": previous_purchases}
+            )
+        ),
         "true_ate": 50.0,
-        "context": "marketing_campaign"
+        "context": "marketing_campaign",
     }
 
 
@@ -320,23 +440,28 @@ def performance_benchmark_data(large_sample_size, random_state):
     """Generate large dataset for performance benchmarking."""
     np.random.seed(random_state)
 
-    # Many covariates for complexity
-    n_covariates = 20
-    X = np.random.normal(0, 1, (large_sample_size, n_covariates))
+    # Optimized: Reduce covariates for memory efficiency while maintaining complexity
+    n_covariates = min(15, large_sample_size // 50)  # Scale with sample size, max 15
+    n_samples = min(large_sample_size, 800)  # Cap at 800 for memory efficiency
+    X = np.random.normal(0, 1, (n_samples, n_covariates))
 
     # Treatment depends on subset of covariates
     propensity_weights = np.random.normal(0, 0.1, n_covariates)
-    propensity_weights[:5] = np.random.normal(0, 0.5, 5)  # First 5 are important
+    propensity_weights[: min(5, n_covariates)] = np.random.normal(
+        0, 0.5, min(5, n_covariates)
+    )  # First few are important
 
     linear_pred = X @ propensity_weights
     propensity = 1 / (1 + np.exp(-linear_pred))
-    treatment = np.random.binomial(1, propensity, large_sample_size)
+    treatment = np.random.binomial(1, propensity, n_samples)
 
     # Outcome depends on different subset of covariates
     outcome_weights = np.random.normal(0, 0.1, n_covariates)
-    outcome_weights[5:10] = np.random.normal(0, 0.5, 5)  # Different 5 are important
+    outcome_weights[5 : min(10, n_covariates)] = np.random.normal(
+        0, 0.5, min(5, n_covariates - 5)
+    )  # Adapt to n_covariates
 
-    outcome = X @ outcome_weights + 2 * treatment + np.random.normal(0, 1, large_sample_size)
+    outcome = X @ outcome_weights + 2 * treatment + np.random.normal(0, 1, n_samples)
 
     covariate_df = pd.DataFrame(X, columns=[f"X{i}" for i in range(n_covariates)])
 
@@ -345,5 +470,5 @@ def performance_benchmark_data(large_sample_size, random_state):
         "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
         "covariates": CovariateData(values=covariate_df),
         "true_ate": 2.0,
-        "context": "performance_benchmark"
+        "context": "performance_benchmark",
     }

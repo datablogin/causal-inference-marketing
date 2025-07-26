@@ -2,6 +2,42 @@
 
 This module uses hypothesis to generate property-based tests that verify
 invariants and mathematical properties of causal inference estimators.
+
+## Property-Based Testing Overview
+
+Property-based testing automatically generates test inputs to verify that
+mathematical properties hold across a wide range of scenarios. This is
+particularly valuable for causal inference where estimators should satisfy
+certain theoretical properties regardless of the specific data.
+
+## Key Properties Tested
+
+### Mathematical Invariants
+1. **Scale Invariance**: ATE estimates should scale proportionally when outcomes are scaled
+2. **Translation Invariance**: ATE estimates should be unchanged when outcomes are shifted by constants
+3. **Covariate Ordering**: Results should be invariant to the order of covariate columns
+
+### Estimator-Specific Properties
+1. **IPW Weight Properties**: All weights must be positive and finite
+2. **AIPW Robustness**: Should handle challenging scenarios gracefully
+3. **Cross-Method Consistency**: Different estimators should give reasonably similar results
+
+### Numerical Stability
+1. **Extreme Values**: Estimators should handle large but finite covariate values
+2. **High Dimensionality**: Performance with many covariates relative to sample size
+3. **Finite Results**: All estimates should be finite numbers
+
+## Test Strategy
+
+The tests use Hypothesis to generate realistic but varied datasets with:
+- Controlled sample sizes (20-200 for speed)
+- Limited feature counts (1-5 to avoid curse of dimensionality)
+- Reasonable coefficient ranges to avoid numerical issues
+- Fixed random seeds for reproducibility across hypothesis runs
+- Assumptions to ensure sufficient treatment variation
+
+Each test verifies both that the estimator succeeds on valid data and that
+any failures are for predictable reasons (numerical issues, convergence problems).
 """
 
 import numpy as np
@@ -20,23 +56,41 @@ from causal_inference.estimators.ipw import IPWEstimator
 # Hypothesis strategies for generating test data
 @st.composite
 def binary_treatment_data(draw, min_size=20, max_size=200):
-    """Generate binary treatment data with covariates."""
+    """Generate binary treatment data with covariates.
+
+    This strategy creates realistic causal inference datasets with:
+    - Binary treatment (0/1) with reasonable propensity scores
+    - Continuous outcomes with linear relationship to covariates
+    - Sufficient variation in both treatment groups
+    - Controlled coefficient ranges to avoid numerical issues
+
+    The strategy ensures reproducibility by using a fixed random seed
+    within the hypothesis framework while still generating varied test cases.
+    """
     n_samples = draw(st.integers(min_value=min_size, max_value=max_size))
     n_features = draw(st.integers(min_value=1, max_value=5))
 
     # Generate covariates
-    X = draw(arrays(
-        dtype=np.float64,
-        shape=(n_samples, n_features),
-        elements=st.floats(min_value=-3, max_value=3, allow_nan=False, allow_infinity=False)
-    ))
+    X = draw(
+        arrays(
+            dtype=np.float64,
+            shape=(n_samples, n_features),
+            elements=st.floats(
+                min_value=-3, max_value=3, allow_nan=False, allow_infinity=False
+            ),
+        )
+    )
 
     # Generate treatment with reasonable propensity
-    propensity_weights = draw(arrays(
-        dtype=np.float64,
-        shape=(n_features,),
-        elements=st.floats(min_value=-0.5, max_value=0.5, allow_nan=False, allow_infinity=False)
-    ))
+    propensity_weights = draw(
+        arrays(
+            dtype=np.float64,
+            shape=(n_features,),
+            elements=st.floats(
+                min_value=-0.5, max_value=0.5, allow_nan=False, allow_infinity=False
+            ),
+        )
+    )
 
     linear_pred = X @ propensity_weights
     propensity = 1 / (1 + np.exp(-linear_pred))
@@ -44,22 +98,34 @@ def binary_treatment_data(draw, min_size=20, max_size=200):
     # Ensure some variation in treatment
     assume(np.min(propensity) > 0.05 and np.max(propensity) < 0.95)
 
-    treatment = np.random.binomial(1, propensity, n_samples)
+    # Use deterministic random state for reproducible hypothesis tests
+    rng = np.random.RandomState(12345)  # Fixed seed for reproducibility
+    treatment = rng.binomial(1, propensity, n_samples)
 
     # Ensure both treatment groups are represented
     assume(np.sum(treatment) >= 5 and np.sum(1 - treatment) >= 5)
 
     # Generate outcome
-    outcome_weights = draw(arrays(
-        dtype=np.float64,
-        shape=(n_features,),
-        elements=st.floats(min_value=-0.5, max_value=0.5, allow_nan=False, allow_infinity=False)
-    ))
+    outcome_weights = draw(
+        arrays(
+            dtype=np.float64,
+            shape=(n_features,),
+            elements=st.floats(
+                min_value=-0.5, max_value=0.5, allow_nan=False, allow_infinity=False
+            ),
+        )
+    )
 
-    treatment_effect = draw(st.floats(min_value=-2, max_value=2, allow_nan=False, allow_infinity=False))
+    treatment_effect = draw(
+        st.floats(min_value=-2, max_value=2, allow_nan=False, allow_infinity=False)
+    )
     noise_scale = draw(st.floats(min_value=0.1, max_value=1.0))
 
-    outcome = X @ outcome_weights + treatment_effect * treatment + np.random.normal(0, noise_scale, n_samples)
+    outcome = (
+        X @ outcome_weights
+        + treatment_effect * treatment
+        + rng.normal(0, noise_scale, n_samples)
+    )
 
     covariate_df = pd.DataFrame(X, columns=[f"X{i}" for i in range(n_features)])
 
@@ -88,7 +154,7 @@ class TestEstimatorInvariants:
         scale_factor = 2.5
         scaled_outcome = OutcomeData(
             values=data["outcome"].values * scale_factor,
-            outcome_type=data["outcome"].outcome_type
+            outcome_type=data["outcome"].outcome_type,
         )
 
         # Fit with scaled data
@@ -114,12 +180,14 @@ class TestEstimatorInvariants:
         translation = 100.0
         translated_outcome = OutcomeData(
             values=data["outcome"].values + translation,
-            outcome_type=data["outcome"].outcome_type
+            outcome_type=data["outcome"].outcome_type,
         )
 
         # Fit with translated data
         estimator_translated = GComputationEstimator()
-        estimator_translated.fit(data["treatment"], translated_outcome, data["covariates"])
+        estimator_translated.fit(
+            data["treatment"], translated_outcome, data["covariates"]
+        )
         translated_ate = estimator_translated.estimate_ate().ate
 
         # ATE should be unchanged (with some tolerance for numerical precision)
@@ -136,7 +204,8 @@ class TestEstimatorInvariants:
         # Shuffle covariate columns
         covariates_df = data["covariates"].values.copy()
         columns = list(covariates_df.columns)
-        np.random.shuffle(columns)
+        rng = np.random.RandomState(12345)
+        rng.shuffle(columns)
         shuffled_covariates = CovariateData(values=covariates_df[columns])
 
         estimator2 = GComputationEstimator()
@@ -169,17 +238,15 @@ class TestEstimatorInvariants:
         # Should be able to estimate ATE
         effect = estimator.estimate_ate()
         assert np.isfinite(effect.ate)
-        assert effect.confidence_interval[0] <= effect.ate <= effect.confidence_interval[1]
+        assert (
+            effect.confidence_interval[0] <= effect.ate <= effect.confidence_interval[1]
+        )
 
     @given(data=binary_treatment_data())
     @settings(deadline=10000, max_examples=5)  # Reduced examples for performance
     def test_estimator_consistency_across_methods(self, data):
         """Test that different estimators give reasonably consistent results on good data."""
-        estimators = [
-            GComputationEstimator(),
-            IPWEstimator(),
-            AIPWEstimator()
-        ]
+        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator()]
 
         ates = []
         for estimator in estimators:
@@ -206,7 +273,7 @@ class TestDataValidationProperties:
         treatment=arrays(
             dtype=np.int32,
             shape=st.integers(min_value=20, max_value=100),
-            elements=st.integers(min_value=0, max_value=1)
+            elements=st.integers(min_value=0, max_value=1),
         )
     )
     @settings(deadline=5000, max_examples=20)
@@ -225,7 +292,9 @@ class TestDataValidationProperties:
         outcome=arrays(
             dtype=np.float64,
             shape=st.integers(min_value=20, max_value=100),
-            elements=st.floats(min_value=-100, max_value=100, allow_nan=False, allow_infinity=False)
+            elements=st.floats(
+                min_value=-100, max_value=100, allow_nan=False, allow_infinity=False
+            ),
         )
     )
     @settings(deadline=5000, max_examples=20)
@@ -245,14 +314,17 @@ class TestNumericalStabilityProperties:
     def test_extreme_covariate_values(self):
         """Test behavior with extreme but valid covariate values."""
         n_samples = 100
+        rng = np.random.RandomState(12345)
 
         # Extreme but finite values
-        X1 = np.random.uniform(-1000, 1000, n_samples)
-        X2 = np.random.uniform(0.001, 0.01, n_samples)  # Very small positive values
+        X1 = rng.uniform(-1000, 1000, n_samples)
+        X2 = rng.uniform(0.001, 0.01, n_samples)  # Very small positive values
 
         # Reasonable treatment and outcome
-        treatment = np.random.binomial(1, 0.5, n_samples)
-        outcome = 1 + 0.001 * X1 + 100 * X2 + 2 * treatment + np.random.normal(0, 1, n_samples)
+        treatment = rng.binomial(1, 0.5, n_samples)
+        outcome = (
+            1 + 0.001 * X1 + 100 * X2 + 2 * treatment + rng.normal(0, 1, n_samples)
+        )
 
         data = {
             "treatment": TreatmentData(values=treatment, treatment_type="binary"),
@@ -268,16 +340,26 @@ class TestNumericalStabilityProperties:
                 estimator.fit(data["treatment"], data["outcome"], data["covariates"])
                 effect = estimator.estimate_ate()
                 assert np.isfinite(effect.ate)
-            except Exception as e:
+            except (ValueError, np.linalg.LinAlgError, RuntimeWarning) as e:
                 # Some numerical issues might be expected, but should be handled gracefully
-                assert "numerical" in str(e).lower() or "convergence" in str(e).lower()
+                assert any(
+                    keyword in str(e).lower()
+                    for keyword in [
+                        "numerical",
+                        "convergence",
+                        "singular",
+                        "ill-conditioned",
+                        "overflow",
+                    ]
+                )
 
     def test_high_dimensional_covariates(self):
         """Test behavior with high-dimensional covariate spaces."""
         n_samples = 200
         n_features = 50  # More features than typical
+        rng = np.random.RandomState(12345)
 
-        X = np.random.normal(0, 1, (n_samples, n_features))
+        X = rng.normal(0, 1, (n_samples, n_features))
 
         # Only first few features affect treatment and outcome
         propensity_weights = np.zeros(n_features)
@@ -288,9 +370,9 @@ class TestNumericalStabilityProperties:
 
         linear_pred = X @ propensity_weights
         propensity = 1 / (1 + np.exp(-linear_pred))
-        treatment = np.random.binomial(1, propensity, n_samples)
+        treatment = rng.binomial(1, propensity, n_samples)
 
-        outcome = X @ outcome_weights + 1.5 * treatment + np.random.normal(0, 0.5, n_samples)
+        outcome = X @ outcome_weights + 1.5 * treatment + rng.normal(0, 0.5, n_samples)
 
         covariate_df = pd.DataFrame(X, columns=[f"X{i}" for i in range(n_features)])
 
@@ -320,13 +402,15 @@ class TestRobustnessProperties:
         estimator.fit(
             simple_binary_data["treatment"],
             simple_binary_data["outcome"],
-            simple_binary_data["covariates"]
+            simple_binary_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
 
         # Confidence interval should be valid
-        assert effect.confidence_interval[0] <= effect.ate <= effect.confidence_interval[1]
+        assert (
+            effect.confidence_interval[0] <= effect.ate <= effect.confidence_interval[1]
+        )
 
         # Interval should have reasonable width (not too narrow or too wide)
         interval_width = effect.confidence_interval[1] - effect.confidence_interval[0]
@@ -341,7 +425,7 @@ class TestRobustnessProperties:
             estimator.fit(
                 simple_binary_data["treatment"],
                 simple_binary_data["outcome"],
-                simple_binary_data["covariates"]
+                simple_binary_data["covariates"],
             )
             ate = estimator.estimate_ate().ate
             ates.append(ate)

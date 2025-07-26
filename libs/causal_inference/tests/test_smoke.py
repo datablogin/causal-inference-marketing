@@ -89,23 +89,20 @@ class TestDataModelCreation:
         """Test creating TreatmentData objects."""
         # Binary treatment
         binary_treatment = TreatmentData(
-            values=np.array([0, 1, 1, 0]),
-            treatment_type="binary"
+            values=np.array([0, 1, 1, 0]), treatment_type="binary"
         )
         assert binary_treatment.treatment_type == "binary"
         assert len(binary_treatment.values) == 4
 
         # Categorical treatment
         categorical_treatment = TreatmentData(
-            values=np.array([0, 1, 2, 1]),
-            treatment_type="categorical"
+            values=np.array([0, 1, 2, 1]), treatment_type="categorical"
         )
         assert categorical_treatment.treatment_type == "categorical"
 
         # Continuous treatment
         continuous_treatment = TreatmentData(
-            values=np.array([0.1, 1.5, 2.3, 0.8]),
-            treatment_type="continuous"
+            values=np.array([0.1, 1.5, 2.3, 0.8]), treatment_type="continuous"
         )
         assert continuous_treatment.treatment_type == "continuous"
 
@@ -113,25 +110,22 @@ class TestDataModelCreation:
         """Test creating OutcomeData objects."""
         # Continuous outcome
         continuous_outcome = OutcomeData(
-            values=np.array([1.2, 3.4, 2.1, 4.5]),
-            outcome_type="continuous"
+            values=np.array([1.2, 3.4, 2.1, 4.5]), outcome_type="continuous"
         )
         assert continuous_outcome.outcome_type == "continuous"
 
         # Binary outcome
         binary_outcome = OutcomeData(
-            values=np.array([0, 1, 1, 0]),
-            outcome_type="binary"
+            values=np.array([0, 1, 1, 0]), outcome_type="binary"
         )
         assert binary_outcome.outcome_type == "binary"
 
     def test_covariate_data_creation(self):
         """Test creating CovariateData objects."""
         # DataFrame input
-        df = pd.DataFrame({
-            "age": [25, 30, 35, 40],
-            "income": [50000, 60000, 70000, 80000]
-        })
+        df = pd.DataFrame(
+            {"age": [25, 30, 35, 40], "income": [50000, 60000, 70000, 80000]}
+        )
         covariate_data = CovariateData(values=df)
         assert covariate_data.values.shape == (4, 2)
 
@@ -143,9 +137,7 @@ class TestDataModelCreation:
     def test_causal_effect_creation(self):
         """Test creating CausalEffect objects."""
         effect = CausalEffect(
-            ate=2.5,
-            confidence_interval=(1.2, 3.8),
-            confidence_level=0.95
+            ate=2.5, confidence_interval=(1.2, 3.8), confidence_level=0.95
         )
         assert effect.ate == 2.5
         assert effect.confidence_interval == (1.2, 3.8)
@@ -166,7 +158,7 @@ class TestEstimatorBasicFunctionality:
         estimator.fit(
             simple_binary_data["treatment"],
             simple_binary_data["outcome"],
-            simple_binary_data["covariates"]
+            simple_binary_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
@@ -187,7 +179,7 @@ class TestEstimatorBasicFunctionality:
         estimator.fit(
             simple_binary_data["treatment"],
             simple_binary_data["outcome"],
-            simple_binary_data["covariates"]
+            simple_binary_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
@@ -206,7 +198,7 @@ class TestEstimatorBasicFunctionality:
         estimator.fit(
             simple_binary_data["treatment"],
             simple_binary_data["outcome"],
-            simple_binary_data["covariates"]
+            simple_binary_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
@@ -226,13 +218,15 @@ class TestEstimatorBasicFunctionality:
         estimator.fit(
             simple_categorical_data["treatment"],
             simple_categorical_data["outcome"],
-            simple_categorical_data["covariates"]
+            simple_categorical_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
         assert np.isfinite(effect.ate)
 
-    def test_estimator_with_continuous_treatment(self, simple_continuous_treatment_data):
+    def test_estimator_with_continuous_treatment(
+        self, simple_continuous_treatment_data
+    ):
         """Test estimators with continuous treatment."""
         from causal_inference.estimators.g_computation import GComputationEstimator
 
@@ -242,7 +236,7 @@ class TestEstimatorBasicFunctionality:
         estimator.fit(
             simple_continuous_treatment_data["treatment"],
             simple_continuous_treatment_data["outcome"],
-            simple_continuous_treatment_data["covariates"]
+            simple_continuous_treatment_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
@@ -258,7 +252,7 @@ class TestEstimatorBasicFunctionality:
         estimator.fit(
             binary_outcome_data["treatment"],
             binary_outcome_data["outcome"],
-            binary_outcome_data["covariates"]
+            binary_outcome_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
@@ -276,9 +270,7 @@ class TestDataUtilitiesSmoke:
 
         # Binary treatment
         treatment, outcome, covariates = generator.generate_linear_binary_treatment(
-            n_samples=100,
-            n_confounders=3,
-            treatment_effect=2.0
+            n_samples=100, n_confounders=3, treatment_effect=2.0
         )
 
         assert len(treatment.values) == 100
@@ -286,9 +278,10 @@ class TestDataUtilitiesSmoke:
         assert covariates.values.shape == (100, 3)
 
         # Continuous treatment
-        treatment, outcome, covariates = generator.generate_nonlinear_continuous_treatment(
-            n_samples=100,
-            n_confounders=2
+        treatment, outcome, covariates = (
+            generator.generate_nonlinear_continuous_treatment(
+                n_samples=100, n_confounders=2
+            )
         )
 
         assert len(treatment.values) == 100
@@ -302,7 +295,7 @@ class TestDataUtilitiesSmoke:
         result = validate_causal_data(
             simple_binary_data["treatment"],
             simple_binary_data["outcome"],
-            simple_binary_data["covariates"]
+            simple_binary_data["covariates"],
         )
 
         assert result is not None
@@ -312,10 +305,7 @@ class TestDataUtilitiesSmoke:
         from causal_inference.data.missing_data import MissingDataHandler
 
         # Create data with missing values
-        df = pd.DataFrame({
-            "X1": [1, 2, np.nan, 4, 5],
-            "X2": [10, np.nan, 30, 40, 50]
-        })
+        df = pd.DataFrame({"X1": [1, 2, np.nan, 4, 5], "X2": [10, np.nan, 30, 40, 50]})
 
         handler = MissingDataHandler()
 
@@ -345,8 +335,7 @@ class TestDiagnosticsSmoke:
         from causal_inference.diagnostics.balance import check_covariate_balance
 
         result = check_covariate_balance(
-            simple_binary_data["treatment"],
-            simple_binary_data["covariates"]
+            simple_binary_data["treatment"], simple_binary_data["covariates"]
         )
 
         assert result is not None
@@ -357,8 +346,7 @@ class TestDiagnosticsSmoke:
         from causal_inference.diagnostics.overlap import assess_positivity
 
         result = assess_positivity(
-            simple_binary_data["treatment"],
-            simple_binary_data["covariates"]
+            simple_binary_data["treatment"], simple_binary_data["covariates"]
         )
 
         assert result is not None
@@ -378,8 +366,7 @@ class TestDiagnosticsSmoke:
         from causal_inference.diagnostics.specification import test_functional_form
 
         result = test_functional_form(
-            simple_binary_data["covariates"],
-            simple_binary_data["outcome"]
+            simple_binary_data["covariates"], simple_binary_data["outcome"]
         )
 
         assert result is not None
@@ -391,7 +378,7 @@ class TestDiagnosticsSmoke:
         report = generate_diagnostic_report(
             treatment=simple_binary_data["treatment"],
             outcome=simple_binary_data["outcome"],
-            covariates=simple_binary_data["covariates"]
+            covariates=simple_binary_data["covariates"],
         )
 
         assert isinstance(report, str)
@@ -408,13 +395,12 @@ class TestEndToEndWorkflow:
 
         generator = SyntheticDataGenerator(random_state=42)
         treatment, outcome, covariates = generator.generate_linear_binary_treatment(
-            n_samples=200,
-            n_confounders=3,
-            treatment_effect=1.5
+            n_samples=200, n_confounders=3, treatment_effect=1.5
         )
 
         # Validate data
         from causal_inference.data.validation import validate_causal_data
+
         validate_causal_data(treatment, outcome, covariates)
 
         # Run analysis with multiple estimators
@@ -422,11 +408,7 @@ class TestEndToEndWorkflow:
         from causal_inference.estimators.g_computation import GComputationEstimator
         from causal_inference.estimators.ipw import IPWEstimator
 
-        estimators = [
-            GComputationEstimator(),
-            IPWEstimator(),
-            AIPWEstimator()
-        ]
+        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator()]
 
         results = {}
         for estimator in estimators:
@@ -464,7 +446,12 @@ class TestEndToEndWorkflow:
         covariates_df = pd.DataFrame({"X1": X1, "X2": X2})
 
         treatment = np.random.binomial(1, 0.5, n_samples)
-        outcome = 1 + 0.5 * np.nanmean([X1, X2], axis=0) + 2 * treatment + np.random.normal(0, 1, n_samples)
+        outcome = (
+            1
+            + 0.5 * np.nanmean([X1, X2], axis=0)
+            + 2 * treatment
+            + np.random.normal(0, 1, n_samples)
+        )
 
         # Handle missing data
         from causal_inference.data.missing_data import MissingDataHandler
@@ -496,7 +483,7 @@ class TestEndToEndWorkflow:
         estimator.fit(
             performance_benchmark_data["treatment"],
             performance_benchmark_data["outcome"],
-            performance_benchmark_data["covariates"]
+            performance_benchmark_data["covariates"],
         )
 
         effect = estimator.estimate_ate()
@@ -505,6 +492,6 @@ class TestEndToEndWorkflow:
         # Diagnostics should also work
         balance_result = check_covariate_balance(
             performance_benchmark_data["treatment"],
-            performance_benchmark_data["covariates"]
+            performance_benchmark_data["covariates"],
         )
         assert balance_result is not None
