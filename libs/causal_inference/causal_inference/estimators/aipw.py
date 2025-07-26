@@ -233,7 +233,10 @@ class AIPWEstimator(BaseEstimator):
         return outcome_estimator, propensity_estimator
 
     def _ensure_propensity_score_bounds(
-        self, propensity_scores: NDArray[Any], min_bound: float = 1e-6, max_bound: float = 1 - 1e-6
+        self,
+        propensity_scores: NDArray[Any],
+        min_bound: float = 1e-6,
+        max_bound: float = 1 - 1e-6,
     ) -> NDArray[Any]:
         """Ensure propensity scores are within safe bounds to prevent division by zero.
 
@@ -279,12 +282,16 @@ class AIPWEstimator(BaseEstimator):
 
         if n_extreme_low > n_total * 0.05:  # More than 5% have very low PS
             if self.verbose:
-                print(f"Warning: {n_extreme_low} observations ({n_extreme_low/n_total:.1%}) have propensity scores < {overlap_threshold}")
+                print(
+                    f"Warning: {n_extreme_low} observations ({n_extreme_low / n_total:.1%}) have propensity scores < {overlap_threshold}"
+                )
                 print("This may indicate poor overlap and unreliable AIPW estimates")
 
         if n_extreme_high > n_total * 0.05:  # More than 5% have very high PS
             if self.verbose:
-                print(f"Warning: {n_extreme_high} observations ({n_extreme_high/n_total:.1%}) have propensity scores > {1-overlap_threshold}")
+                print(
+                    f"Warning: {n_extreme_high} observations ({n_extreme_high / n_total:.1%}) have propensity scores > {1 - overlap_threshold}"
+                )
                 print("This may indicate poor overlap and unreliable AIPW estimates")
 
     def _create_cross_fitting_folds(
@@ -373,9 +380,13 @@ class AIPWEstimator(BaseEstimator):
             fold_outcome_values = outcome_values[train_idx]
 
             # Check for NaN values in training data
-            if np.any(np.isnan(fold_treatment_values)) or np.any(np.isnan(fold_outcome_values)):
+            if np.any(np.isnan(fold_treatment_values)) or np.any(
+                np.isnan(fold_outcome_values)
+            ):
                 if self.verbose:
-                    print(f"    Warning: Fold {fold_idx + 1} has NaN values in treatment/outcome")
+                    print(
+                        f"    Warning: Fold {fold_idx + 1} has NaN values in treatment/outcome"
+                    )
                 continue
 
             fold_treatment = TreatmentData(
@@ -402,12 +413,16 @@ class AIPWEstimator(BaseEstimator):
             if isinstance(fold_covariates_values, pd.DataFrame):
                 if fold_covariates_values.isna().any().any():
                     if self.verbose:
-                        print(f"    Warning: Fold {fold_idx + 1} has NaN values in covariates")
+                        print(
+                            f"    Warning: Fold {fold_idx + 1} has NaN values in covariates"
+                        )
                     continue
             else:
                 if np.any(np.isnan(fold_covariates_values)):
                     if self.verbose:
-                        print(f"    Warning: Fold {fold_idx + 1} has NaN values in covariates")
+                        print(
+                            f"    Warning: Fold {fold_idx + 1} has NaN values in covariates"
+                        )
                     continue
 
             fold_covariates = CovariateData(
@@ -556,10 +571,14 @@ class AIPWEstimator(BaseEstimator):
                     # Use mean imputation for potential outcomes
                     valid_mask = ~missing_mask
                     if np.any(valid_mask):
-                        mean_value = np.mean(self._cross_fit_predictions[key][valid_mask])
+                        mean_value = np.mean(
+                            self._cross_fit_predictions[key][valid_mask]
+                        )
                         self._cross_fit_predictions[key][missing_mask] = mean_value
                         if self.verbose:
-                            print(f"  Imputed missing {key} with mean: {mean_value:.4f}")
+                            print(
+                                f"  Imputed missing {key} with mean: {mean_value:.4f}"
+                            )
                     else:
                         raise EstimationError(f"All {key} predictions are missing")
 
@@ -568,11 +587,15 @@ class AIPWEstimator(BaseEstimator):
                     marginal_prob = np.mean(treatment_values)
                     self._cross_fit_predictions[key][missing_mask] = marginal_prob
                     if self.verbose:
-                        print(f"  Imputed missing propensity scores with marginal probability: {marginal_prob:.4f}")
+                        print(
+                            f"  Imputed missing propensity scores with marginal probability: {marginal_prob:.4f}"
+                        )
 
                 elif key == "ipw_weights":
                     # Recompute weights from imputed propensity scores
-                    ps_values = self._cross_fit_predictions["propensity_scores"][missing_mask]
+                    ps_values = self._cross_fit_predictions["propensity_scores"][
+                        missing_mask
+                    ]
                     treatment_vals = treatment_values[missing_mask]
                     weights = np.zeros_like(ps_values)
 
@@ -586,7 +609,9 @@ class AIPWEstimator(BaseEstimator):
 
                     self._cross_fit_predictions[key][missing_mask] = weights
                     if self.verbose:
-                        print("  Recomputed missing IPW weights from imputed propensity scores")
+                        print(
+                            "  Recomputed missing IPW weights from imputed propensity scores"
+                        )
 
     def _fit_no_cross_fitting(
         self,
@@ -726,7 +751,6 @@ class AIPWEstimator(BaseEstimator):
         aipw_estimate = np.mean(g_comp_component + ipw_correction)
 
         return aipw_estimate
-
 
     def _compute_influence_function_se(
         self,

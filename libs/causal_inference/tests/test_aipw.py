@@ -152,7 +152,9 @@ class TestAIPWEstimator:
     def test_cross_fitting_aipw(self):
         """Test AIPW with cross-fitting."""
         # Cross-fitting implementation needs NaN handling improvements - will be addressed in follow-up
-        pytest.skip("Cross-fitting implementation requires additional robustness improvements")
+        pytest.skip(
+            "Cross-fitting implementation requires additional robustness improvements"
+        )
 
     def test_influence_function_se(self):
         """Test influence function standard error computation."""
@@ -294,7 +296,12 @@ class TestAIPWEstimator:
         treatment_binary = np.random.binomial(1, treatment_probs)
 
         # Generate outcome
-        outcome_values = 2 * X[:, 0] + 1 * X[:, 1] + 1.5 * treatment_binary + np.random.randn(n) * 0.3
+        outcome_values = (
+            2 * X[:, 0]
+            + 1 * X[:, 1]
+            + 1.5 * treatment_binary
+            + np.random.randn(n) * 0.3
+        )
 
         treatment_data = TreatmentData(
             values=pd.Series(treatment_binary), treatment_type="binary"
@@ -421,7 +428,9 @@ class TestAIPWEstimator:
     def test_cross_fitting_prediction_error(self):
         """Test that prediction fails with cross-fitting."""
         # Cross-fitting implementation needs robustness improvements - skip for now
-        pytest.skip("Cross-fitting prediction test requires cross-fitting implementation fixes")
+        pytest.skip(
+            "Cross-fitting prediction test requires cross-fitting implementation fixes"
+        )
 
     def test_sklearn_dataset_compatibility(self):
         """Test AIPW with sklearn generated datasets."""
