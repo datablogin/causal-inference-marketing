@@ -17,6 +17,12 @@ from .balance import (
     calculate_variance_ratio,
     check_covariate_balance,
 )
+from .falsification import (
+    FalsificationTester,
+    run_all_falsification_tests,
+    run_placebo_outcome_test,
+    run_placebo_treatment_test,
+)
 from .overlap import (
     OverlapDiagnostics,
     assess_positivity,
@@ -44,6 +50,19 @@ from .specification import (
     linearity_tests,
     test_model_specification,
 )
+
+# Import visualization with optional dependency handling
+try:
+    from .visualization import (
+        DiagnosticVisualizer,
+        plot_balance_diagnostics,
+        plot_overlap_diagnostics,
+        plot_sensitivity_analysis,
+        plot_specification_tests,
+    )
+    _VISUALIZATION_AVAILABLE = True
+except ImportError:
+    _VISUALIZATION_AVAILABLE = False
 
 __all__ = [
     # Balance diagnostics
@@ -75,9 +94,24 @@ __all__ = [
     "interaction_tests",
     "functional_form_tests",
     "test_model_specification",
+    # Falsification tests
+    "FalsificationTester",
+    "run_all_falsification_tests",
+    "run_placebo_outcome_test",
+    "run_placebo_treatment_test",
     # Reporting
     "DiagnosticReport",
     "DiagnosticReportGenerator",
     "generate_diagnostic_report",
     "create_assumption_summary",
 ]
+
+# Add visualization exports if available
+if _VISUALIZATION_AVAILABLE:
+    __all__.extend([
+        "DiagnosticVisualizer",
+        "plot_balance_diagnostics",
+        "plot_overlap_diagnostics",
+        "plot_sensitivity_analysis",
+        "plot_specification_tests",
+    ])
