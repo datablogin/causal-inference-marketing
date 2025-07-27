@@ -97,9 +97,15 @@ class GComputationEstimator(BaseEstimator):
         if model_type == "linear":
             return LinearRegression(**self.model_params)
         elif model_type == "logistic":
-            return LogisticRegression(
-                random_state=self.random_state, **self.model_params
-            )
+            # Add solver and max_iter parameters to handle convergence issues
+            default_params = {
+                "solver": "liblinear",  # Better for small datasets and binary problems
+                "max_iter": 1000,  # Increase max iterations
+                "C": 1.0,  # Regularization parameter
+            }
+            # Merge with user params, giving priority to user params
+            merged_params = {**default_params, **self.model_params}
+            return LogisticRegression(random_state=self.random_state, **merged_params)
         elif model_type == "random_forest":
             if outcome_type == "continuous":
                 return RandomForestRegressor(
@@ -135,9 +141,13 @@ class GComputationEstimator(BaseEstimator):
         # Add covariates if provided
         if covariates is not None:
             if isinstance(covariates.values, pd.DataFrame):
-                # Use the DataFrame directly
+                # Use the DataFrame directly and update names if needed
                 for col in covariates.values.columns:
                     features[col] = covariates.values[col]
+                # Store the actual column names for later use
+                if not covariates.names:
+                    # Update the covariates object with actual column names
+                    covariates.names = list(covariates.values.columns)
             else:
                 # Convert array to DataFrame with covariate names
                 cov_names = covariates.names or [
@@ -175,6 +185,14 @@ class GComputationEstimator(BaseEstimator):
         self.outcome_model = self._select_model(outcome.outcome_type)
 
         try:
+            # Check for treatment variation first
+            unique_treatments = np.unique(treatment.values)
+            if len(unique_treatments) < 2:
+                raise EstimationError(
+                    f"No treatment variation detected. Treatment values: {unique_treatments}. "
+                    "Cannot estimate causal effects without variation in treatment assignment."
+                )
+
             self.outcome_model.fit(X, y)
 
             if self.verbose:
@@ -189,6 +207,26 @@ class GComputationEstimator(BaseEstimator):
                         ll = log_loss(y, y_pred_proba)
                         print(f"Outcome model log-loss: {ll:.4f}")
 
+        except np.linalg.LinAlgError as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["singular", "ill-conditioned"]):
+                raise EstimationError(
+                    f"Linear algebra error in outcome model: {str(e)}. "
+                    "This may be due to multicollinearity or rank deficiency in covariates."
+                ) from e
+            else:
+                raise EstimationError(
+                    f"Linear algebra error in outcome model: {str(e)}"
+                ) from e
+        except ValueError as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["convergence", "separation"]):
+                raise EstimationError(
+                    f"Model convergence issue: {str(e)}. "
+                    "This may be due to perfect separation or numerical instability."
+                ) from e
+            else:
+                raise EstimationError(f"Failed to fit outcome model: {str(e)}") from e
         except Exception as e:
             raise EstimationError(f"Failed to fit outcome model: {str(e)}") from e
 
@@ -435,7 +473,7 @@ class GComputationEstimator(BaseEstimator):
                 )
             else:
                 # Use the same covariate names as the training data
-                if self.covariate_data is not None:
+                if self.covariate_data is not None and self.covariate_data.names:
                     cov_names = self.covariate_data.names
                 else:
                     # Fall back to generic names matching the number of features in training
@@ -444,7 +482,7 @@ class GComputationEstimator(BaseEstimator):
                         if self._model_features
                         else covariates.shape[1]
                     )
-                    cov_names = [f"X{i + 1}" for i in range(n_features)]
+                    cov_names = [f"X{i}" for i in range(n_features)]
 
                 # Create DataFrame to ensure correct column ordering
                 cov_df = pd.DataFrame(covariates, columns=cov_names)

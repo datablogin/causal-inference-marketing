@@ -537,16 +537,24 @@ class AIPWEstimator(BaseEstimator):
 
         # Check that we have enough successful folds
         if successful_folds == 0:
-            raise EstimationError(
-                "Cross-fitting failed: no folds completed successfully. "
-                "Consider disabling cross-fitting or checking data quality."
-            )
+            if self.verbose:
+                print(
+                    "Warning: Cross-fitting failed completely. Falling back to no cross-fitting."
+                )
+            # Fallback to no cross-fitting
+            self._fit_no_cross_fitting(treatment, outcome, covariates)
+            return
         elif successful_folds < self.n_folds // 2:
             if self.verbose:
                 print(
                     f"Warning: Only {successful_folds}/{self.n_folds} folds succeeded. "
                     "Results may be less reliable."
                 )
+            # If too few folds succeeded, raise an error to be handled upstream
+            raise EstimationError(
+                f"Cross-fitting failed: only {successful_folds}/{self.n_folds} folds completed successfully. "
+                "Consider disabling cross-fitting or checking data quality."
+            )
 
         # Check for missing predictions and handle appropriately
         for key in self._cross_fit_predictions:
@@ -631,9 +639,20 @@ class AIPWEstimator(BaseEstimator):
             self._create_component_estimators()
         )
 
-        # Fit both models on full data
-        self.outcome_estimator.fit(treatment, outcome, covariates)
-        self.propensity_estimator.fit(treatment, outcome, covariates)
+        # Fit both models on full data with error handling
+        try:
+            self.outcome_estimator.fit(treatment, outcome, covariates)
+        except Exception as e:
+            raise EstimationError(
+                f"Failed to fit outcome model in AIPW: {str(e)}"
+            ) from e
+
+        try:
+            self.propensity_estimator.fit(treatment, outcome, covariates)
+        except Exception as e:
+            raise EstimationError(
+                f"Failed to fit propensity model in AIPW: {str(e)}"
+            ) from e
 
         # Get predictions
         if isinstance(treatment.values, pd.Series):

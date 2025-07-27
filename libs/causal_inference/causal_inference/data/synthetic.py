@@ -112,16 +112,21 @@ class SyntheticDataGenerator:
         X = np.random.randn(n_samples, n_confounders)
 
         # Generate continuous treatment with confounding
-        treatment_mean = 2.0 + 0.5 * X[:, 0] - 0.3 * X[:, 1]
+        treatment_mean = 2.0 + 0.5 * X[:, 0]
+        if n_confounders >= 2:
+            treatment_mean -= 0.3 * X[:, 1]
         treatment = np.random.normal(treatment_mean, 1.0)
 
         # Generate outcome with nonlinear treatment effect
-        confounder_effects = (
-            1.5 * X[:, 0]
-            + 0.8 * X[:, 1]
-            + 0.5 * X[:, 2] * X[:, 3]  # Interaction effect
-            + 0.3 * np.sin(X[:, 0])  # Nonlinear confounder effect
-        )
+        confounder_effects = 1.5 * X[:, 0] + 0.3 * np.sin(X[:, 0])  # Basic effects
+
+        if n_confounders >= 2:
+            confounder_effects += 0.8 * X[:, 1]
+
+        if n_confounders >= 4:
+            confounder_effects += 0.5 * X[:, 2] * X[:, 3]  # Interaction effect
+        elif n_confounders >= 3:
+            confounder_effects += 0.5 * X[:, 2]
 
         # Apply different dose-response functions
         if treatment_effect_fn == "linear":
