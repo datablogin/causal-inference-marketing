@@ -259,6 +259,9 @@ class IPWEstimator(BaseEstimator):
         else:
             y = treatment.values
 
+        # Ensure y is a numpy array for mypy
+        y = np.asarray(y)
+
         # Create and fit propensity model
         self.propensity_model = self._create_propensity_model()
 
