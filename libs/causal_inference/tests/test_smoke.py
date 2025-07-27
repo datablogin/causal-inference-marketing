@@ -137,10 +137,11 @@ class TestDataModelCreation:
     def test_causal_effect_creation(self):
         """Test creating CausalEffect objects."""
         effect = CausalEffect(
-            ate=2.5, confidence_interval=(1.2, 3.8), confidence_level=0.95
+            ate=2.5, ate_ci_lower=1.2, ate_ci_upper=3.8, confidence_level=0.95
         )
         assert effect.ate == 2.5
-        assert effect.confidence_interval == (1.2, 3.8)
+        assert effect.ate_ci_lower == 1.2
+        assert effect.ate_ci_upper == 3.8
         assert effect.confidence_level == 0.95
         assert effect.is_significant
 
@@ -302,17 +303,30 @@ class TestDataUtilitiesSmoke:
 
     def test_missing_data_handler_smoke(self):
         """Smoke test for missing data handler."""
-        from causal_inference.data.missing_data import MissingDataHandler
+        from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+        from causal_inference.data.missing_data import handle_missing_data
 
         # Create data with missing values
-        df = pd.DataFrame({"X1": [1, 2, np.nan, 4, 5], "X2": [10, np.nan, 30, 40, 50]})
+        treatment_values = np.array([0, 1, 0, 1, 1])
+        outcome_values = np.array([1, 2, np.nan, 4, 5])
+        covariate_df = pd.DataFrame(
+            {"X1": [1, 2, np.nan, 4, 5], "X2": [10, np.nan, 30, 40, 50]}
+        )
 
-        handler = MissingDataHandler()
+        treatment_data = TreatmentData(values=treatment_values, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome_values, outcome_type="continuous")
+        covariate_data = CovariateData(values=covariate_df)
 
         # Should handle missing data without errors
-        result = handler.handle_missing_data(df, strategy="mean")
-        assert result is not None
-        assert not result.isnull().any().any()
+        clean_treatment, clean_outcome, clean_covariates = handle_missing_data(
+            treatment_data, outcome_data, covariate_data, strategy="mean"
+        )
+        assert clean_treatment is not None
+        assert clean_outcome is not None
+        assert clean_covariates is not None
+        # Check that missing values are handled
+        assert not pd.isna(clean_outcome.values).any()
+        assert not clean_covariates.values.isnull().any().any()
 
     def test_nhefs_data_loader_smoke(self):
         """Smoke test for NHEFS data loader."""
@@ -454,13 +468,20 @@ class TestEndToEndWorkflow:
         )
 
         # Handle missing data
-        from causal_inference.data.missing_data import MissingDataHandler
+        from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+        from causal_inference.data.missing_data import handle_missing_data
 
-        handler = MissingDataHandler()
-        clean_covariates = handler.handle_missing_data(covariates_df, strategy="mean")
+        # Create dummy data objects for handle_missing_data function
+        dummy_treatment = TreatmentData(values=treatment, treatment_type="binary")
+        dummy_outcome = OutcomeData(values=outcome, outcome_type="continuous")
+        dummy_covariates = CovariateData(values=covariates_df)
+        
+        clean_treatment, clean_outcome, clean_covariates_data = handle_missing_data(
+            dummy_treatment, dummy_outcome, dummy_covariates, strategy="mean"
+        )
+        clean_covariates = clean_covariates_data.values if clean_covariates_data else pd.DataFrame()
 
         # Continue with analysis
-        from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
         from causal_inference.estimators.g_computation import GComputationEstimator
 
         treatment_data = TreatmentData(values=treatment, treatment_type="binary")

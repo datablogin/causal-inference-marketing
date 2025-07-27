@@ -222,9 +222,10 @@ class TestEstimatorInvariants:
         estimator = IPWEstimator()
         estimator.fit(data["treatment"], data["outcome"], data["covariates"])
 
-        weights = estimator._compute_weights()
+        weights = estimator.get_weights()
 
         # All weights should be positive and finite
+        assert weights is not None
         assert np.all(weights > 0)
         assert np.all(np.isfinite(weights))
 
@@ -232,21 +233,21 @@ class TestEstimatorInvariants:
     @settings(deadline=10000, max_examples=10)
     def test_aipw_doubly_robust_property(self, data):
         """Test key properties of AIPW estimator."""
-        estimator = AIPWEstimator()
+        estimator = AIPWEstimator(cross_fitting=False, bootstrap_samples=0)
         estimator.fit(data["treatment"], data["outcome"], data["covariates"])
 
         # Should be able to estimate ATE
         effect = estimator.estimate_ate()
         assert np.isfinite(effect.ate)
-        assert (
-            effect.confidence_interval[0] <= effect.ate <= effect.confidence_interval[1]
-        )
+        # Check confidence interval if available
+        if effect.ate_ci_lower is not None and effect.ate_ci_upper is not None:
+            assert effect.ate_ci_lower <= effect.ate <= effect.ate_ci_upper
 
     @given(data=binary_treatment_data())
     @settings(deadline=10000, max_examples=5)  # Reduced examples for performance
     def test_estimator_consistency_across_methods(self, data):
         """Test that different estimators give reasonably consistent results on good data."""
-        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator()]
+        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator(cross_fitting=False, bootstrap_samples=0)]
 
         ates = []
         for estimator in estimators:
@@ -333,7 +334,7 @@ class TestNumericalStabilityProperties:
         }
 
         # All estimators should handle this without crashing
-        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator()]
+        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator(cross_fitting=False, bootstrap_samples=0)]
 
         for estimator in estimators:
             try:

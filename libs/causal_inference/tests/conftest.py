@@ -107,7 +107,9 @@ def simple_categorical_data(small_sample_size, random_state):
     )
 
     return {
-        "treatment": TreatmentData(values=treatment, treatment_type="categorical"),
+        "treatment": TreatmentData(
+            values=treatment, treatment_type="categorical", categories=[0, 1, 2]
+        ),
         "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
         "covariates": CovariateData(values=pd.DataFrame({"X1": X1, "X2": X2})),
         "true_ate_1_vs_0": 1.5,

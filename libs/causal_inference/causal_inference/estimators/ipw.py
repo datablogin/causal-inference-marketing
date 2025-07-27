@@ -190,9 +190,15 @@ class IPWEstimator(BaseEstimator):
             Initialized sklearn model for propensity score estimation
         """
         if self.propensity_model_type == "logistic":
-            return LogisticRegression(
-                random_state=self.random_state, **self.propensity_model_params
-            )
+            # Add solver and max_iter parameters to handle convergence issues
+            default_params = {
+                "solver": "liblinear",  # Better for small datasets and binary problems
+                "max_iter": 1000,  # Increase max iterations
+                "C": 1.0,  # Regularization parameter
+            }
+            # Merge with user params, giving priority to user params
+            merged_params = {**default_params, **self.propensity_model_params}
+            return LogisticRegression(random_state=self.random_state, **merged_params)
         elif self.propensity_model_type == "random_forest":
             return RandomForestClassifier(
                 random_state=self.random_state, **self.propensity_model_params
@@ -257,6 +263,14 @@ class IPWEstimator(BaseEstimator):
         self.propensity_model = self._create_propensity_model()
 
         try:
+            # Check for treatment variation first
+            unique_treatments = np.unique(y)
+            if len(unique_treatments) < 2:
+                raise EstimationError(
+                    f"No treatment variation detected. Treatment values: {unique_treatments}. "
+                    "Cannot estimate propensity scores without variation in treatment assignment."
+                )
+
             self.propensity_model.fit(X, y)
 
             if self.verbose:
@@ -283,6 +297,28 @@ class IPWEstimator(BaseEstimator):
                 except ValueError:
                     pass  # Skip if cross-validation fails
 
+        except np.linalg.LinAlgError as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["singular", "ill-conditioned"]):
+                raise EstimationError(
+                    f"Linear algebra error in propensity model: {str(e)}. "
+                    "This may be due to multicollinearity or rank deficiency in covariates."
+                ) from e
+            else:
+                raise EstimationError(
+                    f"Linear algebra error in propensity model: {str(e)}"
+                ) from e
+        except ValueError as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in ["convergence", "separation"]):
+                raise EstimationError(
+                    f"Propensity model convergence issue: {str(e)}. "
+                    "This may be due to perfect separation or numerical instability."
+                ) from e
+            else:
+                raise EstimationError(
+                    f"Failed to fit propensity model: {str(e)}"
+                ) from e
         except Exception as e:
             raise EstimationError(f"Failed to fit propensity model: {str(e)}") from e
 
@@ -433,16 +469,29 @@ class IPWEstimator(BaseEstimator):
         # Ensure treatment_values is a numpy array for consistent typing
         treatment_values = np.asarray(treatment_values)
 
+        # Check for extreme propensity scores that would cause numerical issues
+        min_ps = np.min(propensity_scores)
+        max_ps = np.max(propensity_scores)
+
+        if min_ps <= 0.001 or max_ps >= 0.999:
+            if self.verbose:
+                print(
+                    f"Warning: Extreme propensity scores detected (min: {min_ps:.6f}, max: {max_ps:.6f})"
+                )
+
+        # Bound propensity scores to prevent division by very small numbers
+        bounded_ps = np.clip(propensity_scores, 0.001, 0.999)
+
         # Basic IPW weights: W_i = T_i / e_i + (1 - T_i) / (1 - e_i)
-        weights = np.zeros_like(propensity_scores)
+        weights = np.zeros_like(bounded_ps)
 
         # Weights for treated units
         treated_mask = treatment_values == 1
-        weights[treated_mask] = 1 / propensity_scores[treated_mask]
+        weights[treated_mask] = 1 / bounded_ps[treated_mask]
 
         # Weights for control units
         control_mask = treatment_values == 0
-        weights[control_mask] = 1 / (1 - propensity_scores[control_mask])
+        weights[control_mask] = 1 / (1 - bounded_ps[control_mask])
 
         # Apply stabilized weights if requested
         if self.stabilized_weights:
