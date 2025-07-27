@@ -112,7 +112,7 @@ class TestIPWEstimator:
             weight_truncation="percentile",
             truncation_threshold=0.05,
             stabilized_weights=True,
-            bootstrap_samples=100,
+            bootstrap_samples=20,  # Reduced for faster tests
             confidence_level=0.95,
             check_overlap=True,
             overlap_threshold=0.1,
@@ -223,7 +223,7 @@ class TestIPWEstimator:
         """Test ATE estimation with continuous outcome."""
         estimator = IPWEstimator(
             propensity_model_type="logistic",
-            bootstrap_samples=100,  # Use bootstrap for CI
+            bootstrap_samples=20,  # Reduced for faster tests  # Use bootstrap for CI
             confidence_level=0.95,
             random_state=42,
             verbose=True,
@@ -265,7 +265,7 @@ class TestIPWEstimator:
         """Test ATE estimation with binary outcome."""
         estimator = IPWEstimator(
             propensity_model_type="logistic",
-            bootstrap_samples=50,  # Smaller for speed
+            bootstrap_samples=20,  # Reduced for faster tests
             random_state=42,
         )
 

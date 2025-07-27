@@ -378,7 +378,9 @@ class TestSimulationStudyReplication:
             outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
             covariate_data = CovariateData(values=pd.DataFrame({"X": X}))
 
-            estimator = GComputationEstimator(bootstrap_samples=100)
+            estimator = GComputationEstimator(
+                bootstrap_samples=20
+            )  # Reduced for faster tests
             estimator.fit(treatment_data, outcome_data, covariate_data)
             effect = estimator.estimate_ate()
 

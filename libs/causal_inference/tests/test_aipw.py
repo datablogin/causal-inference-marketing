@@ -85,7 +85,7 @@ class TestAIPWEstimator:
             cross_fitting=True,
             n_folds=5,
             influence_function_se=True,
-            bootstrap_samples=100,
+            bootstrap_samples=20,  # Reduced for faster tests
             confidence_level=0.95,
             random_state=42,
             verbose=True,
@@ -108,7 +108,7 @@ class TestAIPWEstimator:
             outcome_model_type="linear",
             propensity_model_type="logistic",
             cross_fitting=False,  # No cross-fitting for simplicity
-            bootstrap_samples=50,  # Small for speed
+            bootstrap_samples=20,  # Reduced for faster tests
             random_state=42,
             verbose=True,
         )

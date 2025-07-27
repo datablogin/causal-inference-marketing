@@ -86,3 +86,9 @@ python_functions = ["test_*"]
 asyncio_mode = "auto"
 timeout = 300
 timeout_method = "thread"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests that require external resources",
+    "benchmark: marks performance benchmark tests",
+    "property: marks property-based tests using hypothesis",
+]

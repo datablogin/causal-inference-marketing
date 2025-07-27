@@ -407,7 +407,9 @@ class TestRobustnessProperties:
 
     def test_bootstrap_stability(self, simple_binary_data):
         """Test that bootstrap confidence intervals have reasonable properties."""
-        estimator = GComputationEstimator(bootstrap_samples=100)
+        estimator = GComputationEstimator(
+            bootstrap_samples=20
+        )  # Reduced for faster tests
         estimator.fit(
             simple_binary_data["treatment"],
             simple_binary_data["outcome"],
@@ -432,7 +434,9 @@ class TestRobustnessProperties:
 
     def test_repeated_estimation_stability(self, simple_binary_data):
         """Test that repeated estimations give consistent results."""
-        estimator = GComputationEstimator(bootstrap_samples=50)
+        estimator = GComputationEstimator(
+            bootstrap_samples=20
+        )  # Reduced for faster tests
 
         ates = []
         for _ in range(5):

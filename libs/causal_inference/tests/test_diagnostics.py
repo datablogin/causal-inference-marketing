@@ -516,6 +516,7 @@ class TestSpecificationTests:
         assert "best_model" in results
         assert "linear_model_adequate" in results
 
+    @pytest.mark.slow
     def test_comprehensive_specification_tests(self):
         """Test comprehensive specification testing."""
         tester = ModelSpecificationTests()
@@ -627,6 +628,7 @@ class TestDiagnosticReporting:
         assert len(df) > 0
 
 
+@pytest.mark.integration
 class TestDiagnosticsIntegration:
     """Integration tests for the diagnostics framework."""
 

@@ -14,6 +14,7 @@ from causal_inference.estimators.g_computation import GComputationEstimator
 from causal_inference.estimators.ipw import IPWEstimator
 
 
+@pytest.mark.integration
 class TestDiagnosticsIntegration:
     """Test integration of diagnostics with all estimator classes."""
 
@@ -147,6 +148,7 @@ class TestDiagnosticsIntegration:
             # Visualization dependencies not available, skip test
             pytest.skip("Visualization dependencies not available")
 
+    @pytest.mark.slow
     def test_comprehensive_diagnostic_workflow(self):
         """Test complete diagnostic workflow with all components."""
         # Fit estimator

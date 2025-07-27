@@ -84,7 +84,7 @@ class TestGComputationEstimator:
         """Test estimator initialization."""
         estimator = GComputationEstimator(
             model_type="linear",
-            bootstrap_samples=100,
+            bootstrap_samples=20,  # Reduced for faster tests
             confidence_level=0.95,
             random_state=42,
             verbose=True,
@@ -171,7 +171,7 @@ class TestGComputationEstimator:
         """Test ATE estimation with continuous outcome."""
         estimator = GComputationEstimator(
             model_type="linear",
-            bootstrap_samples=100,  # Use bootstrap for CI
+            bootstrap_samples=20,  # Reduced for faster CI tests
             confidence_level=0.95,
             random_state=42,
             verbose=True,

@@ -14,6 +14,7 @@ from causal_inference.data.synthetic import SyntheticDataGenerator
 from causal_inference.data.validation import CausalDataValidator
 
 
+@pytest.mark.integration
 class TestDataUtilitiesIntegration:
     """Test integration between different data utilities."""
 

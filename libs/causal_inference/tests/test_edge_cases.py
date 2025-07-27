@@ -283,6 +283,7 @@ class TestSmallSample:
                 )
 
 
+@pytest.mark.integration
 class TestEdgeCaseIntegration:
     """Integration tests combining multiple edge case conditions."""
 
