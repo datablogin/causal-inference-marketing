@@ -353,7 +353,7 @@ class TestDiagnosticsSmoke:
         )
 
         assert result is not None
-        assert "balance_table" in result
+        assert hasattr(result, "standardized_mean_differences")
 
     def test_overlap_diagnostics_smoke(self, simple_binary_data):
         """Smoke test for overlap diagnostics."""
@@ -364,26 +364,30 @@ class TestDiagnosticsSmoke:
         )
 
         assert result is not None
-        assert "common_support" in result
+        assert hasattr(result, "overall_positivity_met")
 
     def test_sensitivity_analysis_smoke(self):
         """Smoke test for sensitivity analysis."""
         from causal_inference.diagnostics.sensitivity import calculate_evalue
 
         # Should handle basic E-value calculation
-        evalue = calculate_evalue(effect_size=2.0)
-        assert np.isfinite(evalue)
-        assert evalue > 0
+        result = calculate_evalue(observed_estimate=2.0)
+        assert result is not None
+        assert "evalue_point" in result
+        assert np.isfinite(result["evalue_point"])
+        assert result["evalue_point"] > 0
 
     def test_specification_tests_smoke(self, simple_binary_data):
         """Smoke test for specification tests."""
-        from causal_inference.diagnostics.specification import test_functional_form
+        from causal_inference.diagnostics.specification import functional_form_tests
 
-        result = test_functional_form(
-            simple_binary_data["covariates"], simple_binary_data["outcome"]
+        result = functional_form_tests(
+            simple_binary_data["outcome"], simple_binary_data["covariates"]
         )
 
         assert result is not None
+        assert "best_model" in result
+        assert "linear_model_adequate" in result
 
     def test_diagnostic_reporting_smoke(self, simple_binary_data):
         """Smoke test for diagnostic reporting."""
@@ -395,8 +399,12 @@ class TestDiagnosticsSmoke:
             covariates=simple_binary_data["covariates"],
         )
 
-        assert isinstance(report, str)
-        assert len(report) > 0
+        assert report is not None
+        assert hasattr(report, "overall_assessment")
+        # Also test the string representation
+        report_str = str(report)
+        assert isinstance(report_str, str)
+        assert len(report_str) > 0
 
 
 class TestEndToEndWorkflow:

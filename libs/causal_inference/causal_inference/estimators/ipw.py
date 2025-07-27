@@ -195,6 +195,7 @@ class IPWEstimator(BaseEstimator):
                 "solver": "liblinear",  # Better for small datasets and binary problems
                 "max_iter": 1000,  # Increase max iterations
                 "C": 1.0,  # Regularization parameter
+                "penalty": "l2",  # L2 regularization to help with separation
             }
             # Merge with user params, giving priority to user params
             merged_params = {**default_params, **self.propensity_model_params}
@@ -313,7 +314,7 @@ class IPWEstimator(BaseEstimator):
                 ) from e
         except ValueError as e:
             error_msg = str(e).lower()
-            if any(keyword in error_msg for keyword in ["convergence", "separation"]):
+            if any(keyword in error_msg for keyword in ["convergence", "separation", "did not converge", "max_iter"]):
                 raise EstimationError(
                     f"Propensity model convergence issue: {str(e)}. "
                     "This may be due to perfect separation or numerical instability."
