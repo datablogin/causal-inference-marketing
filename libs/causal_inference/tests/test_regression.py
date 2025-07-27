@@ -393,7 +393,9 @@ class TestSimulationStudyReplication:
         if ci_generated_count == 0:
             # If no CIs were generated (bootstrap issues), skip the coverage test
             # This can happen with reduced bootstrap samples or numerical issues
-            print(f"Warning: No confidence intervals generated in {n_simulations} simulations")
+            print(
+                f"Warning: No confidence intervals generated in {n_simulations} simulations"
+            )
             return
 
         coverage_rate = coverage_count / ci_generated_count
