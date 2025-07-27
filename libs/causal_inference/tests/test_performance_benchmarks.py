@@ -255,6 +255,8 @@ class TestDataProcessingPerformance:
         for col in covariates_df.columns:
             covariates_df.loc[missing_mask[:, 0], col] = np.nan
 
+        from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+
         handler = MissingDataHandler(strategy="mean")
 
         def run_missing_data_handling():

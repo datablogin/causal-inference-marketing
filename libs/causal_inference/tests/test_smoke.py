@@ -475,7 +475,7 @@ class TestEndToEndWorkflow:
         dummy_treatment = TreatmentData(values=treatment, treatment_type="binary")
         dummy_outcome = OutcomeData(values=outcome, outcome_type="continuous")
         dummy_covariates = CovariateData(values=covariates_df)
-        
+
         clean_treatment, clean_outcome, clean_covariates_data = handle_missing_data(
             dummy_treatment, dummy_outcome, dummy_covariates, strategy="mean"
         )
