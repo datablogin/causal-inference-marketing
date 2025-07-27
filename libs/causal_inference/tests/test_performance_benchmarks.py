@@ -163,10 +163,15 @@ class TestEstimatorPerformance:
             effect = estimator.estimate_ate()
 
             elapsed_time = time.time() - start_time
+
+            # Handle case where confidence_interval might be None
+            ci_width = None
+            if effect.confidence_interval is not None:
+                ci_width = effect.confidence_interval[1] - effect.confidence_interval[0]
+
             results[n_bootstrap] = {
                 "time": elapsed_time,
-                "ci_width": effect.confidence_interval[1]
-                - effect.confidence_interval[0],
+                "ci_width": ci_width,
             }
 
         # Time should scale roughly linearly with bootstrap samples
