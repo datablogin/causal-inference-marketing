@@ -170,8 +170,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
-# timeout = 300
-# timeout_method = "thread"
+timeout = 480
+timeout_method = "thread"
 addopts = [
     "--strict-markers",
     "--strict-config",

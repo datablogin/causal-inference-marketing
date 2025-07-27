@@ -4,6 +4,7 @@ This module provides performance benchmarks to establish baseline
 performance metrics and catch performance regressions.
 """
 
+import os
 import time
 
 import numpy as np
@@ -15,9 +16,9 @@ from causal_inference.estimators.g_computation import GComputationEstimator
 from causal_inference.estimators.ipw import IPWEstimator
 
 # Performance test constants
-PERFORMANCE_BOOTSTRAP_SAMPLES = 10  # Reduced bootstrap for performance tests
-SCALING_BOOTSTRAP_SAMPLES = 50  # Moderate bootstrap for scaling tests
-MAX_PERFORMANCE_TIME = 30.0  # Maximum acceptable time for performance tests
+PERFORMANCE_BOOTSTRAP_SAMPLES = 5  # Reduced bootstrap for performance tests
+SCALING_BOOTSTRAP_SAMPLES = 10  # Moderate bootstrap for scaling tests
+MAX_PERFORMANCE_TIME = 10.0  # Maximum acceptable time for performance tests
 
 
 @pytest.mark.benchmark
@@ -108,6 +109,7 @@ class TestEstimatorPerformance:
         assert result.ate is not None
 
     @pytest.mark.slow
+    @pytest.mark.skipif("CI" in os.environ, reason="Skip slow tests in CI")
     def test_performance_scaling(self, performance_benchmark_data):
         """Test performance scaling with dataset size."""
         results = {}
@@ -173,10 +175,11 @@ class TestEstimatorPerformance:
         # More bootstrap samples should take more time
         assert times[2] > times[1] > times[0]
 
-        # Should still be reasonable even with 100 bootstrap samples
-        assert times[2] < 10.0
+        # Should still be reasonable even with reduced bootstrap samples
+        assert times[2] < 5.0
 
     @pytest.mark.slow
+    @pytest.mark.skipif("CI" in os.environ, reason="Skip slow tests in CI")
     def test_memory_usage_large_dataset(self, large_sample_size, random_state):
         """Test memory usage with large datasets."""
         np.random.seed(random_state)
@@ -346,7 +349,7 @@ class TestPerformanceRegression:
         elapsed_time = time.time() - start_time
 
         # Performance expectations (adjust based on baseline measurements)
-        assert elapsed_time < 5.0, f"G-computation took too long: {elapsed_time:.2f}s"
+        assert elapsed_time < 3.0, f"G-computation took too long: {elapsed_time:.2f}s"
         assert np.isfinite(effect.ate)
 
     @pytest.mark.parametrize("n_features", [5, 10, 20])
@@ -383,7 +386,7 @@ class TestPerformanceRegression:
         elapsed_time = time.time() - start_time
 
         # Time should scale reasonably with feature count
-        max_expected_time = 0.5 + 0.1 * n_features  # Base time + feature scaling
+        max_expected_time = 0.3 + 0.05 * n_features  # Base time + feature scaling
         assert elapsed_time < max_expected_time, (
             f"Too slow for {n_features} features: {elapsed_time:.2f}s"
         )

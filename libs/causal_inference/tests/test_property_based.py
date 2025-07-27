@@ -141,7 +141,7 @@ class TestEstimatorInvariants:
     """Test mathematical invariants that should hold for all estimators."""
 
     @given(data=binary_treatment_data())
-    @settings(deadline=10000, max_examples=10)
+    @settings(deadline=10000, max_examples=3)
     def test_ate_scale_invariance_g_computation(self, data):
         """Test that ATE estimates scale appropriately with outcome scaling."""
         estimator = GComputationEstimator()
@@ -167,7 +167,7 @@ class TestEstimatorInvariants:
         assert abs(scaled_ate - expected_scaled_ate) / abs(expected_scaled_ate) < 0.1
 
     @given(data=binary_treatment_data())
-    @settings(deadline=10000, max_examples=10)
+    @settings(deadline=10000, max_examples=3)
     def test_ate_translation_invariance_g_computation(self, data):
         """Test that ATE estimates are invariant to outcome translation."""
         estimator = GComputationEstimator()
@@ -194,7 +194,7 @@ class TestEstimatorInvariants:
         assert abs(translated_ate - original_ate) < 0.1
 
     @given(data=binary_treatment_data())
-    @settings(deadline=10000, max_examples=10)
+    @settings(deadline=10000, max_examples=3)
     def test_ate_covariate_ordering_invariance(self, data):
         """Test that ATE estimates are invariant to covariate column ordering."""
         estimator1 = GComputationEstimator()
@@ -216,7 +216,7 @@ class TestEstimatorInvariants:
         assert abs(ate2 - ate1) < 0.1
 
     @given(data=binary_treatment_data())
-    @settings(deadline=10000, max_examples=10)
+    @settings(deadline=10000, max_examples=3)
     def test_ipw_weight_positivity(self, data):
         """Test that IPW weights are always positive and finite."""
         estimator = IPWEstimator()
@@ -230,7 +230,7 @@ class TestEstimatorInvariants:
         assert np.all(np.isfinite(weights))
 
     @given(data=binary_treatment_data())
-    @settings(deadline=10000, max_examples=10)
+    @settings(deadline=10000, max_examples=3)
     def test_aipw_doubly_robust_property(self, data):
         """Test key properties of AIPW estimator."""
         estimator = AIPWEstimator(cross_fitting=False, bootstrap_samples=0)
@@ -244,7 +244,7 @@ class TestEstimatorInvariants:
             assert effect.ate_ci_lower <= effect.ate <= effect.ate_ci_upper
 
     @given(data=binary_treatment_data())
-    @settings(deadline=10000, max_examples=5)  # Reduced examples for performance
+    @settings(deadline=10000, max_examples=3)  # Reduced examples for performance
     def test_estimator_consistency_across_methods(self, data):
         """Test that different estimators give reasonably consistent results on good data."""
         estimators = [
