@@ -72,6 +72,10 @@ security:
 # Testing targets
 .PHONY: test
 test:
+	$(UV) run $(PYTEST) -n auto libs/ shared/
+
+.PHONY: test-sequential
+test-sequential:
 	$(UV) run $(PYTEST) libs/ shared/
 
 .PHONY: test-cov
