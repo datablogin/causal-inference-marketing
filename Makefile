@@ -10,20 +10,37 @@ PYTEST := pytest
 # Help target
 .PHONY: help
 help:
-	@echo "Available targets:"
-	@echo "  install     - Install dependencies"
-	@echo "  install-dev - Install development dependencies"
-	@echo "  format      - Format code with ruff"
-	@echo "  lint        - Lint code with ruff"
-	@echo "  typecheck   - Type check with mypy"
-	@echo "  test        - Run tests"
-	@echo "  test-cov    - Run tests with coverage"
-	@echo "  ci          - Run full CI pipeline (lint, typecheck, test)"
-	@echo "  clean       - Clean build artifacts"
-	@echo "  api         - Start causal inference API server"
-	@echo "  review      - Run Claude review of current PR and post as comment"
-	@echo "  review-dry  - Preview Claude review without executing"
-	@echo "  review-file - Run Claude review and save to file"
+	@echo "🚀 Causal Inference Marketing Tools - Development Commands"
+	@echo ""
+	@echo "📦 Installation:"
+	@echo "  install       - Install core dependencies only"
+	@echo "  install-dev   - Install with development dependencies (dev, test, ml)"
+	@echo ""
+	@echo "🔧 Code Quality:"
+	@echo "  format        - Auto-format code with ruff and apply fixes"
+	@echo "  lint          - Run ruff linting on libs/, services/, shared/"
+	@echo "  typecheck     - Run mypy type checking on libs/causal_inference/ and shared/"
+	@echo "  security      - Run safety check for dependency vulnerabilities"
+	@echo ""
+	@echo "🧪 Testing:"
+	@echo "  test          - Run pytest on libs/ and shared/ directories"
+	@echo "  test-cov      - Run tests with coverage reporting (HTML/XML)"
+	@echo "  test-integration - Run integration tests only"
+	@echo ""
+	@echo "🔄 CI/CD:"
+	@echo "  ci            - Run complete CI pipeline (lint, typecheck, test)"
+	@echo "  ci-causal-inference - Run tests, mypy, and ruff for causal_inference library only"
+	@echo ""
+	@echo "🚀 Services:"
+	@echo "  api           - Start FastAPI development server at localhost:8000"
+	@echo ""
+	@echo "🤖 Code Review:"
+	@echo "  review        - Run Claude review of current PR and post as comment"
+	@echo "  review-dry    - Preview Claude review without executing"
+	@echo "  review-file   - Run Claude review and save to file"
+	@echo ""
+	@echo "🧹 Maintenance:"
+	@echo "  clean         - Clean build artifacts, caches, and temporary files"
 
 # Installation targets
 .PHONY: install
@@ -37,33 +54,37 @@ install-dev:
 # Code quality targets
 .PHONY: format
 format:
-	$(RUFF) format libs/ services/ shared/
-	$(RUFF) check --fix libs/ services/ shared/
+	$(UV) run $(RUFF) format libs/ services/ shared/
+	$(UV) run $(RUFF) check --fix libs/ services/ shared/
 
 .PHONY: lint
 lint:
-	$(RUFF) check libs/ services/ shared/
+	$(UV) run $(RUFF) check libs/ services/ shared/
 
 .PHONY: typecheck
 typecheck:
-	$(MYPY) libs/causal_inference/ shared/
+	$(UV) run $(MYPY) libs/causal_inference/ shared/
+
+.PHONY: security
+security:
+	$(UV) run safety check || echo "⚠️  Security vulnerabilities found (non-blocking for development)"
 
 # Testing targets
 .PHONY: test
 test:
-	$(PYTEST) libs/ shared/
+	$(UV) run $(PYTEST) libs/ shared/
 
 .PHONY: test-cov
 test-cov:
-	$(PYTEST) --cov=causal_inference --cov=shared --cov-report=html --cov-report=term libs/ shared/
+	$(UV) run $(PYTEST) --cov=causal_inference --cov=shared --cov-report=html --cov-report=term libs/ shared/
 
 .PHONY: test-integration
 test-integration:
-	$(PYTEST) -m integration
+	$(UV) run $(PYTEST) -m integration
 
 # CI pipeline
 .PHONY: ci
-ci: lint typecheck test
+ci: lint typecheck security test
 	@echo "✅ CI pipeline completed successfully"
 
 # Service targets
@@ -74,9 +95,9 @@ api:
 # Library-specific targets
 .PHONY: ci-causal-inference
 ci-causal-inference:
-	$(PYTEST) libs/causal_inference/tests/
-	$(MYPY) libs/causal_inference/
-	$(RUFF) check libs/causal_inference/
+	$(UV) run $(PYTEST) libs/causal_inference/tests/
+	$(UV) run $(MYPY) libs/causal_inference/
+	$(UV) run $(RUFF) check libs/causal_inference/
 
 # Review targets
 .PHONY: review
