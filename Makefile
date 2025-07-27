@@ -42,24 +42,24 @@ format:
 
 .PHONY: lint
 lint:
-	$(RUFF) check libs/ services/ shared/
+	$(UV) run $(RUFF) check libs/ services/ shared/
 
 .PHONY: typecheck
 typecheck:
-	$(MYPY) libs/causal_inference/ shared/
+	$(UV) run $(MYPY) libs/causal_inference/ shared/
 
 # Testing targets
 .PHONY: test
 test:
-	$(PYTEST) libs/ shared/
+	$(UV) run $(PYTEST) libs/ shared/
 
 .PHONY: test-cov
 test-cov:
-	$(PYTEST) --cov=causal_inference --cov=shared --cov-report=html --cov-report=term libs/ shared/
+	$(UV) run $(PYTEST) --cov=causal_inference --cov=shared --cov-report=html --cov-report=term libs/ shared/
 
 .PHONY: test-integration
 test-integration:
-	$(PYTEST) -m integration
+	$(UV) run $(PYTEST) -m integration
 
 # CI pipeline
 .PHONY: ci
