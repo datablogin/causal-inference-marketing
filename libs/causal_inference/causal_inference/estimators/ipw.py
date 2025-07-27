@@ -314,7 +314,15 @@ class IPWEstimator(BaseEstimator):
                 ) from e
         except ValueError as e:
             error_msg = str(e).lower()
-            if any(keyword in error_msg for keyword in ["convergence", "separation", "did not converge", "max_iter"]):
+            if any(
+                keyword in error_msg
+                for keyword in [
+                    "convergence",
+                    "separation",
+                    "did not converge",
+                    "max_iter",
+                ]
+            ):
                 raise EstimationError(
                     f"Propensity model convergence issue: {str(e)}. "
                     "This may be due to perfect separation or numerical instability."

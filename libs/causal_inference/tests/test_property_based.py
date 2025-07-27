@@ -419,11 +419,15 @@ class TestRobustnessProperties:
         # Confidence interval should be valid
         if effect.confidence_interval is not None:
             assert (
-                effect.confidence_interval[0] <= effect.ate <= effect.confidence_interval[1]
+                effect.confidence_interval[0]
+                <= effect.ate
+                <= effect.confidence_interval[1]
             )
 
             # Interval should have reasonable width (not too narrow or too wide)
-            interval_width = effect.confidence_interval[1] - effect.confidence_interval[0]
+            interval_width = (
+                effect.confidence_interval[1] - effect.confidence_interval[0]
+            )
             assert 0.1 <= interval_width <= 10.0
 
     def test_repeated_estimation_stability(self, simple_binary_data):
