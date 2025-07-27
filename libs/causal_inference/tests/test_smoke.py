@@ -479,7 +479,9 @@ class TestEndToEndWorkflow:
         clean_treatment, clean_outcome, clean_covariates_data = handle_missing_data(
             dummy_treatment, dummy_outcome, dummy_covariates, strategy="mean"
         )
-        clean_covariates = clean_covariates_data.values if clean_covariates_data else pd.DataFrame()
+        clean_covariates = (
+            clean_covariates_data.values if clean_covariates_data else pd.DataFrame()
+        )
 
         # Continue with analysis
         from causal_inference.estimators.g_computation import GComputationEstimator

@@ -61,9 +61,9 @@ class TestAnalyticalSolutions:
 
             # Should be very close to true ATE (within SE_MULTIPLIER standard errors)
             if effect.ate_ci_lower is not None and effect.ate_ci_upper is not None:
-                se_estimate = (
-                    effect.ate_ci_upper - effect.ate_ci_lower
-                ) / (2 * CONFIDENCE_Z_SCORE)
+                se_estimate = (effect.ate_ci_upper - effect.ate_ci_lower) / (
+                    2 * CONFIDENCE_Z_SCORE
+                )
                 assert abs(effect.ate - true_ate) <= SE_MULTIPLIER * se_estimate, (
                     f"{name} failed: {effect.ate} vs {true_ate}"
                 )
@@ -125,7 +125,11 @@ class TestAnalyticalSolutions:
         outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
         covariate_data = CovariateData(values=pd.DataFrame({"X1": X1, "X2": X2}))
 
-        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator(cross_fitting=False, bootstrap_samples=0)]
+        estimators = [
+            GComputationEstimator(),
+            IPWEstimator(),
+            AIPWEstimator(cross_fitting=False, bootstrap_samples=0),
+        ]
 
         for estimator in estimators:
             estimator.fit(treatment_data, outcome_data, covariate_data)
@@ -136,9 +140,9 @@ class TestAnalyticalSolutions:
                 f"ATE should be near zero: {effect.ate}"
             )
             if effect.ate_ci_lower is not None and effect.ate_ci_upper is not None:
-                assert (
-                    effect.ate_ci_lower <= 0 <= effect.ate_ci_upper
-                ), "CI should include zero"
+                assert effect.ate_ci_lower <= 0 <= effect.ate_ci_upper, (
+                    "CI should include zero"
+                )
 
     def test_dose_response_linear_relationship(self):
         """Test continuous treatment with known linear dose-response."""
@@ -253,7 +257,9 @@ class TestPublishedBenchmarks:
             # Confidence interval should be reasonable
             if effect.ate_ci_lower is not None and effect.ate_ci_upper is not None:
                 ci_width = effect.ate_ci_upper - effect.ate_ci_lower
-                assert 100 <= ci_width <= 5000, f"{name} CI width {ci_width} unreasonable"
+                assert 100 <= ci_width <= 5000, (
+                    f"{name} CI width {ci_width} unreasonable"
+                )
 
     def test_kang_schafer_benchmark(self):
         """Test against the Kang & Schafer (2007) benchmark simulation."""
@@ -301,9 +307,7 @@ class TestPublishedBenchmarks:
             f"AIPW ATE {effect.ate} should be near zero"
         )
         if effect.ate_ci_lower is not None and effect.ate_ci_upper is not None:
-            assert (
-                effect.ate_ci_lower <= true_ate <= effect.ate_ci_upper
-            )
+            assert effect.ate_ci_lower <= true_ate <= effect.ate_ci_upper
 
 
 class TestSimulationStudyReplication:
@@ -379,7 +383,8 @@ class TestSimulationStudyReplication:
 
             # Check if true ATE is in confidence interval
             if (
-                effect.ate_ci_lower is not None and effect.ate_ci_upper is not None
+                effect.ate_ci_lower is not None
+                and effect.ate_ci_upper is not None
                 and effect.ate_ci_lower <= true_ate <= effect.ate_ci_upper
             ):
                 coverage_count += 1

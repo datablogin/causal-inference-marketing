@@ -261,10 +261,16 @@ class TestDataProcessingPerformance:
 
         def run_missing_data_handling():
             # Use the fit_transform method which exists on MissingDataHandler
-            dummy_treatment = TreatmentData(values=np.ones(len(covariates_df)), treatment_type="binary")
-            dummy_outcome = OutcomeData(values=np.ones(len(covariates_df)), outcome_type="continuous")
+            dummy_treatment = TreatmentData(
+                values=np.ones(len(covariates_df)), treatment_type="binary"
+            )
+            dummy_outcome = OutcomeData(
+                values=np.ones(len(covariates_df)), outcome_type="continuous"
+            )
             dummy_covariates = CovariateData(values=covariates_df)
-            return handler.fit_transform(dummy_treatment, dummy_outcome, dummy_covariates)
+            return handler.fit_transform(
+                dummy_treatment, dummy_outcome, dummy_covariates
+            )
 
         result = benchmark(run_missing_data_handling)
         assert result is not None

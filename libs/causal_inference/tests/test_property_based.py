@@ -247,7 +247,11 @@ class TestEstimatorInvariants:
     @settings(deadline=10000, max_examples=5)  # Reduced examples for performance
     def test_estimator_consistency_across_methods(self, data):
         """Test that different estimators give reasonably consistent results on good data."""
-        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator(cross_fitting=False, bootstrap_samples=0)]
+        estimators = [
+            GComputationEstimator(),
+            IPWEstimator(),
+            AIPWEstimator(cross_fitting=False, bootstrap_samples=0),
+        ]
 
         ates = []
         for estimator in estimators:
@@ -334,7 +338,11 @@ class TestNumericalStabilityProperties:
         }
 
         # All estimators should handle this without crashing
-        estimators = [GComputationEstimator(), IPWEstimator(), AIPWEstimator(cross_fitting=False, bootstrap_samples=0)]
+        estimators = [
+            GComputationEstimator(),
+            IPWEstimator(),
+            AIPWEstimator(cross_fitting=False, bootstrap_samples=0),
+        ]
 
         for estimator in estimators:
             try:
