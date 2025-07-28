@@ -13,6 +13,11 @@ from .base import (
     OutcomeData,
     TreatmentData,
 )
+from .bootstrap import (
+    BootstrapConfig,
+    BootstrapMixin,
+    BootstrapResult,
+)
 
 __all__ = [
     "BaseEstimator",
@@ -26,4 +31,7 @@ __all__ = [
     "AssumptionViolationError",
     "DataValidationError",
     "EstimationError",
+    "BootstrapConfig",
+    "BootstrapMixin",
+    "BootstrapResult",
 ]

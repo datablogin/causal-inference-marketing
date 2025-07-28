@@ -107,11 +107,12 @@ from ..core.base import (
     OutcomeData,
     TreatmentData,
 )
+from ..core.bootstrap import BootstrapConfig, BootstrapMixin
 from .g_computation import GComputationEstimator
 from .ipw import IPWEstimator
 
 
-class AIPWEstimator(BaseEstimator):
+class AIPWEstimator(BootstrapMixin, BaseEstimator):
     """Augmented Inverse Probability Weighting estimator for causal inference.
 
     AIPW combines G-computation and IPW to create a doubly robust estimator.
@@ -147,6 +148,8 @@ class AIPWEstimator(BaseEstimator):
         weight_truncation: str | None = "percentile",
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = True,
+        bootstrap_config: Any | None = None,
+        # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
         random_state: int | None = None,
@@ -166,12 +169,25 @@ class AIPWEstimator(BaseEstimator):
             weight_truncation: IPW weight truncation method
             truncation_threshold: Threshold for weight truncation
             stabilized_weights: Whether to use stabilized IPW weights
-            bootstrap_samples: Number of bootstrap samples for confidence intervals
-            confidence_level: Confidence level for intervals
+            bootstrap_config: Configuration for bootstrap confidence intervals
+            bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
+            confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
         """
-        super().__init__(random_state=random_state, verbose=verbose)
+        # Create bootstrap config if not provided (for backward compatibility)
+        if bootstrap_config is None:
+            bootstrap_config = BootstrapConfig(
+                n_samples=bootstrap_samples,
+                confidence_level=confidence_level,
+                random_state=random_state,
+            )
+
+        super().__init__(
+            bootstrap_config=bootstrap_config,
+            random_state=random_state,
+            verbose=verbose,
+        )
 
         self.outcome_model_type = outcome_model_type
         self.outcome_model_params = outcome_model_params or {}
@@ -231,6 +247,34 @@ class AIPWEstimator(BaseEstimator):
         )
 
         return outcome_estimator, propensity_estimator
+
+    def _create_bootstrap_estimator(
+        self, random_state: int | None = None
+    ) -> AIPWEstimator:
+        """Create a new estimator instance for bootstrap sampling.
+
+        Args:
+            random_state: Random state for this bootstrap instance
+
+        Returns:
+            New AIPWEstimator instance configured for bootstrap
+        """
+        return AIPWEstimator(
+            outcome_model_type=self.outcome_model_type,
+            outcome_model_params=self.outcome_model_params,
+            propensity_model_type=self.propensity_model_type,
+            propensity_model_params=self.propensity_model_params,
+            cross_fitting=self.cross_fitting,
+            n_folds=self.n_folds,
+            stratify_folds=self.stratify_folds,
+            influence_function_se=self.influence_function_se,
+            weight_truncation=self.weight_truncation,
+            truncation_threshold=self.truncation_threshold,
+            stabilized_weights=self.stabilized_weights,
+            bootstrap_config=BootstrapConfig(n_samples=0),  # No nested bootstrap
+            random_state=random_state,
+            verbose=False,  # Reduce verbosity in bootstrap
+        )
 
     def _ensure_propensity_score_bounds(
         self,
