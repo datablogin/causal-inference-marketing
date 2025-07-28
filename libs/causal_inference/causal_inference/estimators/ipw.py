@@ -140,7 +140,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         weight_truncation: str | None = None,
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = False,
-        bootstrap_config: BootstrapConfig | None = None,
+        bootstrap_config: Any | None = None,
         check_overlap: bool = True,
         overlap_threshold: float = 0.1,
         # Legacy parameters for backward compatibility

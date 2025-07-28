@@ -260,10 +260,13 @@ class BootstrapMixin(abc.ABC):
     """
 
     def __init__(
-        self, *args: Any, bootstrap_config: BootstrapConfig | None = None, **kwargs: Any
+        self, *args: Any, bootstrap_config: Any | None = None, **kwargs: Any
     ) -> None:
         """Initialize bootstrap mixin with configuration."""
-        super().__init__(*args, bootstrap_config=bootstrap_config, **kwargs)
+        # Handle bootstrap config parameter for super() call
+        if "bootstrap_config" not in kwargs:
+            kwargs["bootstrap_config"] = bootstrap_config
+        super().__init__(*args, **kwargs)
         # BootstrapMixin ensures a proper BootstrapConfig is available
         if bootstrap_config is not None:
             self.bootstrap_config = bootstrap_config

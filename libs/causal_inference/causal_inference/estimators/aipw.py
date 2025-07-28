@@ -148,7 +148,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         weight_truncation: str | None = "percentile",
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = True,
-        bootstrap_config: BootstrapConfig | None = None,
+        bootstrap_config: Any | None = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,

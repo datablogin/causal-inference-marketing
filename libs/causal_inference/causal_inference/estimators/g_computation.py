@@ -49,7 +49,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         self,
         model_type: str = "auto",
         model_params: dict[str, Any] | None = None,
-        bootstrap_config: BootstrapConfig | None = None,
+        bootstrap_config: Any | None = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
