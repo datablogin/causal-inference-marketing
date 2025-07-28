@@ -346,7 +346,9 @@ class TestPropensityScoreEstimator:
 
     def test_invalid_method_raises_error(self):
         """Test that invalid method raises an error."""
-        estimator = PropensityScoreEstimator(method="invalid_method", bootstrap_samples=0)
+        estimator = PropensityScoreEstimator(
+            method="invalid_method", bootstrap_samples=0
+        )
 
         # Fit should work (the error occurs during ATE estimation)
         estimator.fit(self.treatment_data, self.outcome_data, self.covariate_data)
@@ -377,15 +379,20 @@ class TestPropensityScoreEstimator:
         # Create data with only treated units - this should be caught at the data validation level
         treatment_no_variation = TreatmentData(
             values=pd.Series(np.ones(len(self.treatment_binary))),
-            treatment_type="binary"
+            treatment_type="binary",
         )
 
         estimator = PropensityScoreEstimator(bootstrap_samples=0)
 
         # This should raise a DataValidationError at the BaseEstimator level
         from causal_inference.core.base import DataValidationError
-        with pytest.raises(DataValidationError, match="must have both treated and control units"):
-            estimator.fit(treatment_no_variation, self.outcome_data, self.covariate_data)
+
+        with pytest.raises(
+            DataValidationError, match="must have both treated and control units"
+        ):
+            estimator.fit(
+                treatment_no_variation, self.outcome_data, self.covariate_data
+            )
 
     def test_edge_case_small_sample(self):
         """Test behavior with small sample size."""
@@ -393,12 +400,11 @@ class TestPropensityScoreEstimator:
         n_small = 50
 
         small_treatment = TreatmentData(
-            values=pd.Series(self.treatment_binary[:n_small]),
-            treatment_type="binary"
+            values=pd.Series(self.treatment_binary[:n_small]), treatment_type="binary"
         )
         small_outcome = OutcomeData(
             values=pd.Series(self.outcome_continuous[:n_small]),
-            outcome_type="continuous"
+            outcome_type="continuous",
         )
         small_covariates = CovariateData(
             values=pd.DataFrame(self.X[:n_small], columns=["X1", "X2", "X3", "X4"]),
@@ -429,12 +435,10 @@ class TestPropensityScoreEstimator:
         outcome_small = np.random.randn(n) + 2 * treatment_mostly_treated
 
         treatment_data = TreatmentData(
-            values=pd.Series(treatment_mostly_treated),
-            treatment_type="binary"
+            values=pd.Series(treatment_mostly_treated), treatment_type="binary"
         )
         outcome_data = OutcomeData(
-            values=pd.Series(outcome_small),
-            outcome_type="continuous"
+            values=pd.Series(outcome_small), outcome_type="continuous"
         )
         covariate_data = CovariateData(
             values=pd.DataFrame(X_small, columns=["X1", "X2"]),
@@ -525,9 +529,17 @@ class TestPropensityScoreEstimatorIntegration:
             values=pd.Series(outcome), outcome_type="continuous"
         )
         self.covariate_data = CovariateData(
-            values=pd.DataFrame(X, columns=[
-                "age", "sex", "race", "education", "smokeintensity", "smokeyrs"
-            ]),
+            values=pd.DataFrame(
+                X,
+                columns=[
+                    "age",
+                    "sex",
+                    "race",
+                    "education",
+                    "smokeintensity",
+                    "smokeyrs",
+                ],
+            ),
             names=["age", "sex", "race", "education", "smokeintensity", "smokeyrs"],
         )
 
@@ -560,7 +572,9 @@ class TestPropensityScoreEstimatorIntegration:
         assert support_diag["overlap_percentage"] >= 0.85, "Common support < 85%"
 
         # Effect estimation should be within reasonable range
-        assert abs(effect.ate - self.true_ate) < 1.5, f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        assert abs(effect.ate - self.true_ate) < 1.5, (
+            f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        )
 
     def test_matching_performance_kpis(self):
         """Test that matching meets the performance KPIs from the issue."""
@@ -580,10 +594,14 @@ class TestPropensityScoreEstimatorIntegration:
         match_diag = estimator.get_matching_diagnostics()
 
         # Should successfully match >= 85% of treated units
-        assert match_diag["match_rate"] >= 0.85, f"Match rate {match_diag['match_rate']:.1%} < 85%"
+        assert match_diag["match_rate"] >= 0.85, (
+            f"Match rate {match_diag['match_rate']:.1%} < 85%"
+        )
 
         # Average propensity score distance should be < 0.05
-        assert match_diag["average_distance"] < 0.05, f"Average distance {match_diag['average_distance']:.3f} >= 0.05"
+        assert match_diag["average_distance"] < 0.05, (
+            f"Average distance {match_diag['average_distance']:.3f} >= 0.05"
+        )
 
         # Balance improvement
         balance_diag = estimator.get_balance_diagnostics()
@@ -594,7 +612,9 @@ class TestPropensityScoreEstimatorIntegration:
         assert improvement >= 0.5, f"Balance improvement {improvement:.1%} < 50%"
 
         # Effect estimation should be reasonable
-        assert abs(effect.ate - self.true_ate) < 1.0, f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        assert abs(effect.ate - self.true_ate) < 1.0, (
+            f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        )
 
     def test_multiple_matching_ratios(self):
         """Test that 1:2 matching provides tighter confidence intervals than 1:1."""
@@ -627,8 +647,14 @@ class TestPropensityScoreEstimatorIntegration:
         assert abs(effect_1to2.ate - self.true_ate) < 1.5
 
         # Check that both have confidence intervals
-        assert effect_1to1.ate_ci_lower is not None and effect_1to1.ate_ci_upper is not None
-        assert effect_1to2.ate_ci_lower is not None and effect_1to2.ate_ci_upper is not None
+        assert (
+            effect_1to1.ate_ci_lower is not None
+            and effect_1to1.ate_ci_upper is not None
+        )
+        assert (
+            effect_1to2.ate_ci_lower is not None
+            and effect_1to2.ate_ci_upper is not None
+        )
 
     def test_stratification_vs_matching_comparison(self):
         """Test that both stratification and matching provide reasonable estimates."""
@@ -672,7 +698,9 @@ class TestPropensityScoreEstimatorIntegration:
         treatment = np.random.binomial(1, 0.5, n)
         outcome = np.random.randn(n) + 2 * treatment
 
-        treatment_data = TreatmentData(values=pd.Series(treatment), treatment_type="binary")
+        treatment_data = TreatmentData(
+            values=pd.Series(treatment), treatment_type="binary"
+        )
         outcome_data = OutcomeData(values=pd.Series(outcome), outcome_type="continuous")
         covariate_data = CovariateData(
             values=pd.DataFrame(X_tied, columns=["X1", "X2"]),
@@ -709,7 +737,9 @@ class TestPropensityScoreEstimatorIntegration:
         treatment = np.random.binomial(1, 0.5, n)
         outcome = np.random.randn(n) + 1.5 * treatment
 
-        treatment_data = TreatmentData(values=pd.Series(treatment), treatment_type="binary")
+        treatment_data = TreatmentData(
+            values=pd.Series(treatment), treatment_type="binary"
+        )
         outcome_data = OutcomeData(values=pd.Series(outcome), outcome_type="continuous")
         covariate_data = CovariateData(
             values=pd.DataFrame(X, columns=["X1", "X2"]),

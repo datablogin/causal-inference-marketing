@@ -391,7 +391,9 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
 
         violations = []
         if overlap_percentage < 0.9:
-            violations.append(f"Only {overlap_percentage:.1%} of units have common support")
+            violations.append(
+                f"Only {overlap_percentage:.1%} of units have common support"
+            )
 
         if common_support_max <= common_support_min:
             violations.append("No common support region exists")
@@ -414,7 +416,9 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
 
         return diagnostics
 
-    def _create_strata(self, propensity_scores: NDArray[Any]) -> tuple[NDArray[Any], NDArray[Any]]:
+    def _create_strata(
+        self, propensity_scores: NDArray[Any]
+    ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Create strata based on propensity scores.
 
         Args:
@@ -425,13 +429,17 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         """
         if self.stratification_method == "quantile":
             # Create strata based on quantiles of propensity scores
-            boundaries = np.quantile(propensity_scores, np.linspace(0, 1, self.n_strata + 1))
+            boundaries = np.quantile(
+                propensity_scores, np.linspace(0, 1, self.n_strata + 1)
+            )
             # Ensure boundaries are unique
             boundaries = np.unique(boundaries)
             if len(boundaries) < self.n_strata + 1:
                 effective_n_strata = len(boundaries) - 1
                 if self.verbose:
-                    print(f"Warning: Reducing strata from {self.n_strata} to {effective_n_strata} due to tied propensity scores")
+                    print(
+                        f"Warning: Reducing strata from {self.n_strata} to {effective_n_strata} due to tied propensity scores"
+                    )
 
         elif self.stratification_method == "fixed":
             # Create fixed-width strata
@@ -441,11 +449,15 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             # For fixed method, check for identical min/max (all same propensity scores)
             if min_ps == max_ps:
                 if self.verbose:
-                    print("Warning: All propensity scores are identical, creating single stratum")
+                    print(
+                        "Warning: All propensity scores are identical, creating single stratum"
+                    )
                 # Create a minimal boundary to avoid errors
                 boundaries = np.array([min_ps - 1e-10, max_ps + 1e-10])
         else:
-            raise ValueError(f"Unknown stratification method: {self.stratification_method}")
+            raise ValueError(
+                f"Unknown stratification method: {self.stratification_method}"
+            )
 
         # Assign units to strata
         strata_assignments = np.digitize(propensity_scores, boundaries) - 1
@@ -457,9 +469,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         return strata_assignments, boundaries
 
     def _perform_matching(
-        self,
-        propensity_scores: NDArray[Any],
-        treatment: TreatmentData
+        self, propensity_scores: NDArray[Any], treatment: TreatmentData
     ) -> tuple[list[tuple[int, list[int]]], dict[str, NDArray[Any]]]:
         """Perform propensity score matching.
 
@@ -489,7 +499,9 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
                 # Find available control units
                 available_controls = control_indices
                 if not self.replacement:
-                    available_controls = np.array([idx for idx in control_indices if idx not in used_controls])
+                    available_controls = np.array(
+                        [idx for idx in control_indices if idx not in used_controls]
+                    )
 
                 if len(available_controls) == 0:
                     continue  # No available controls for this treated unit
@@ -510,7 +522,9 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
                 # Find k nearest neighbors
                 k = min(self.n_neighbors, len(available_controls))
                 nearest_indices = np.argsort(distances)[:k]
-                matched_control_indices = [available_controls[i] for i in nearest_indices]
+                matched_control_indices = [
+                    available_controls[i] for i in nearest_indices
+                ]
 
                 # Store the match
                 matched_pairs.append((treated_idx, matched_control_indices))
@@ -536,11 +550,17 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         match_rate = n_matched / total_treated if total_treated > 0 else 0.0
 
         if match_rate < 0.5 and self.verbose:
-            print(f"Warning: Low match rate ({match_rate:.1%}). Only {n_matched}/{total_treated} treated units matched.")
+            print(
+                f"Warning: Low match rate ({match_rate:.1%}). Only {n_matched}/{total_treated} treated units matched."
+            )
             if self.caliper is not None:
-                print(f"Consider relaxing the caliper constraint (current: {self.caliper}) or using matching with replacement.")
+                print(
+                    f"Consider relaxing the caliper constraint (current: {self.caliper}) or using matching with replacement."
+                )
         elif match_rate < 0.8 and self.verbose:
-            print(f"Note: Moderate match rate ({match_rate:.1%}). {n_matched}/{total_treated} treated units matched.")
+            print(
+                f"Note: Moderate match rate ({match_rate:.1%}). {n_matched}/{total_treated} treated units matched."
+            )
 
         return matched_pairs, matched_indices
 
@@ -549,7 +569,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         covariates: pd.DataFrame,
         treatment: NDArray[Any],
         weights: NDArray[Any] | None = None,
-        strata: int | None = None
+        strata: int | None = None,
     ) -> dict[str, float]:
         """Compute standardized mean differences for covariate balance.
 
@@ -580,8 +600,12 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
                 control_mean = np.average(control_values, weights=control_weights)
 
                 # Weighted variances
-                treated_var = np.average((treated_values - treated_mean)**2, weights=treated_weights)
-                control_var = np.average((control_values - control_mean)**2, weights=control_weights)
+                treated_var = np.average(
+                    (treated_values - treated_mean) ** 2, weights=treated_weights
+                )
+                control_var = np.average(
+                    (control_values - control_mean) ** 2, weights=control_weights
+                )
             else:
                 treated_mean = np.mean(treated_values)
                 control_mean = np.mean(control_values)
@@ -607,9 +631,11 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             Dictionary with balance diagnostics
         """
-        if (self.covariate_data is None or
-            self.treatment_data is None or
-            self.propensity_scores is None):
+        if (
+            self.covariate_data is None
+            or self.treatment_data is None
+            or self.propensity_scores is None
+        ):
             raise EstimationError("Data required for balance diagnostics")
 
         covariates = self._prepare_propensity_features(self.covariate_data)
@@ -622,7 +648,8 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             "before_adjustment": {
                 "standardized_mean_differences": before_smd,
                 "max_smd": max(abs(smd) for smd in before_smd.values()),
-                "balance_achieved": max(abs(smd) for smd in before_smd.values()) < self.balance_threshold,
+                "balance_achieved": max(abs(smd) for smd in before_smd.values())
+                < self.balance_threshold,
             }
         }
 
@@ -652,29 +679,37 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
                 "strata": strata_balance,
                 "overall_max_smd": max(
                     strata["max_smd"] for strata in strata_balance.values()
-                ) if strata_balance else float('inf'),
+                )
+                if strata_balance
+                else float("inf"),
                 "balance_achieved": max(
                     strata["max_smd"] for strata in strata_balance.values()
-                ) < self.balance_threshold if strata_balance else False,
+                )
+                < self.balance_threshold
+                if strata_balance
+                else False,
             }
 
         elif self.method == "matching" and self.matched_indices is not None:
             # Balance for matched sample
-            matched_mask = np.concatenate([
-                self.matched_indices["treated"],
-                self.matched_indices["control"]
-            ])
+            matched_mask = np.concatenate(
+                [self.matched_indices["treated"], self.matched_indices["control"]]
+            )
 
             matched_covariates = covariates.iloc[matched_mask]
             matched_treatment = treatment[matched_mask]
 
-            after_smd = self._compute_standardized_mean_difference(matched_covariates, matched_treatment)
+            after_smd = self._compute_standardized_mean_difference(
+                matched_covariates, matched_treatment
+            )
 
             diagnostics["after_matching"] = {
                 "standardized_mean_differences": after_smd,
                 "max_smd": max(abs(smd) for smd in after_smd.values()),
-                "balance_achieved": max(abs(smd) for smd in after_smd.values()) < self.balance_threshold,
-                "match_rate": len(self.matched_indices["treated"]) / np.sum(treatment == 1),
+                "balance_achieved": max(abs(smd) for smd in after_smd.values())
+                < self.balance_threshold,
+                "match_rate": len(self.matched_indices["treated"])
+                / np.sum(treatment == 1),
                 "n_matched_treated": len(self.matched_indices["treated"]),
                 "n_matched_control": len(self.matched_indices["control"]),
             }
@@ -702,7 +737,9 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
 
         # Check common support
         if self.check_overlap:
-            self.common_support_diagnostics = self._check_common_support(self.propensity_scores)
+            self.common_support_diagnostics = self._check_common_support(
+                self.propensity_scores
+            )
 
             if not self.common_support_diagnostics["overlap_satisfied"]:
                 if self.verbose:
@@ -712,7 +749,9 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
 
         # Apply method-specific procedures
         if self.method == "stratification":
-            self.strata_assignments, self.strata_boundaries = self._create_strata(self.propensity_scores)
+            self.strata_assignments, self.strata_boundaries = self._create_strata(
+                self.propensity_scores
+            )
 
             if self.verbose:
                 n_strata = len(np.unique(self.strata_assignments))
@@ -727,18 +766,28 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
                 n_matched = len(self.matched_pairs)
                 total_treated = np.sum(treatment.values == 1)
                 match_rate = n_matched / total_treated
-                print(f"Matched {n_matched}/{total_treated} treated units ({match_rate:.1%})")
+                print(
+                    f"Matched {n_matched}/{total_treated} treated units ({match_rate:.1%})"
+                )
 
         # Compute balance diagnostics
         self.balance_diagnostics = self._compute_balance_diagnostics()
 
         if self.verbose:
             if self.method == "stratification":
-                overall_balance = self.balance_diagnostics.get("after_stratification", {}).get("balance_achieved", False)
-                max_smd = self.balance_diagnostics.get("after_stratification", {}).get("overall_max_smd", float('inf'))
+                overall_balance = self.balance_diagnostics.get(
+                    "after_stratification", {}
+                ).get("balance_achieved", False)
+                max_smd = self.balance_diagnostics.get("after_stratification", {}).get(
+                    "overall_max_smd", float("inf")
+                )
             else:
-                overall_balance = self.balance_diagnostics.get("after_matching", {}).get("balance_achieved", False)
-                max_smd = self.balance_diagnostics.get("after_matching", {}).get("max_smd", float('inf'))
+                overall_balance = self.balance_diagnostics.get(
+                    "after_matching", {}
+                ).get("balance_achieved", False)
+                max_smd = self.balance_diagnostics.get("after_matching", {}).get(
+                    "max_smd", float("inf")
+                )
 
             print(f"Balance achieved: {overall_balance} (max SMD: {max_smd:.3f})")
 
@@ -748,9 +797,11 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             CausalEffect object with ATE estimate and confidence intervals
         """
-        if (self.treatment_data is None or
-            self.outcome_data is None or
-            self.propensity_scores is None):
+        if (
+            self.treatment_data is None
+            or self.outcome_data is None
+            or self.propensity_scores is None
+        ):
             raise EstimationError("Model must be fitted before estimation")
 
         treatment_values = np.asarray(self.treatment_data.values)
@@ -1026,12 +1077,12 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
 
         fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 
-        ax.hist(control_ps, bins=30, alpha=0.7, label='Control', density=True)
-        ax.hist(treated_ps, bins=30, alpha=0.7, label='Treated', density=True)
+        ax.hist(control_ps, bins=30, alpha=0.7, label="Control", density=True)
+        ax.hist(treated_ps, bins=30, alpha=0.7, label="Treated", density=True)
 
-        ax.set_xlabel('Propensity Score')
-        ax.set_ylabel('Density')
-        ax.set_title('Propensity Score Distributions by Treatment Group')
+        ax.set_xlabel("Propensity Score")
+        ax.set_ylabel("Density")
+        ax.set_title("Propensity Score Distributions by Treatment Group")
         ax.legend()
         ax.grid(True, alpha=0.3)
 
@@ -1039,8 +1090,13 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         if self.common_support_diagnostics is not None:
             support_min = self.common_support_diagnostics.get("common_support_min", 0)
             support_max = self.common_support_diagnostics.get("common_support_max", 1)
-            ax.axvspan(support_min, support_max, alpha=0.2, color='green',
-                      label=f'Common Support ({support_min:.3f}-{support_max:.3f})')
+            ax.axvspan(
+                support_min,
+                support_max,
+                alpha=0.2,
+                color="green",
+                label=f"Common Support ({support_min:.3f}-{support_max:.3f})",
+            )
             ax.legend()
 
         plt.tight_layout()
