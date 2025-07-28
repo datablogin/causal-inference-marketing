@@ -290,17 +290,22 @@ class IVEstimator(BaseEstimator):
 
         else:
             # For binary/categorical treatment, use Wald test based on coefficient significance
-            if (self._first_stage_fitted_model is not None and
-                hasattr(self._first_stage_fitted_model, "coef_")):
+            if self._first_stage_fitted_model is not None and hasattr(
+                self._first_stage_fitted_model, "coef_"
+            ):
                 # For logistic regression, use Wald test on instrument coefficient
-                coef = self._first_stage_fitted_model.coef_[0][0]  # First coefficient (instrument)
+                coef = self._first_stage_fitted_model.coef_[0][
+                    0
+                ]  # First coefficient (instrument)
 
                 # Approximate standard error using the information matrix
                 # This is a simplified calculation - full implementation would use
                 # the inverse of the Fisher information matrix
                 n = X.shape[0]
                 if hasattr(self._first_stage_fitted_model, "predict_proba"):
-                    p_hat = np.mean(self._first_stage_fitted_model.predict_proba(X)[:, 1])
+                    p_hat = np.mean(
+                        self._first_stage_fitted_model.predict_proba(X)[:, 1]
+                    )
                 else:
                     p_hat = 0.5  # Default for models without predict_proba
                 # Approximate variance for logistic regression coefficient
@@ -314,9 +319,12 @@ class IVEstimator(BaseEstimator):
             else:
                 # For random forest, use permutation importance as proxy
                 # This is an approximation - proper test would require more complex approach
-                if (self._first_stage_fitted_model is not None and
-                    hasattr(self._first_stage_fitted_model, "feature_importances_")):
-                    instrument_importance = self._first_stage_fitted_model.feature_importances_[0]
+                if self._first_stage_fitted_model is not None and hasattr(
+                    self._first_stage_fitted_model, "feature_importances_"
+                ):
+                    instrument_importance = (
+                        self._first_stage_fitted_model.feature_importances_[0]
+                    )
                     # Convert importance to F-statistic approximation
                     f_stat = instrument_importance * 50  # Rough scaling
                     p_value = 0.01 if f_stat > 10 else 0.1
@@ -502,7 +510,6 @@ class IVEstimator(BaseEstimator):
 
             # Fit bootstrap model
             try:
-
                 _, first_stage_pred = self._fit_first_stage(
                     treatment_bootstrap, instrument_bootstrap, covariates_bootstrap
                 )
@@ -550,14 +557,14 @@ class IVEstimator(BaseEstimator):
                 f"Only {success_rate:.1%} of bootstrap samples succeeded. "
                 f"Results may be unreliable. Consider checking data quality or "
                 f"reducing bootstrap_samples.",
-                UserWarning
+                UserWarning,
             )
 
         if len(bootstrap_ates) < 10:  # Minimum viable samples
             warnings.warn(
                 f"Too few successful bootstrap samples ({len(bootstrap_ates)}). "
                 f"Falling back to normal approximation for confidence intervals.",
-                UserWarning
+                UserWarning,
             )
             return np.array([])
 
@@ -586,20 +593,29 @@ class IVEstimator(BaseEstimator):
         else:
             # For binary/categorical, use pseudo R-squared (simplified)
             # For binary/categorical, compute McFadden's pseudo R-squared
-            if (self._first_stage_fitted_model is not None and
-                self._instrument_data is not None and
-                hasattr(self._first_stage_fitted_model, "predict_proba")):
-                y_pred_proba = self._first_stage_fitted_model.predict_proba(self._prepare_design_matrix(
-                    self._instrument_data, self.covariate_data))
+            if (
+                self._first_stage_fitted_model is not None
+                and self._instrument_data is not None
+                and hasattr(self._first_stage_fitted_model, "predict_proba")
+            ):
+                y_pred_proba = self._first_stage_fitted_model.predict_proba(
+                    self._prepare_design_matrix(
+                        self._instrument_data, self.covariate_data
+                    )
+                )
                 # Compute log-likelihood for fitted model
                 # Convert y_true to numpy array to handle pandas types
                 y_true_array = np.asarray(y_true, dtype=float)
-                log_likelihood = np.sum(y_true_array * np.log(y_pred_proba[:, 1] + 1e-15) +
-                                      (1 - y_true_array) * np.log(y_pred_proba[:, 0] + 1e-15))
+                log_likelihood = np.sum(
+                    y_true_array * np.log(y_pred_proba[:, 1] + 1e-15)
+                    + (1 - y_true_array) * np.log(y_pred_proba[:, 0] + 1e-15)
+                )
                 # Null model log-likelihood (intercept only)
                 p_null = float(np.mean(y_true_array))
-                log_likelihood_null = len(y_true_array) * (p_null * np.log(p_null + 1e-15) +
-                                                   (1 - p_null) * np.log(1 - p_null + 1e-15))
+                log_likelihood_null = len(y_true_array) * (
+                    p_null * np.log(p_null + 1e-15)
+                    + (1 - p_null) * np.log(1 - p_null + 1e-15)
+                )
                 # McFadden's pseudo R-squared
                 return 1 - (log_likelihood / log_likelihood_null)
             else:
@@ -607,8 +623,12 @@ class IVEstimator(BaseEstimator):
 
     def _compute_2sls_standard_error(self) -> float:
         """Compute proper 2SLS standard error for the treatment coefficient."""
-        if (self.treatment_data is None or self.outcome_data is None or
-            self._instrument_data is None or self._second_stage_fitted_model is None):
+        if (
+            self.treatment_data is None
+            or self.outcome_data is None
+            or self._instrument_data is None
+            or self._second_stage_fitted_model is None
+        ):
             return 1.0
 
         # Get residuals from second stage
@@ -649,8 +669,10 @@ class IVEstimator(BaseEstimator):
 
     def _estimate_ate_nonlinear(self) -> float:
         """Estimate ATE for non-linear second stage models using marginal effects."""
-        if (self._second_stage_fitted_model is None or
-            self._first_stage_predictions is None):
+        if (
+            self._second_stage_fitted_model is None
+            or self._first_stage_predictions is None
+        ):
             return 0.0
 
         # For random forest, estimate marginal effect by comparing predictions
