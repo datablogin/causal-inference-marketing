@@ -9,6 +9,7 @@ from .base import (
     DataValidationError,
     EstimationError,
     EstimatorProtocol,
+    InstrumentData,
     OutcomeData,
     TreatmentData,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "TreatmentData",
     "OutcomeData",
     "CovariateData",
+    "InstrumentData",
     "EstimatorProtocol",
     "CausalInferenceError",
     "AssumptionViolationError",
