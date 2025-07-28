@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from lifelines import KaplanMeierFitter
-from lifelines.statistics import weighted_logrank_test
+from lifelines.statistics import logrank_test
 from lifelines.utils import restricted_mean_survival_time
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -371,12 +371,12 @@ class SurvivalIPWEstimator(SurvivalEstimator):
         treated_mask = self.treatment_data.values == 1
         control_mask = self.treatment_data.values == 0
 
-        # Perform weighted log-rank test
-        results = weighted_logrank_test(
+        # Perform weighted log-rank test using the standard logrank_test with weights
+        results = logrank_test(
             self.outcome_data.times[treated_mask],
             self.outcome_data.times[control_mask],
-            self.outcome_data.events[treated_mask],
-            self.outcome_data.events[control_mask],
+            event_observed_A=self.outcome_data.events[treated_mask],
+            event_observed_B=self.outcome_data.events[control_mask],
             weights_A=weights_to_use[treated_mask],
             weights_B=weights_to_use[control_mask],
         )
