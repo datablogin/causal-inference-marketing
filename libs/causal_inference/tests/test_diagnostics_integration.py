@@ -207,7 +207,8 @@ class TestDiagnosticsIntegration:
             self.treatment_data, self.outcome_data, self.covariate_data, estimator
         )
         assert placebo_result is not None
-        assert "effect" in placebo_result
+        # Check for the actual key structure from the falsification test
+        assert "mean_effect" in placebo_result  # Updated to match actual key name
 
     def test_diagnostics_with_missing_data(self):
         """Test diagnostics work properly with missing data."""

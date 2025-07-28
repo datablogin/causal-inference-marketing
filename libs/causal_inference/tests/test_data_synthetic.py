@@ -323,7 +323,7 @@ class TestSyntheticDataConvenienceFunctions:
         )
 
         # Check basic properties
-        assert len(treatment.values) == 1000
+        assert len(treatment.values) == 300  # Updated to match optimized sample size
         assert treatment.treatment_type == "binary"
         assert outcome.outcome_type == "continuous"
 
