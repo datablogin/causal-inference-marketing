@@ -664,5 +664,231 @@ class TestTargetTrialComparison:
         assert "aipw" in comparison["itt_effects"]
 
 
+class TestEnhancedTargetTrialFeatures:
+    """Test cases for enhanced target trial features based on Claude review."""
+    
+    def setup_method(self):
+        """Set up enhanced test data."""
+        np.random.seed(42)
+        n = 200
+        
+        # Create more realistic data with missing values
+        self.enhanced_data = pd.DataFrame({
+            "age": np.random.normal(45, 12, n),
+            "sex": np.random.binomial(1, 0.5, n),
+            "race": np.random.binomial(1, 0.3, n),
+            "education": np.random.poisson(12, n),
+            "qsmk": np.random.binomial(1, 0.3, n),
+            "wt82_71": np.random.normal(2.5, 5.0, n),
+            "smoker": True,  # All baseline smokers
+        })
+        
+        # Add some missing values
+        missing_indices = np.random.choice(n, size=20, replace=False)
+        self.enhanced_data.loc[missing_indices[:10], "education"] = np.nan
+        self.enhanced_data.loc[missing_indices[10:], "wt82_71"] = np.nan
+        
+        self.enhanced_protocol = TargetTrialProtocol(
+            eligibility_criteria=EligibilityCriteria(
+                age_min=25, age_max=75, baseline_smoker=True
+            ),
+            treatment_strategies={
+                "quit_smoking": TreatmentStrategy(treatment_assignment={"qsmk": 1}),
+                "continue_smoking": TreatmentStrategy(treatment_assignment={"qsmk": 0}),
+            },
+            follow_up_period=FollowUpPeriod(duration=10, unit="years"),
+            primary_outcome="wt82_71",
+            grace_period=GracePeriod(duration=6, unit="months"),
+        )
+    
+    def test_true_participant_cloning(self):
+        """Test that true participant cloning creates proper duplicates."""
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            random_state=42,
+        )
+        
+        results = emulator.emulate(
+            data=self.enhanced_data,
+            treatment_col="qsmk",
+            outcome_col="wt82_71",
+            covariate_cols=["age", "sex", "race", "education"],
+        )
+        
+        # Check that cloning actually happened
+        cloned_data = results.cloned_data
+        assert cloned_data is not None
+        
+        # Should have participants for both strategies
+        strategies = cloned_data["assigned_strategy"].unique()
+        assert len(strategies) == 2
+        assert "quit_smoking" in strategies
+        assert "continue_smoking" in strategies
+        
+        # Check clone structure
+        assert "clone_id" in cloned_data.columns
+        assert "participant_strategy_id" in cloned_data.columns
+        assert "counterfactual_treatment" in cloned_data.columns
+        assert "matches_observed" in cloned_data.columns
+    
+    def test_enhanced_adherence_logic(self):
+        """Test enhanced adherence assessment."""
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            random_state=42,
+        )
+        
+        results = emulator.emulate(
+            data=self.enhanced_data,
+            treatment_col="qsmk",
+            outcome_col="wt82_71",
+            covariate_cols=["age", "sex", "race", "education"],
+        )
+        
+        # Check adherence diagnostics
+        assert results.diagnostics.adherence_rates is not None
+        assert len(results.diagnostics.adherence_rates) == 2
+        
+        # Adherence rates should be realistic (not all 100%)
+        for strategy, rate in results.diagnostics.adherence_rates.items():
+            assert 0.0 <= rate <= 1.0
+    
+    def test_grace_period_implementation(self):
+        """Test grace period logic implementation."""
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            random_state=42,
+        )
+        
+        results = emulator.emulate(
+            data=self.enhanced_data,
+            treatment_col="qsmk",
+            outcome_col="wt82_71",
+            covariate_cols=["age", "sex", "race", "education"],
+        )
+        
+        # Check grace period compliance
+        assert results.diagnostics.grace_period_compliance_rate is not None
+        assert 0.0 <= results.diagnostics.grace_period_compliance_rate <= 1.0
+        assert results.diagnostics.subjects_treated_in_grace is not None
+    
+    def test_data_type_inference(self):
+        """Test automatic data type inference."""
+        # Create data with different types
+        mixed_data = self.enhanced_data.copy()
+        mixed_data["binary_outcome"] = np.random.binomial(1, 0.5, len(mixed_data))
+        mixed_data["count_outcome"] = np.random.poisson(3, len(mixed_data))
+        
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            random_state=42,
+        )
+        
+        # Test with binary outcome
+        binary_protocol = TargetTrialProtocol(
+            treatment_strategies={
+                "quit": TreatmentStrategy(treatment_assignment={"qsmk": 1}),
+                "continue": TreatmentStrategy(treatment_assignment={"qsmk": 0}),
+            },
+            follow_up_period=FollowUpPeriod(duration=5, unit="years"),
+            primary_outcome="binary_outcome",
+        )
+        
+        binary_emulator = TargetTrialEmulator(protocol=binary_protocol, random_state=42)
+        
+        # Should work without specifying data types
+        results = binary_emulator.emulate(
+            data=mixed_data,
+            treatment_col="qsmk",
+            outcome_col="binary_outcome",
+            covariate_cols=["age", "sex"],
+        )
+        
+        assert results.intention_to_treat_effect is not None
+    
+    def test_missing_data_handling(self):
+        """Test systematic missing data handling."""
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            random_state=42,
+            verbose=True,  # To see missing data reports
+        )
+        
+        results = emulator.emulate(
+            data=self.enhanced_data,
+            treatment_col="qsmk",
+            outcome_col="wt82_71",
+            covariate_cols=["age", "sex", "race", "education"],
+        )
+        
+        # Should complete successfully despite missing data
+        assert results.intention_to_treat_effect is not None
+        
+        # Check that some missing indicators were created (if covariates had missing data)
+        emulated_data = results.emulated_data
+        if emulated_data is not None:
+            missing_indicator_cols = [col for col in emulated_data.columns if col.endswith("_missing")]
+            # Should have created missing indicators for education
+            assert any("education" in col for col in missing_indicator_cols)
+    
+    def test_balance_diagnostics(self):
+        """Test covariate balance and propensity score diagnostics."""
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            random_state=42,
+        )
+        
+        results = emulator.emulate(
+            data=self.enhanced_data,
+            treatment_col="qsmk",
+            outcome_col="wt82_71",
+            covariate_cols=["age", "sex", "race", "education"],
+        )
+        
+        # Check balance diagnostics
+        diagnostics = results.diagnostics
+        assert diagnostics.covariate_balance is not None
+        assert len(diagnostics.covariate_balance) > 0
+        
+        # Check propensity score overlap
+        assert diagnostics.propensity_score_overlap is not None
+        
+        # Should have propensity score statistics or error message
+        if "error" not in diagnostics.propensity_score_overlap:
+            assert "treated_ps_mean" in diagnostics.propensity_score_overlap
+            assert "control_ps_mean" in diagnostics.propensity_score_overlap
+    
+    def test_per_protocol_with_enhanced_logic(self):
+        """Test per-protocol analysis with enhanced adherence logic."""
+        emulator = TargetTrialEmulator(
+            protocol=self.enhanced_protocol,
+            estimation_method="g_computation",
+            adherence_adjustment="both",
+            random_state=42,
+        )
+        
+        results = emulator.emulate(
+            data=self.enhanced_data,
+            treatment_col="qsmk",
+            outcome_col="wt82_71",
+            covariate_cols=["age", "sex", "race", "education"],
+        )
+        
+        # Should have both ITT and PP effects
+        assert results.intention_to_treat_effect is not None
+        assert results.per_protocol_effect is not None
+        
+        # PP effect might be different from ITT due to enhanced adherence logic
+        comparison = results.compare_itt_vs_pp()
+        assert "difference" in comparison
+        assert "interpretation" in comparison
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

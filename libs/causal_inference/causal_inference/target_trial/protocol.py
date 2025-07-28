@@ -110,6 +110,17 @@ class TreatmentStrategy(BaseModel):
             return data[treatment_col] == target_value
         return pd.Series(False, index=data.index)
 
+    def get_assigned_treatment_value(self, treatment_col: str) -> Any:
+        """Get the treatment value assigned by this strategy.
+
+        Args:
+            treatment_col: Name of treatment column
+
+        Returns:
+            The treatment value this strategy assigns
+        """
+        return self.treatment_assignment.get(treatment_col, None)
+
 
 class FollowUpPeriod(BaseModel):
     """Follow-up period specification."""
