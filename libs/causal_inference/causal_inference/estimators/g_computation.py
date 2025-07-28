@@ -508,3 +508,56 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         y1_pred = self._predict_counterfactuals(1, cov_data)
 
         return y0_pred, y1_pred
+
+    @property
+    def bootstrap_samples(self) -> int:
+        """Number of bootstrap samples for backward compatibility."""
+        if self.bootstrap_config:
+            return self.bootstrap_config.n_samples
+        return 0
+
+    @property
+    def confidence_level(self) -> float:
+        """Confidence level for backward compatibility."""
+        if self.bootstrap_config:
+            return self.bootstrap_config.confidence_level
+        return 0.95
+
+    def _bootstrap_confidence_interval(
+        self,
+    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
+        """Legacy method for backward compatibility with old test API.
+
+        Returns:
+            Tuple of (ci_lower, ci_upper, bootstrap_estimates)
+        """
+        if not self.is_fitted:
+            raise EstimationError("Estimator must be fitted before bootstrap")
+
+        if self.bootstrap_config and self.bootstrap_config.n_samples > 0:
+            # First we need to get the point estimate
+            effect = self._estimate_ate_implementation()
+
+            # Compute bootstrap confidence intervals
+            bootstrap_result = self.compute_bootstrap_confidence_intervals(effect.ate)
+
+            # Return the primary CI method results
+            if bootstrap_result.config.method == "percentile":
+                ci_lower = bootstrap_result.ci_lower_percentile
+                ci_upper = bootstrap_result.ci_upper_percentile
+            elif bootstrap_result.config.method == "bias_corrected":
+                ci_lower = bootstrap_result.ci_lower_bias_corrected
+                ci_upper = bootstrap_result.ci_upper_bias_corrected
+            elif bootstrap_result.config.method == "bca":
+                ci_lower = bootstrap_result.ci_lower_bca
+                ci_upper = bootstrap_result.ci_upper_bca
+            elif bootstrap_result.config.method == "studentized":
+                ci_lower = bootstrap_result.ci_lower_studentized
+                ci_upper = bootstrap_result.ci_upper_studentized
+            else:
+                ci_lower = bootstrap_result.ci_lower_percentile
+                ci_upper = bootstrap_result.ci_upper_percentile
+
+            return ci_lower, ci_upper, bootstrap_result.bootstrap_estimates
+        else:
+            return None, None, None
