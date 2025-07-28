@@ -192,6 +192,20 @@ class CausalEffect:
     bootstrap_samples: int | None = None  # Number of bootstrap samples
     bootstrap_estimates: NDArray[Any] | None = None  # Bootstrap ATE estimates
 
+    # Enhanced bootstrap confidence intervals
+    ate_ci_lower_bca: float | None = None  # BCa lower confidence interval
+    ate_ci_upper_bca: float | None = None  # BCa upper confidence interval
+    ate_ci_lower_bias_corrected: float | None = None  # Bias-corrected lower CI
+    ate_ci_upper_bias_corrected: float | None = None  # Bias-corrected upper CI
+    ate_ci_lower_studentized: float | None = None  # Studentized lower CI
+    ate_ci_upper_studentized: float | None = None  # Studentized upper CI
+
+    # Bootstrap diagnostics
+    bootstrap_method: str | None = None  # Bootstrap method used
+    bootstrap_converged: bool | None = None  # Whether bootstrap converged
+    bootstrap_bias: float | None = None  # Estimated bias from bootstrap
+    bootstrap_acceleration: float | None = None  # BCa acceleration parameter
+
     def __post_init__(self) -> None:
         """Validate the causal effect estimates after initialization."""
         if self.ate_ci_lower is not None and self.ate_ci_upper is not None:
@@ -306,16 +320,21 @@ class BaseEstimator(abc.ABC):
         self,
         random_state: int | None = None,
         verbose: bool = False,
+        bootstrap_config: Any | None = None,
     ) -> None:
         """Initialize the base estimator.
 
         Args:
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output during estimation
+            bootstrap_config: Configuration for bootstrap confidence intervals
         """
         self.random_state = random_state
         self.verbose = verbose
         self.is_fitted = False
+
+        # Bootstrap configuration (will be set by BootstrapMixin if used)
+        self.bootstrap_config = bootstrap_config
 
         # Data containers
         self.treatment_data: TreatmentData | None = None

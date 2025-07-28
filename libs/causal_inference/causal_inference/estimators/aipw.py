@@ -107,11 +107,12 @@ from ..core.base import (
     OutcomeData,
     TreatmentData,
 )
+from ..core.bootstrap import BootstrapMixin
 from .g_computation import GComputationEstimator
 from .ipw import IPWEstimator
 
 
-class AIPWEstimator(BaseEstimator):
+class AIPWEstimator(BootstrapMixin, BaseEstimator):
     """Augmented Inverse Probability Weighting estimator for causal inference.
 
     AIPW combines G-computation and IPW to create a doubly robust estimator.

@@ -25,9 +25,10 @@ from ..core.base import (
     OutcomeData,
     TreatmentData,
 )
+from ..core.bootstrap import BootstrapConfig, BootstrapMixin
 
 
-class GComputationEstimator(BaseEstimator):
+class GComputationEstimator(BootstrapMixin, BaseEstimator):
     """G-computation (Standardization) estimator for causal inference.
 
     G-computation estimates causal effects by:
@@ -48,6 +49,8 @@ class GComputationEstimator(BaseEstimator):
         self,
         model_type: str = "auto",
         model_params: dict[str, Any] | None = None,
+        bootstrap_config: BootstrapConfig | None = None,
+        # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
         random_state: int | None = None,
@@ -58,21 +61,51 @@ class GComputationEstimator(BaseEstimator):
         Args:
             model_type: Model type ('auto', 'linear', 'logistic', 'random_forest')
             model_params: Parameters to pass to the sklearn model
-            bootstrap_samples: Number of bootstrap samples for confidence intervals
-            confidence_level: Confidence level for intervals
+            bootstrap_config: Configuration for bootstrap confidence intervals
+            bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
+            confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
         """
-        super().__init__(random_state=random_state, verbose=verbose)
+        # Create bootstrap config if not provided (for backward compatibility)
+        if bootstrap_config is None:
+            bootstrap_config = BootstrapConfig(
+                n_samples=bootstrap_samples,
+                confidence_level=confidence_level,
+                random_state=random_state,
+            )
+
+        super().__init__(
+            bootstrap_config=bootstrap_config,
+            random_state=random_state,
+            verbose=verbose,
+        )
 
         self.model_type = model_type
         self.model_params = model_params or {}
-        self.bootstrap_samples = bootstrap_samples
-        self.confidence_level = confidence_level
 
         # Model storage
         self.outcome_model: SklearnBaseEstimator | None = None
         self._model_features: list[str] | None = None
+
+    def _create_bootstrap_estimator(
+        self, random_state: int | None = None
+    ) -> GComputationEstimator:
+        """Create a new estimator instance for bootstrap sampling.
+
+        Args:
+            random_state: Random state for this bootstrap instance
+
+        Returns:
+            New GComputationEstimator instance configured for bootstrap
+        """
+        return GComputationEstimator(
+            model_type=self.model_type,
+            model_params=self.model_params,
+            bootstrap_config=BootstrapConfig(n_samples=0),  # No nested bootstrap
+            random_state=random_state,
+            verbose=False,  # Reduce verbosity in bootstrap
+        )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
         """Select appropriate sklearn model based on outcome type and model_type.
@@ -327,15 +360,63 @@ class GComputationEstimator(BaseEstimator):
             potential_outcome_treated = np.mean(outcomes[treatment_values[1]])
             potential_outcome_control = np.mean(outcomes[treatment_values[0]])
 
-        # Bootstrap confidence intervals
-        ate_ci_lower, ate_ci_upper, bootstrap_estimates = (
-            self._bootstrap_confidence_interval()
-        )
+        # Enhanced bootstrap confidence intervals
+        bootstrap_result = None
+        ate_se = None
+        ate_ci_lower = None
+        ate_ci_upper = None
+        bootstrap_estimates = None
 
-        # Calculate standard error from bootstrap
-        ate_se = (
-            np.std(bootstrap_estimates) if bootstrap_estimates is not None else None
-        )
+        # Additional CI fields for different bootstrap methods
+        ate_ci_lower_bca = None
+        ate_ci_upper_bca = None
+        ate_ci_lower_bias_corrected = None
+        ate_ci_upper_bias_corrected = None
+        ate_ci_lower_studentized = None
+        ate_ci_upper_studentized = None
+        bootstrap_method = None
+        bootstrap_converged = None
+        bootstrap_bias = None
+        bootstrap_acceleration = None
+
+        if self.bootstrap_config and self.bootstrap_config.n_samples > 0:
+            try:
+                bootstrap_result = self.compute_bootstrap_confidence_intervals(ate)
+
+                # Extract bootstrap estimates and diagnostics
+                bootstrap_estimates = bootstrap_result.bootstrap_estimates
+                ate_se = bootstrap_result.bootstrap_se
+                bootstrap_method = bootstrap_result.config.method
+                bootstrap_converged = bootstrap_result.converged
+                bootstrap_bias = bootstrap_result.bias_estimate
+                bootstrap_acceleration = bootstrap_result.acceleration_estimate
+
+                # Set confidence intervals based on method
+                if bootstrap_result.config.method == "percentile":
+                    ate_ci_lower = bootstrap_result.ci_lower_percentile
+                    ate_ci_upper = bootstrap_result.ci_upper_percentile
+                elif bootstrap_result.config.method == "bias_corrected":
+                    ate_ci_lower = bootstrap_result.ci_lower_bias_corrected
+                    ate_ci_upper = bootstrap_result.ci_upper_bias_corrected
+                elif bootstrap_result.config.method == "bca":
+                    ate_ci_lower = bootstrap_result.ci_lower_bca
+                    ate_ci_upper = bootstrap_result.ci_upper_bca
+                elif bootstrap_result.config.method == "studentized":
+                    ate_ci_lower = bootstrap_result.ci_lower_studentized
+                    ate_ci_upper = bootstrap_result.ci_upper_studentized
+
+                # Set all available CI methods for comparison
+                ate_ci_lower_bca = bootstrap_result.ci_lower_bca
+                ate_ci_upper_bca = bootstrap_result.ci_upper_bca
+                ate_ci_lower_bias_corrected = bootstrap_result.ci_lower_bias_corrected
+                ate_ci_upper_bias_corrected = bootstrap_result.ci_upper_bias_corrected
+                ate_ci_lower_studentized = bootstrap_result.ci_lower_studentized
+                ate_ci_upper_studentized = bootstrap_result.ci_upper_studentized
+
+            except Exception as e:
+                if self.verbose:
+                    print(f"Bootstrap confidence intervals failed: {str(e)}")
+                # Continue without bootstrap CIs
 
         # Count treatment/control units
         if self.treatment_data.treatment_type == "binary":
@@ -350,100 +431,32 @@ class GComputationEstimator(BaseEstimator):
             ate_se=ate_se,
             ate_ci_lower=ate_ci_lower,
             ate_ci_upper=ate_ci_upper,
-            confidence_level=self.confidence_level,
+            confidence_level=self.bootstrap_config.confidence_level
+            if self.bootstrap_config
+            else 0.95,
             potential_outcome_treated=potential_outcome_treated,
             potential_outcome_control=potential_outcome_control,
             method="G-computation",
             n_observations=len(self.treatment_data.values),
             n_treated=n_treated,
             n_control=n_control,
-            bootstrap_samples=self.bootstrap_samples,
+            bootstrap_samples=self.bootstrap_config.n_samples
+            if self.bootstrap_config
+            else 0,
             bootstrap_estimates=bootstrap_estimates,
+            # Enhanced bootstrap confidence intervals
+            ate_ci_lower_bca=ate_ci_lower_bca,
+            ate_ci_upper_bca=ate_ci_upper_bca,
+            ate_ci_lower_bias_corrected=ate_ci_lower_bias_corrected,
+            ate_ci_upper_bias_corrected=ate_ci_upper_bias_corrected,
+            ate_ci_lower_studentized=ate_ci_lower_studentized,
+            ate_ci_upper_studentized=ate_ci_upper_studentized,
+            # Bootstrap diagnostics
+            bootstrap_method=bootstrap_method,
+            bootstrap_converged=bootstrap_converged,
+            bootstrap_bias=bootstrap_bias,
+            bootstrap_acceleration=bootstrap_acceleration,
         )
-
-    def _bootstrap_confidence_interval(
-        self,
-    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
-        """Calculate bootstrap confidence intervals for ATE.
-
-        Returns:
-            Tuple of (lower_ci, upper_ci, bootstrap_estimates)
-        """
-        if self.bootstrap_samples <= 0:
-            return None, None, None
-
-        if self.treatment_data is None or self.outcome_data is None:
-            raise EstimationError("Data must be available for bootstrap")
-
-        bootstrap_ates: list[float] = []
-        n_obs = len(self.treatment_data.values)
-
-        for _ in range(self.bootstrap_samples):
-            # Bootstrap sample indices
-            bootstrap_indices = np.random.choice(n_obs, size=n_obs, replace=True)
-
-            # Create bootstrap datasets
-            boot_treatment = TreatmentData(
-                values=self.treatment_data.values.iloc[bootstrap_indices]
-                if isinstance(self.treatment_data.values, pd.Series)
-                else self.treatment_data.values[bootstrap_indices],
-                name=self.treatment_data.name,
-                treatment_type=self.treatment_data.treatment_type,
-                categories=self.treatment_data.categories,
-            )
-
-            boot_outcome = OutcomeData(
-                values=self.outcome_data.values.iloc[bootstrap_indices]
-                if isinstance(self.outcome_data.values, pd.Series)
-                else self.outcome_data.values[bootstrap_indices],
-                name=self.outcome_data.name,
-                outcome_type=self.outcome_data.outcome_type,
-            )
-
-            boot_covariates = None
-            if self.covariate_data is not None:
-                if isinstance(self.covariate_data.values, pd.DataFrame):
-                    boot_cov_values = self.covariate_data.values.iloc[bootstrap_indices]
-                else:
-                    boot_cov_values = self.covariate_data.values[bootstrap_indices]
-
-                boot_covariates = CovariateData(
-                    values=boot_cov_values,
-                    names=self.covariate_data.names,
-                )
-
-            # Fit model on bootstrap sample
-            try:
-                boot_estimator = GComputationEstimator(
-                    model_type=self.model_type,
-                    model_params=self.model_params,
-                    bootstrap_samples=0,  # Don't bootstrap within bootstrap
-                    random_state=None,  # Use different random state for each bootstrap
-                    verbose=False,
-                )
-
-                boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)
-                boot_effect = boot_estimator.estimate_ate(use_cache=False)
-                bootstrap_ates.append(boot_effect.ate)
-
-            except Exception:
-                # Skip failed bootstrap samples
-                continue
-
-        if len(bootstrap_ates) == 0:
-            return None, None, None
-
-        bootstrap_ates_array = np.array(bootstrap_ates)
-
-        # Calculate confidence intervals
-        alpha = 1 - self.confidence_level
-        lower_percentile = 100 * (alpha / 2)
-        upper_percentile = 100 * (1 - alpha / 2)
-
-        ate_ci_lower = float(np.percentile(bootstrap_ates_array, lower_percentile))
-        ate_ci_upper = float(np.percentile(bootstrap_ates_array, upper_percentile))
-
-        return ate_ci_lower, ate_ci_upper, bootstrap_ates_array
 
     def predict_potential_outcomes(
         self,

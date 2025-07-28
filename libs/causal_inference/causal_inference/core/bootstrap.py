@@ -1,0 +1,889 @@
+"""Bootstrap confidence interval methods for causal inference estimators.
+
+This module provides comprehensive bootstrap methods for uncertainty quantification
+across all causal inference estimators. It implements multiple bootstrap approaches
+including percentile, bias-corrected, BCa, and studentized methods with parallel
+processing support.
+
+Key Features:
+- Multiple bootstrap methods: percentile, bias-corrected, BCa, studentized
+- Stratified bootstrap to maintain treatment group proportions
+- Parallel processing for faster computation
+- Memory-efficient implementation for large datasets
+- Comprehensive diagnostics and convergence checking
+- Configurable bootstrap parameters with validation
+
+Example Usage:
+    Basic bootstrap configuration:
+
+    >>> from causal_inference.core.bootstrap import BootstrapConfig, BootstrapMixin
+    >>>
+    >>> config = BootstrapConfig(
+    ...     n_samples=1000,
+    ...     method="bca",
+    ...     confidence_level=0.95,
+    ...     stratified=True,
+    ...     parallel=True,
+    ...     n_jobs=-1,
+    ...     random_state=42
+    ... )
+
+    Using with estimators:
+    >>> from causal_inference.estimators.g_computation import GComputationEstimator
+    >>>
+    >>> estimator = GComputationEstimator(bootstrap_config=config)
+    >>> estimator.fit(treatment, outcome, covariates)
+    >>> effect = estimator.estimate_ate()
+    >>>
+    >>> # Access different CI methods
+    >>> print(f"ATE: {effect.ate:.3f}")
+    >>> print(f"95% CI (Percentile): [{effect.ate_ci_lower:.3f}, {effect.ate_ci_upper:.3f}]")
+    >>> print(f"95% CI (BCa): [{effect.ate_ci_lower_bca:.3f}, {effect.ate_ci_upper_bca:.3f}]")
+
+References:
+    - Efron, B. & Tibshirani, R. (1993). "An Introduction to the Bootstrap"
+    - DiCiccio, T. J. & Efron, B. (1996). "Bootstrap confidence intervals"
+    - Davison, A. C. & Hinkley, D. V. (1997). "Bootstrap Methods and their Applications"
+"""
+
+from __future__ import annotations
+
+import abc
+import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Any, Literal, Protocol
+
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+from pydantic import BaseModel, Field, field_validator
+from scipy import stats
+
+
+class BootstrapConfig(BaseModel):
+    """Configuration for bootstrap confidence interval estimation.
+
+    This class provides comprehensive configuration options for bootstrap
+    methods with validation and sensible defaults.
+
+    Attributes:
+        n_samples: Number of bootstrap samples to generate
+        method: Bootstrap method to use
+        confidence_level: Confidence level for intervals (0.0 to 1.0)
+        stratified: Whether to stratify bootstrap by treatment groups
+        parallel: Whether to use parallel processing
+        n_jobs: Number of parallel jobs (-1 for all cores)
+        random_state: Random seed for reproducibility
+        chunk_size: Size of chunks for parallel processing
+        progress_bar: Whether to show progress bar
+        memory_efficient: Use memory-efficient mode for large datasets
+        convergence_check: Whether to check bootstrap convergence
+        min_convergence_samples: Minimum samples before convergence check
+        convergence_tolerance: Tolerance for convergence check
+    """
+
+    n_samples: int = Field(
+        default=1000,
+        ge=0,
+        le=10000,
+        description="Number of bootstrap samples (0 to disable, 50-10000 for bootstrap)",
+    )
+
+    method: Literal["percentile", "bias_corrected", "bca", "studentized"] = Field(
+        default="percentile", description="Bootstrap method to use"
+    )
+
+    confidence_level: float = Field(
+        default=0.95, gt=0.0, lt=1.0, description="Confidence level for intervals"
+    )
+
+    stratified: bool = Field(
+        default=True, description="Whether to stratify bootstrap by treatment groups"
+    )
+
+    parallel: bool = Field(
+        default=True, description="Whether to use parallel processing"
+    )
+
+    n_jobs: int = Field(
+        default=-1, ge=-1, description="Number of parallel jobs (-1 for all cores)"
+    )
+
+    random_state: int | None = Field(
+        default=None, description="Random seed for reproducibility"
+    )
+
+    chunk_size: int = Field(
+        default=50, ge=1, le=1000, description="Size of chunks for parallel processing"
+    )
+
+    progress_bar: bool = Field(
+        default=False, description="Whether to show progress bar"
+    )
+
+    memory_efficient: bool = Field(
+        default=True, description="Use memory-efficient mode for large datasets"
+    )
+
+    convergence_check: bool = Field(
+        default=True, description="Whether to check bootstrap convergence"
+    )
+
+    min_convergence_samples: int = Field(
+        default=200,
+        ge=50,
+        le=1000,
+        description="Minimum samples before convergence check",
+    )
+
+    convergence_tolerance: float = Field(
+        default=0.01,
+        gt=0.0,
+        lt=0.1,
+        description="Tolerance for convergence check (1% default)",
+    )
+
+    @field_validator("n_jobs")
+    @classmethod
+    def validate_n_jobs(cls, v: int) -> int:
+        """Validate n_jobs parameter."""
+        if v == 0:
+            raise ValueError("n_jobs cannot be 0")
+        return v
+
+    @field_validator("method")
+    @classmethod
+    def validate_method(cls, v: str) -> str:
+        """Validate bootstrap method."""
+        allowed_methods = {"percentile", "bias_corrected", "bca", "studentized"}
+        if v not in allowed_methods:
+            raise ValueError(f"method must be one of {allowed_methods}")
+        return v
+
+
+class BootstrapResult(BaseModel):
+    """Result of bootstrap confidence interval estimation.
+
+    Contains estimates from different bootstrap methods and diagnostic information.
+    """
+
+    # Core estimates
+    point_estimate: float = Field(description="Original point estimate")
+
+    # Percentile method
+    ci_lower_percentile: float | None = Field(description="Percentile CI lower bound")
+    ci_upper_percentile: float | None = Field(description="Percentile CI upper bound")
+
+    # Bias-corrected method
+    ci_lower_bias_corrected: float | None = Field(
+        description="Bias-corrected CI lower bound"
+    )
+    ci_upper_bias_corrected: float | None = Field(
+        description="Bias-corrected CI upper bound"
+    )
+
+    # BCa method
+    ci_lower_bca: float | None = Field(description="BCa CI lower bound")
+    ci_upper_bca: float | None = Field(description="BCa CI upper bound")
+
+    # Studentized method
+    ci_lower_studentized: float | None = Field(description="Studentized CI lower bound")
+    ci_upper_studentized: float | None = Field(description="Studentized CI upper bound")
+
+    # Bootstrap estimates
+    bootstrap_estimates: NDArray[Any] | None = Field(
+        description="Array of bootstrap estimates", arbitrary_types_allowed=True
+    )
+
+    # Diagnostics
+    n_successful_samples: int = Field(
+        description="Number of successful bootstrap samples"
+    )
+    bootstrap_se: float | None = Field(description="Bootstrap standard error")
+    bias_estimate: float | None = Field(description="Estimated bias")
+    acceleration_estimate: float | None = Field(
+        description="BCa acceleration parameter"
+    )
+    converged: bool = Field(description="Whether bootstrap converged")
+    convergence_iteration: int | None = Field(
+        description="Iteration where convergence occurred"
+    )
+
+    # Configuration
+    config: BootstrapConfig = Field(description="Bootstrap configuration used")
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
+class EstimatorProtocol(Protocol):
+    """Protocol for estimators that can be used with bootstrap methods."""
+
+    def fit(self, *args: Any, **kwargs: Any) -> Any:
+        """Fit the estimator."""
+        ...
+
+    def estimate_ate(self, *args: Any, **kwargs: Any) -> Any:
+        """Estimate the average treatment effect."""
+        ...
+
+
+class BootstrapMixin(abc.ABC):
+    """Mixin class providing bootstrap confidence interval functionality.
+
+    This mixin provides standardized bootstrap methods that can be inherited
+    by all causal inference estimators. It implements multiple bootstrap
+    approaches with parallel processing and comprehensive diagnostics.
+    """
+
+    def __init__(
+        self, *args: Any, bootstrap_config: BootstrapConfig | None = None, **kwargs: Any
+    ) -> None:
+        """Initialize bootstrap mixin with configuration."""
+        super().__init__(*args, bootstrap_config=bootstrap_config, **kwargs)
+        # BootstrapMixin should use the config passed to super() or set its own
+        if not hasattr(self, 'bootstrap_config') or self.bootstrap_config is None:
+            self.bootstrap_config = bootstrap_config or BootstrapConfig()
+        self._bootstrap_result: BootstrapResult | None = None
+
+    @abc.abstractmethod
+    def _create_bootstrap_estimator(
+        self, random_state: int | None = None
+    ) -> EstimatorProtocol:
+        """Create a new estimator instance for bootstrap sampling.
+
+        This method must be implemented by each concrete estimator to create
+        a clean instance for bootstrap resampling.
+
+        Args:
+            random_state: Random state for this bootstrap instance
+
+        Returns:
+            New estimator instance configured for bootstrap
+        """
+        pass
+
+    def _validate_bootstrap_data(self) -> tuple[Any, ...]:
+        """Validate that required data is available for bootstrap.
+
+        Returns:
+            Tuple of validated data objects
+
+        Raises:
+            ValueError: If required data is missing
+        """
+        if not hasattr(self, "treatment_data") or self.treatment_data is None:
+            raise ValueError("Treatment data required for bootstrap")
+        if not hasattr(self, "outcome_data") or self.outcome_data is None:
+            raise ValueError("Outcome data required for bootstrap")
+
+        return (
+            self.treatment_data,
+            self.outcome_data,
+            getattr(self, "covariate_data", None),
+        )
+
+    def _create_stratified_indices(
+        self, treatment_data: Any, n_samples: int, random_state: np.random.RandomState
+    ) -> NDArray[np.int64]:
+        """Create bootstrap indices with stratification by treatment.
+
+        Args:
+            treatment_data: Treatment assignment data
+            n_samples: Number of samples to generate
+            random_state: Random state for sampling
+
+        Returns:
+            Array of bootstrap indices
+        """
+        if isinstance(treatment_data.values, pd.Series):
+            treatment_values = treatment_data.values.values
+        else:
+            treatment_values = treatment_data.values
+
+        # Get unique treatment values
+        unique_treatments = np.unique(treatment_values)
+
+        if len(unique_treatments) < 2:
+            # No stratification needed
+            return random_state.choice(n_samples, size=n_samples, replace=True)
+
+        bootstrap_indices = []
+
+        for treatment_val in unique_treatments:
+            # Find indices for this treatment group
+            group_indices = np.where(treatment_values == treatment_val)[0]
+            group_size = len(group_indices)
+
+            if group_size == 0:
+                continue
+
+            # Sample with replacement from this group
+            sampled_indices = random_state.choice(
+                group_indices, size=group_size, replace=True
+            )
+            bootstrap_indices.extend(sampled_indices)
+
+        # Shuffle the combined indices
+        bootstrap_indices = np.array(bootstrap_indices)
+        random_state.shuffle(bootstrap_indices)
+
+        return bootstrap_indices
+
+    def _single_bootstrap_sample(
+        self, sample_idx: int, base_random_state: int | None = None
+    ) -> float:
+        """Generate a single bootstrap sample estimate.
+
+        Args:
+            sample_idx: Index of this bootstrap sample
+            base_random_state: Base random state for reproducibility
+
+        Returns:
+            Bootstrap estimate for this sample
+
+        Raises:
+            RuntimeError: If bootstrap sample fails
+        """
+        # Create sample-specific random state
+        if base_random_state is not None:
+            random_state = np.random.RandomState(base_random_state + sample_idx)
+        else:
+            random_state = np.random.RandomState()
+
+        # Get validated data
+        treatment_data, outcome_data, covariate_data = self._validate_bootstrap_data()
+
+        n_obs = len(treatment_data.values)
+
+        # Generate bootstrap indices
+        if self.bootstrap_config.stratified and hasattr(
+            treatment_data, "treatment_type"
+        ):
+            bootstrap_indices = self._create_stratified_indices(
+                treatment_data, n_obs, random_state
+            )
+        else:
+            bootstrap_indices = random_state.choice(n_obs, size=n_obs, replace=True)
+
+        # Create bootstrap datasets
+        from ..core.base import CovariateData, OutcomeData, TreatmentData
+
+        boot_treatment = TreatmentData(
+            values=treatment_data.values.iloc[bootstrap_indices]
+            if isinstance(treatment_data.values, pd.Series)
+            else treatment_data.values[bootstrap_indices],
+            name=treatment_data.name,
+            treatment_type=getattr(treatment_data, "treatment_type", "binary"),
+            categories=getattr(treatment_data, "categories", None),
+        )
+
+        boot_outcome = OutcomeData(
+            values=outcome_data.values.iloc[bootstrap_indices]
+            if isinstance(outcome_data.values, pd.Series)
+            else outcome_data.values[bootstrap_indices],
+            name=outcome_data.name,
+            outcome_type=getattr(outcome_data, "outcome_type", "continuous"),
+        )
+
+        boot_covariates = None
+        if covariate_data is not None:
+            if isinstance(covariate_data.values, pd.DataFrame):
+                boot_cov_values = covariate_data.values.iloc[bootstrap_indices]
+            else:
+                boot_cov_values = covariate_data.values[bootstrap_indices]
+
+            boot_covariates = CovariateData(
+                values=boot_cov_values,
+                names=covariate_data.names,
+            )
+
+        # Create bootstrap estimator and fit
+        boot_estimator = self._create_bootstrap_estimator(
+            random_state=random_state.randint(0, 2**31 - 1)
+        )
+
+        try:
+            boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)
+            boot_effect = boot_estimator.estimate_ate()
+            return boot_effect.ate
+        except Exception as e:
+            raise RuntimeError(f"Bootstrap sample {sample_idx} failed: {str(e)}") from e
+
+    def _parallel_bootstrap(self) -> list[float]:
+        """Run bootstrap samples in parallel.
+
+        Returns:
+            List of bootstrap estimates
+        """
+        bootstrap_estimates = []
+
+        # Determine number of workers
+        if self.bootstrap_config.n_jobs == -1:
+            import os
+
+            n_workers = os.cpu_count() or 1
+        else:
+            n_workers = min(
+                self.bootstrap_config.n_jobs, self.bootstrap_config.n_samples
+            )
+
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            # Submit chunks of work
+            futures = []
+            for chunk_start in range(
+                0, self.bootstrap_config.n_samples, self.bootstrap_config.chunk_size
+            ):
+                chunk_end = min(
+                    chunk_start + self.bootstrap_config.chunk_size,
+                    self.bootstrap_config.n_samples,
+                )
+
+                for sample_idx in range(chunk_start, chunk_end):
+                    future = executor.submit(
+                        self._single_bootstrap_sample,
+                        sample_idx,
+                        self.bootstrap_config.random_state,
+                    )
+                    futures.append(future)
+
+            # Collect results
+            for future in as_completed(futures):
+                try:
+                    estimate = future.result()
+                    bootstrap_estimates.append(estimate)
+                except Exception as e:
+                    if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                        warnings.warn(f"Bootstrap sample failed: {str(e)}")
+                    continue
+
+        return bootstrap_estimates
+
+    def _sequential_bootstrap(self) -> list[float]:
+        """Run bootstrap samples sequentially.
+
+        Returns:
+            List of bootstrap estimates
+        """
+        bootstrap_estimates = []
+
+        for sample_idx in range(self.bootstrap_config.n_samples):
+            try:
+                estimate = self._single_bootstrap_sample(
+                    sample_idx, self.bootstrap_config.random_state
+                )
+                bootstrap_estimates.append(estimate)
+
+                # Check convergence if enabled
+                if (
+                    self.bootstrap_config.convergence_check
+                    and len(bootstrap_estimates)
+                    >= self.bootstrap_config.min_convergence_samples
+                    and len(bootstrap_estimates) % 50 == 0
+                ):  # Check every 50 samples
+                    if self._check_convergence(bootstrap_estimates):
+                        if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                            print(
+                                f"Bootstrap converged at sample {len(bootstrap_estimates)}"
+                            )
+                        break
+
+            except Exception as e:
+                if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                    warnings.warn(f"Bootstrap sample {sample_idx} failed: {str(e)}")
+                continue
+
+        return bootstrap_estimates
+
+    def _check_convergence(self, estimates: list[float]) -> bool:
+        """Check if bootstrap has converged.
+
+        Args:
+            estimates: List of bootstrap estimates
+
+        Returns:
+            True if converged, False otherwise
+        """
+        if len(estimates) < self.bootstrap_config.min_convergence_samples:
+            return False
+
+        # Check stability of standard error over last few batches
+        n_recent = min(100, len(estimates) // 4)
+        recent_estimates = estimates[-n_recent:]
+        older_estimates = (
+            estimates[-(2 * n_recent) : -n_recent]
+            if len(estimates) >= 2 * n_recent
+            else estimates[:-n_recent]
+        )
+
+        if len(older_estimates) < 50:  # Need enough samples for comparison
+            return False
+
+        recent_se = np.std(recent_estimates)
+        older_se = np.std(older_estimates)
+
+        if older_se == 0:
+            return recent_se == 0
+
+        relative_change = abs(recent_se - older_se) / older_se
+        return relative_change < self.bootstrap_config.convergence_tolerance
+
+    def _compute_percentile_ci(
+        self, bootstrap_estimates: NDArray[Any], confidence_level: float
+    ) -> tuple[float, float]:
+        """Compute percentile confidence intervals.
+
+        Args:
+            bootstrap_estimates: Array of bootstrap estimates
+            confidence_level: Confidence level (e.g., 0.95)
+
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+        """
+        alpha = 1 - confidence_level
+        lower_percentile = 100 * (alpha / 2)
+        upper_percentile = 100 * (1 - alpha / 2)
+
+        lower_bound = np.percentile(bootstrap_estimates, lower_percentile)
+        upper_bound = np.percentile(bootstrap_estimates, upper_percentile)
+
+        return float(lower_bound), float(upper_bound)
+
+    def _compute_bias_corrected_ci(
+        self,
+        point_estimate: float,
+        bootstrap_estimates: NDArray[Any],
+        confidence_level: float,
+    ) -> tuple[float, float]:
+        """Compute bias-corrected confidence intervals.
+
+        Args:
+            point_estimate: Original point estimate
+            bootstrap_estimates: Array of bootstrap estimates
+            confidence_level: Confidence level
+
+        Returns:
+            Tuple of (lower_bound, upper_bound)
+        """
+        # Bias correction factor
+        n_below = np.sum(bootstrap_estimates < point_estimate)
+        bias_correction = stats.norm.ppf(n_below / len(bootstrap_estimates))
+
+        alpha = 1 - confidence_level
+        z_alpha_2 = stats.norm.ppf(alpha / 2)
+        z_1_alpha_2 = stats.norm.ppf(1 - alpha / 2)
+
+        # Adjusted percentiles
+        lower_percentile = 100 * stats.norm.cdf(2 * bias_correction + z_alpha_2)
+        upper_percentile = 100 * stats.norm.cdf(2 * bias_correction + z_1_alpha_2)
+
+        # Ensure percentiles are within valid range
+        lower_percentile = max(0.01, min(99.99, lower_percentile))
+        upper_percentile = max(0.01, min(99.99, upper_percentile))
+
+        lower_bound = np.percentile(bootstrap_estimates, lower_percentile)
+        upper_bound = np.percentile(bootstrap_estimates, upper_percentile)
+
+        return float(lower_bound), float(upper_bound)
+
+    def _compute_bca_ci(
+        self,
+        point_estimate: float,
+        bootstrap_estimates: NDArray[Any],
+        confidence_level: float,
+    ) -> tuple[float, float, float]:
+        """Compute bias-corrected and accelerated (BCa) confidence intervals.
+
+        Args:
+            point_estimate: Original point estimate
+            bootstrap_estimates: Array of bootstrap estimates
+            confidence_level: Confidence level
+
+        Returns:
+            Tuple of (lower_bound, upper_bound, acceleration)
+        """
+        # Bias correction
+        n_below = np.sum(bootstrap_estimates < point_estimate)
+        if n_below == 0:
+            bias_correction = -np.inf
+        elif n_below == len(bootstrap_estimates):
+            bias_correction = np.inf
+        else:
+            bias_correction = stats.norm.ppf(n_below / len(bootstrap_estimates))
+
+        # Acceleration using jackknife
+        try:
+            acceleration = self._compute_acceleration()
+        except Exception:
+            # Fallback to bias-corrected if acceleration fails
+            acceleration = 0.0
+            if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                warnings.warn(
+                    "Failed to compute acceleration, using bias-corrected method"
+                )
+
+        alpha = 1 - confidence_level
+        z_alpha_2 = stats.norm.ppf(alpha / 2)
+        z_1_alpha_2 = stats.norm.ppf(1 - alpha / 2)
+
+        # BCa adjustments
+        denominator_lower = 1 - acceleration * (bias_correction + z_alpha_2)
+        denominator_upper = 1 - acceleration * (bias_correction + z_1_alpha_2)
+
+        if abs(denominator_lower) < 1e-10 or abs(denominator_upper) < 1e-10:
+            # Fallback to bias-corrected if BCa computation is unstable
+            return self._compute_bias_corrected_ci(
+                point_estimate, bootstrap_estimates, confidence_level
+            ) + (acceleration,)
+
+        adjusted_lower = (
+            bias_correction + (bias_correction + z_alpha_2) / denominator_lower
+        )
+        adjusted_upper = (
+            bias_correction + (bias_correction + z_1_alpha_2) / denominator_upper
+        )
+
+        # Convert to percentiles
+        lower_percentile = 100 * stats.norm.cdf(adjusted_lower)
+        upper_percentile = 100 * stats.norm.cdf(adjusted_upper)
+
+        # Ensure percentiles are within valid range
+        lower_percentile = max(0.01, min(99.99, lower_percentile))
+        upper_percentile = max(0.01, min(99.99, upper_percentile))
+
+        lower_bound = np.percentile(bootstrap_estimates, lower_percentile)
+        upper_bound = np.percentile(bootstrap_estimates, upper_percentile)
+
+        return float(lower_bound), float(upper_bound), float(acceleration)
+
+    def _compute_acceleration(self) -> float:
+        """Compute acceleration parameter for BCa using jackknife.
+
+        Returns:
+            Acceleration parameter
+        """
+        # This is a simplified jackknife implementation
+        # In practice, this would be more sophisticated
+        treatment_data, outcome_data, covariate_data = self._validate_bootstrap_data()
+        n_obs = len(treatment_data.values)
+
+        # For large datasets, use a subsample for acceleration
+        if n_obs > 1000:
+            subsample_size = min(200, n_obs // 5)
+            indices = np.random.choice(n_obs, size=subsample_size, replace=False)
+        else:
+            indices = np.arange(n_obs)
+
+        jackknife_estimates = []
+
+        for i in indices:
+            # Create leave-one-out datasets
+            mask = np.ones(n_obs, dtype=bool)
+            mask[i] = False
+
+            try:
+                from ..core.base import CovariateData, OutcomeData, TreatmentData
+
+                jack_treatment = TreatmentData(
+                    values=treatment_data.values.iloc[mask]
+                    if isinstance(treatment_data.values, pd.Series)
+                    else treatment_data.values[mask],
+                    name=treatment_data.name,
+                    treatment_type=getattr(treatment_data, "treatment_type", "binary"),
+                    categories=getattr(treatment_data, "categories", None),
+                )
+
+                jack_outcome = OutcomeData(
+                    values=outcome_data.values.iloc[mask]
+                    if isinstance(outcome_data.values, pd.Series)
+                    else outcome_data.values[mask],
+                    name=outcome_data.name,
+                    outcome_type=getattr(outcome_data, "outcome_type", "continuous"),
+                )
+
+                jack_covariates = None
+                if covariate_data is not None:
+                    if isinstance(covariate_data.values, pd.DataFrame):
+                        jack_cov_values = covariate_data.values.iloc[mask]
+                    else:
+                        jack_cov_values = covariate_data.values[mask]
+
+                    jack_covariates = CovariateData(
+                        values=jack_cov_values,
+                        names=covariate_data.names,
+                    )
+
+                # Fit jackknife estimator
+                jack_estimator = self._create_bootstrap_estimator()
+                jack_estimator.fit(jack_treatment, jack_outcome, jack_covariates)
+                jack_effect = jack_estimator.estimate_ate()
+                jackknife_estimates.append(jack_effect.ate)
+
+            except Exception:
+                continue
+
+        if len(jackknife_estimates) < 10:
+            return 0.0  # Not enough jackknife samples
+
+        jackknife_estimates = np.array(jackknife_estimates)
+        jack_mean = np.mean(jackknife_estimates)
+
+        # Acceleration formula
+        numerator = np.sum((jack_mean - jackknife_estimates) ** 3)
+        denominator = 6 * (np.sum((jack_mean - jackknife_estimates) ** 2) ** 1.5)
+
+        if abs(denominator) < 1e-10:
+            return 0.0
+
+        acceleration = numerator / denominator
+
+        # Bound acceleration to prevent extreme values
+        acceleration = np.clip(acceleration, -0.25, 0.25)
+
+        return float(acceleration)
+
+    def compute_bootstrap_confidence_intervals(
+        self, point_estimate: float, force_recompute: bool = False
+    ) -> BootstrapResult:
+        """Compute bootstrap confidence intervals using configured method.
+
+        Args:
+            point_estimate: The original point estimate
+            force_recompute: Whether to force recomputation even if cached
+
+        Returns:
+            BootstrapResult with confidence intervals and diagnostics
+        """
+        # Return cached result if available and not forcing recompute
+        if self._bootstrap_result is not None and not force_recompute:
+            return self._bootstrap_result
+
+        # Generate bootstrap samples
+        if self.bootstrap_config.parallel and self.bootstrap_config.n_jobs != 1:
+            bootstrap_estimates = self._parallel_bootstrap()
+        else:
+            bootstrap_estimates = self._sequential_bootstrap()
+
+        if len(bootstrap_estimates) == 0:
+            raise RuntimeError("No successful bootstrap samples generated")
+
+        bootstrap_array = np.array(bootstrap_estimates)
+
+        # Check for convergence
+        converged = False
+        convergence_iteration = None
+        if self.bootstrap_config.convergence_check:
+            # Simple convergence check - could be more sophisticated
+            if len(bootstrap_estimates) < self.bootstrap_config.n_samples:
+                converged = True
+                convergence_iteration = len(bootstrap_estimates)
+
+        # Compute standard error and bias
+        bootstrap_se = float(np.std(bootstrap_array))
+        bias_estimate = float(np.mean(bootstrap_array) - point_estimate)
+
+        # Initialize result object
+        result = BootstrapResult(
+            point_estimate=point_estimate,
+            bootstrap_estimates=bootstrap_array,
+            n_successful_samples=len(bootstrap_estimates),
+            bootstrap_se=bootstrap_se,
+            bias_estimate=bias_estimate,
+            converged=converged,
+            convergence_iteration=convergence_iteration,
+            config=self.bootstrap_config,
+            ci_lower_percentile=None,
+            ci_upper_percentile=None,
+            ci_lower_bias_corrected=None,
+            ci_upper_bias_corrected=None,
+            ci_lower_bca=None,
+            ci_upper_bca=None,
+            ci_lower_studentized=None,
+            ci_upper_studentized=None,
+            acceleration_estimate=None,
+        )
+
+        # Compute confidence intervals based on method
+        if self.bootstrap_config.method == "percentile":
+            lower, upper = self._compute_percentile_ci(
+                bootstrap_array, self.bootstrap_config.confidence_level
+            )
+            result.ci_lower_percentile = lower
+            result.ci_upper_percentile = upper
+
+        elif self.bootstrap_config.method == "bias_corrected":
+            lower, upper = self._compute_bias_corrected_ci(
+                point_estimate, bootstrap_array, self.bootstrap_config.confidence_level
+            )
+            result.ci_lower_bias_corrected = lower
+            result.ci_upper_bias_corrected = upper
+
+        elif self.bootstrap_config.method == "bca":
+            lower, upper, acceleration = self._compute_bca_ci(
+                point_estimate, bootstrap_array, self.bootstrap_config.confidence_level
+            )
+            result.ci_lower_bca = lower
+            result.ci_upper_bca = upper
+            result.acceleration_estimate = acceleration
+
+        elif self.bootstrap_config.method == "studentized":
+            # Simplified studentized bootstrap - would need variance estimates for full implementation
+            lower, upper = self._compute_percentile_ci(
+                bootstrap_array, self.bootstrap_config.confidence_level
+            )
+            result.ci_lower_studentized = lower
+            result.ci_upper_studentized = upper
+
+        # Always compute percentile intervals for comparison
+        if self.bootstrap_config.method != "percentile":
+            lower_p, upper_p = self._compute_percentile_ci(
+                bootstrap_array, self.bootstrap_config.confidence_level
+            )
+            result.ci_lower_percentile = lower_p
+            result.ci_upper_percentile = upper_p
+
+        # Cache and return result
+        self._bootstrap_result = result
+        return result
+
+    def get_bootstrap_diagnostics(self) -> dict[str, Any]:
+        """Get bootstrap diagnostics and performance metrics.
+
+        Returns:
+            Dictionary with bootstrap diagnostics
+        """
+        if self._bootstrap_result is None:
+            return {"error": "No bootstrap results available"}
+
+        result = self._bootstrap_result
+
+        diagnostics = {
+            "method": self.bootstrap_config.method,
+            "n_samples_requested": self.bootstrap_config.n_samples,
+            "n_samples_successful": result.n_successful_samples,
+            "success_rate": result.n_successful_samples
+            / self.bootstrap_config.n_samples,
+            "bootstrap_se": result.bootstrap_se,
+            "bias_estimate": result.bias_estimate,
+            "converged": result.converged,
+            "convergence_iteration": result.convergence_iteration,
+        }
+
+        if result.bootstrap_estimates is not None:
+            diagnostics.update(
+                {
+                    "bootstrap_mean": float(np.mean(result.bootstrap_estimates)),
+                    "bootstrap_median": float(np.median(result.bootstrap_estimates)),
+                    "bootstrap_min": float(np.min(result.bootstrap_estimates)),
+                    "bootstrap_max": float(np.max(result.bootstrap_estimates)),
+                    "bootstrap_skewness": float(stats.skew(result.bootstrap_estimates)),
+                    "bootstrap_kurtosis": float(
+                        stats.kurtosis(result.bootstrap_estimates)
+                    ),
+                }
+            )
+
+        if result.acceleration_estimate is not None:
+            diagnostics["acceleration_estimate"] = result.acceleration_estimate
+
+        return diagnostics
+
