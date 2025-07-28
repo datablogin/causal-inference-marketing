@@ -14,6 +14,7 @@ import pandas as pd
 
 try:
     from lifelines import CoxPHFitter, ExponentialFitter, WeibullFitter
+
     LIFELINES_AVAILABLE = True
 except ImportError:
     CoxPHFitter = None

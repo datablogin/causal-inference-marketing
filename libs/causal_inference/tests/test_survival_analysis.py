@@ -28,7 +28,7 @@ LIFELINES_AVAILABLE = importlib.util.find_spec("lifelines") is not None
 
 pytestmark = pytest.mark.skipif(
     not LIFELINES_AVAILABLE,
-    reason="lifelines library not available - install with 'pip install lifelines'"
+    reason="lifelines library not available - install with 'pip install lifelines'",
 )
 
 

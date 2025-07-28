@@ -15,6 +15,7 @@ import pandas as pd
 try:
     from lifelines import KaplanMeierFitter
     from lifelines.utils import restricted_mean_survival_time
+
     LIFELINES_AVAILABLE = True
 except ImportError:
     KaplanMeierFitter = None

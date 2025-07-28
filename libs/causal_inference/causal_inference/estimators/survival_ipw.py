@@ -18,6 +18,7 @@ try:
     from lifelines import KaplanMeierFitter
     from lifelines.statistics import logrank_test
     from lifelines.utils import restricted_mean_survival_time
+
     LIFELINES_AVAILABLE = True
 except ImportError:
     KaplanMeierFitter = None
