@@ -10,6 +10,7 @@ __author__ = "Robert Welborn"
 from .core import *
 from .data import *
 from .estimators import AIPWEstimator, GComputationEstimator, IPWEstimator, IVEstimator
+from .target_trial import TargetTrialEmulator, TargetTrialProtocol, TargetTrialResults
 from .utils import *
 
 __all__ = [
@@ -19,4 +20,7 @@ __all__ = [
     "GComputationEstimator",
     "IPWEstimator",
     "IVEstimator",
+    "TargetTrialEmulator",
+    "TargetTrialProtocol",
+    "TargetTrialResults",
 ]

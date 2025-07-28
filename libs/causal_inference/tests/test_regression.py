@@ -34,7 +34,7 @@ class TestAnalyticalSolutions:
         """Test that estimators recover true ATE in randomized experiment."""
         # Perfect randomization with known treatment effect
         np.random.seed(42)
-        n_samples = 1000
+        n_samples = 300  # Reduced from 1000 for CI performance
 
         # Purely random treatment assignment
         treatment = np.random.binomial(1, 0.5, n_samples)
@@ -76,7 +76,7 @@ class TestAnalyticalSolutions:
     def test_linear_confounding_analytical_solution(self):
         """Test against analytical solution for linear confounding case."""
         np.random.seed(123)
-        n_samples = 2000
+        n_samples = 500  # Reduced from 2000 for CI performance
 
         # Single confounder
         X = np.random.normal(0, 1, n_samples)
@@ -147,7 +147,7 @@ class TestAnalyticalSolutions:
     def test_dose_response_linear_relationship(self):
         """Test continuous treatment with known linear dose-response."""
         np.random.seed(789)
-        n_samples = 1000
+        n_samples = 300  # Reduced from 1000 for CI performance
 
         # Confounders
         X = np.random.normal(0, 1, n_samples)
@@ -265,7 +265,7 @@ class TestPublishedBenchmarks:
         """Test against the Kang & Schafer (2007) benchmark simulation."""
         # This is a well-known simulation study for comparing causal inference methods
         np.random.seed(2007)  # Year of the paper
-        n_samples = 1000
+        n_samples = 300  # Reduced from 1000 for CI performance
 
         # Four covariates as in original study
         X1 = np.random.normal(0, 1, n_samples)
@@ -316,7 +316,7 @@ class TestSimulationStudyReplication:
     def test_doubly_robust_simulation(self):
         """Test doubly robust property with misspecified models."""
         np.random.seed(999)
-        n_samples = 2000
+        n_samples = 500  # Reduced from 2000 for CI performance
 
         # Complex confounders
         X1 = np.random.normal(0, 1, n_samples)

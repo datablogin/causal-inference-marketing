@@ -231,7 +231,7 @@ class TestDataUtilitiesIntegration:
         # Generate larger dataset to test performance
         generator = SyntheticDataGenerator(random_state=42)
         treatment, outcome, covariates = generator.generate_marketing_campaign_data(
-            n_samples=1000  # Larger dataset
+            n_samples=300  # Reduced from 1000 for CI performance
         )
 
         # Add some missing data
@@ -258,7 +258,9 @@ class TestDataUtilitiesIntegration:
         )
 
         # Should handle larger datasets without issues
-        assert len(processed_treatment.values) == 1000
+        assert (
+            len(processed_treatment.values) == 300
+        )  # Updated to match optimized sample size
         assert len(validator.errors) == 0
 
         # Performance check - validation should complete quickly

@@ -125,7 +125,7 @@ clean:
 	rm -rf build/
 	rm -rf dist/
 	rm -rf *.egg-info/
-	rm -rf .coverage
+	rm -rf .coverage*
 	rm -rf htmlcov/
 	rm -rf .pytest_cache/
 	rm -rf .mypy_cache/
