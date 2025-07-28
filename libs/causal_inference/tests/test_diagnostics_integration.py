@@ -152,7 +152,7 @@ class TestDiagnosticsIntegration:
         estimator = AIPWEstimator(
             cross_fitting=False,
             bootstrap_samples=10,  # Reduced from default for CI speed
-            random_state=42
+            random_state=42,
         )
         estimator.fit(self.treatment_data, self.outcome_data, self.covariate_data)
 
@@ -195,7 +195,7 @@ class TestDiagnosticsIntegration:
         estimator = AIPWEstimator(
             cross_fitting=False,
             bootstrap_samples=5,  # Minimal bootstrap for speed
-            random_state=42
+            random_state=42,
         )
         estimator.fit(self.treatment_data, self.outcome_data, self.covariate_data)
 
@@ -249,7 +249,9 @@ class TestDiagnosticsIntegration:
         """Test diagnostic performance with larger datasets."""
         # Generate smaller dataset for CI performance
         treatment_large, outcome_large, covariate_large = generate_simple_rct(
-            n_samples=500, treatment_effect=1.5, random_state=42  # Reduced from 2000
+            n_samples=500,
+            treatment_effect=1.5,
+            random_state=42,  # Reduced from 2000
         )
 
         # Fit estimator with fast configuration
