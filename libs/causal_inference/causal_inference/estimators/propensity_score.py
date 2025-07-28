@@ -2,8 +2,7 @@
 
 This module implements propensity score methods beyond IPW including:
 - Propensity score stratification (quintiles, deciles, custom strata)
-- Nearest neighbor matching with calipers
-- Optimal matching algorithms
+- Nearest neighbor matching with calipers and k:1 matching ratios
 - Balance diagnostics and common support visualization
 
 The PropensityScoreEstimator provides alternative approaches to propensity score
@@ -123,7 +122,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             n_strata: Number of strata for stratification (default: 5)
             stratification_method: Method for creating strata ('quantile', 'fixed')
             balance_threshold: Maximum standardized mean difference for balance
-            matching_type: Type of matching ('nearest_neighbor', 'optimal')
+            matching_type: Type of matching ('nearest_neighbor')
             n_neighbors: Number of neighbors to match (1:k matching)
             caliper: Maximum propensity score distance for matching
             replacement: Whether to match with replacement
@@ -430,14 +429,21 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             # Ensure boundaries are unique
             boundaries = np.unique(boundaries)
             if len(boundaries) < self.n_strata + 1:
+                effective_n_strata = len(boundaries) - 1
                 if self.verbose:
-                    print(f"Warning: Only {len(boundaries)-1} unique strata possible due to tied propensity scores")
+                    print(f"Warning: Reducing strata from {self.n_strata} to {effective_n_strata} due to tied propensity scores")
 
         elif self.stratification_method == "fixed":
             # Create fixed-width strata
             min_ps = np.min(propensity_scores)
             max_ps = np.max(propensity_scores)
             boundaries = np.linspace(min_ps, max_ps, self.n_strata + 1)
+            # For fixed method, check for identical min/max (all same propensity scores)
+            if min_ps == max_ps:
+                if self.verbose:
+                    print("Warning: All propensity scores are identical, creating single stratum")
+                # Create a minimal boundary to avoid errors
+                boundaries = np.array([min_ps - 1e-10, max_ps + 1e-10])
         else:
             raise ValueError(f"Unknown stratification method: {self.stratification_method}")
 
@@ -445,7 +451,8 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         strata_assignments = np.digitize(propensity_scores, boundaries) - 1
 
         # Handle edge case where units fall exactly on the maximum boundary
-        strata_assignments = np.clip(strata_assignments, 0, len(boundaries) - 2)
+        max_stratum = len(boundaries) - 2
+        strata_assignments = np.clip(strata_assignments, 0, max_stratum)
 
         return strata_assignments, boundaries
 
@@ -522,6 +529,18 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             "treated": np.array(matched_treated),
             "control": np.array(matched_controls),
         }
+
+        # Warn about low match rates
+        total_treated = len(treated_indices)
+        n_matched = len(matched_pairs)
+        match_rate = n_matched / total_treated if total_treated > 0 else 0.0
+
+        if match_rate < 0.5 and self.verbose:
+            print(f"Warning: Low match rate ({match_rate:.1%}). Only {n_matched}/{total_treated} treated units matched.")
+            if self.caliper is not None:
+                print(f"Consider relaxing the caliper constraint (current: {self.caliper}) or using matching with replacement.")
+        elif match_rate < 0.8 and self.verbose:
+            print(f"Note: Moderate match rate ({match_rate:.1%}). {n_matched}/{total_treated} treated units matched.")
 
         return matched_pairs, matched_indices
 

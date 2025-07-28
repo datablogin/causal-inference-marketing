@@ -657,3 +657,103 @@ class TestPropensityScoreEstimatorIntegration:
 
         # Both should be reasonably close to each other
         assert abs(effect_strat.ate - effect_match.ate) < 1.0
+
+    def test_tied_propensity_scores_stratification(self):
+        """Test stratification with tied propensity scores (boundary case bug)."""
+        # Create data where many units have identical propensity scores
+        n = 200
+        X = np.random.randn(n, 2)
+
+        # Create treatment where 50% have identical propensity due to identical covariates
+        X_tied = X.copy()
+        X_tied[:100] = X_tied[0]  # First 100 observations have identical covariates
+
+        # Generate treatment and outcome
+        treatment = np.random.binomial(1, 0.5, n)
+        outcome = np.random.randn(n) + 2 * treatment
+
+        treatment_data = TreatmentData(values=pd.Series(treatment), treatment_type="binary")
+        outcome_data = OutcomeData(values=pd.Series(outcome), outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=pd.DataFrame(X_tied, columns=["X1", "X2"]),
+            names=["X1", "X2"],
+        )
+
+        # Test with more strata than unique boundaries possible
+        estimator = PropensityScoreEstimator(
+            method="stratification",
+            n_strata=10,  # Request 10 strata but tied scores will create fewer
+            verbose=True,
+            bootstrap_samples=0,
+        )
+
+        # Should not crash and should handle tied propensity scores gracefully
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+        effect = estimator.estimate_ate()
+
+        # Should produce reasonable estimate despite tied scores
+        assert abs(effect.ate - 2.0) < 1.5  # True ATE is 2.0
+        assert estimator.strata_assignments is not None
+
+        # Check that all strata assignments are valid (no out-of-bounds)
+        max_stratum = len(estimator.strata_boundaries) - 2
+        assert np.all(estimator.strata_assignments <= max_stratum)
+        assert np.all(estimator.strata_assignments >= 0)
+
+    def test_identical_propensity_scores_fixed_method(self):
+        """Test fixed stratification method with identical propensity scores."""
+        # Create data where all units have identical covariates (and thus propensity scores)
+        n = 100
+        X = np.ones((n, 2))  # All identical covariates
+
+        treatment = np.random.binomial(1, 0.5, n)
+        outcome = np.random.randn(n) + 1.5 * treatment
+
+        treatment_data = TreatmentData(values=pd.Series(treatment), treatment_type="binary")
+        outcome_data = OutcomeData(values=pd.Series(outcome), outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=pd.DataFrame(X, columns=["X1", "X2"]),
+            names=["X1", "X2"],
+        )
+
+        estimator = PropensityScoreEstimator(
+            method="stratification",
+            stratification_method="fixed",
+            n_strata=5,
+            verbose=True,
+            bootstrap_samples=0,
+        )
+
+        # Should handle identical propensity scores without crashing
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+        effect = estimator.estimate_ate()
+
+        # Should produce reasonable estimate
+        assert abs(effect.ate - 1.5) < 1.0  # True ATE is 1.5
+
+    def test_matching_with_very_low_match_rate(self, capsys):
+        """Test matching with very restrictive caliper leading to low match rates."""
+        estimator = PropensityScoreEstimator(
+            method="matching",
+            matching_type="nearest_neighbor",
+            n_neighbors=1,
+            caliper=0.001,  # Very restrictive caliper
+            replacement=False,
+            verbose=True,
+            bootstrap_samples=0,
+        )
+
+        estimator.fit(self.treatment_data, self.outcome_data, self.covariate_data)
+
+        # Should produce warnings about low match rate
+        captured = capsys.readouterr()
+        match_diag = estimator.get_matching_diagnostics()
+
+        if match_diag["match_rate"] < 0.5:
+            assert "Warning: Low match rate" in captured.out
+            assert "Consider relaxing the caliper constraint" in captured.out
+
+        # Should still be able to estimate ATE (even if from few matches)
+        if match_diag["n_matched_pairs"] > 0:
+            effect = estimator.estimate_ate()
+            assert effect.ate is not None
