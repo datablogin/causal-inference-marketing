@@ -51,13 +51,16 @@ from __future__ import annotations
 import abc
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from pydantic import BaseModel, Field, field_validator
 from scipy import stats
+
+if TYPE_CHECKING:
+    pass
 
 
 class BootstrapConfig(BaseModel):
@@ -143,6 +146,27 @@ class BootstrapConfig(BaseModel):
         description="Tolerance for convergence check (1% default)",
     )
 
+    convergence_check_interval: int = Field(
+        default=50,
+        ge=10,
+        le=200,
+        description="Check convergence every N samples",
+    )
+
+    min_jackknife_samples: int = Field(
+        default=10,
+        ge=5,
+        le=50,
+        description="Minimum jackknife samples for acceleration",
+    )
+
+    jackknife_subsample_threshold: int = Field(
+        default=1000,
+        ge=100,
+        le=10000,
+        description="Use subsampling for acceleration if n_obs > threshold",
+    )
+
     @field_validator("n_jobs")
     @classmethod
     def validate_n_jobs(cls, v: int) -> int:
@@ -192,7 +216,7 @@ class BootstrapResult(BaseModel):
 
     # Bootstrap estimates
     bootstrap_estimates: NDArray[Any] | None = Field(
-        description="Array of bootstrap estimates", arbitrary_types_allowed=True
+        description="Array of bootstrap estimates", default=None
     )
 
     # Diagnostics
@@ -240,9 +264,14 @@ class BootstrapMixin(abc.ABC):
     ) -> None:
         """Initialize bootstrap mixin with configuration."""
         super().__init__(*args, bootstrap_config=bootstrap_config, **kwargs)
-        # BootstrapMixin should use the config passed to super() or set its own
-        if not hasattr(self, 'bootstrap_config') or self.bootstrap_config is None:
-            self.bootstrap_config = bootstrap_config or BootstrapConfig()
+        # BootstrapMixin ensures a proper BootstrapConfig is available
+        if bootstrap_config is not None:
+            self.bootstrap_config = bootstrap_config
+        elif not hasattr(self, 'bootstrap_config') or self.bootstrap_config is None:
+            self.bootstrap_config = BootstrapConfig()
+        elif not isinstance(self.bootstrap_config, BootstrapConfig):
+            # Convert if it's not already a BootstrapConfig
+            self.bootstrap_config = BootstrapConfig()
         self._bootstrap_result: BootstrapResult | None = None
 
     @abc.abstractmethod
@@ -271,14 +300,17 @@ class BootstrapMixin(abc.ABC):
         Raises:
             ValueError: If required data is missing
         """
-        if not hasattr(self, "treatment_data") or self.treatment_data is None:
+        treatment_data = getattr(self, "treatment_data", None)
+        outcome_data = getattr(self, "outcome_data", None)
+        
+        if treatment_data is None:
             raise ValueError("Treatment data required for bootstrap")
-        if not hasattr(self, "outcome_data") or self.outcome_data is None:
+        if outcome_data is None:
             raise ValueError("Outcome data required for bootstrap")
 
         return (
-            self.treatment_data,
-            self.outcome_data,
+            treatment_data,
+            outcome_data,
             getattr(self, "covariate_data", None),
         )
 
@@ -301,13 +333,16 @@ class BootstrapMixin(abc.ABC):
             treatment_values = treatment_data.values
 
         # Get unique treatment values
-        unique_treatments = np.unique(treatment_values)
+        if isinstance(treatment_values, pd.Series):
+            unique_treatments = treatment_values.unique()
+        else:
+            unique_treatments = np.unique(np.asarray(treatment_values))
 
         if len(unique_treatments) < 2:
             # No stratification needed
             return random_state.choice(n_samples, size=n_samples, replace=True)
 
-        bootstrap_indices = []
+        bootstrap_indices: list[int] = []
 
         for treatment_val in unique_treatments:
             # Find indices for this treatment group
@@ -324,10 +359,10 @@ class BootstrapMixin(abc.ABC):
             bootstrap_indices.extend(sampled_indices)
 
         # Shuffle the combined indices
-        bootstrap_indices = np.array(bootstrap_indices)
-        random_state.shuffle(bootstrap_indices)
+        bootstrap_indices_array = np.array(bootstrap_indices)
+        random_state.shuffle(bootstrap_indices_array)
 
-        return bootstrap_indices
+        return bootstrap_indices_array
 
     def _single_bootstrap_sample(
         self, sample_idx: int, base_random_state: int | None = None
@@ -366,6 +401,7 @@ class BootstrapMixin(abc.ABC):
             bootstrap_indices = random_state.choice(n_obs, size=n_obs, replace=True)
 
         # Create bootstrap datasets
+        # Runtime import to avoid circular dependency
         from ..core.base import CovariateData, OutcomeData, TreatmentData
 
         boot_treatment = TreatmentData(
@@ -406,8 +442,15 @@ class BootstrapMixin(abc.ABC):
             boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)
             boot_effect = boot_estimator.estimate_ate()
             return boot_effect.ate
+        except (ValueError, np.linalg.LinAlgError) as e:
+            # Common statistical/numerical errors
+            raise RuntimeError(f"Bootstrap sample {sample_idx} failed due to numerical issue: {str(e)}") from e
+        except (AttributeError, TypeError) as e:
+            # Data structure or API errors
+            raise RuntimeError(f"Bootstrap sample {sample_idx} failed due to data/API issue: {str(e)}") from e
         except Exception as e:
-            raise RuntimeError(f"Bootstrap sample {sample_idx} failed: {str(e)}") from e
+            # Catch-all for unexpected errors
+            raise RuntimeError(f"Bootstrap sample {sample_idx} failed with unexpected error: {str(e)}") from e
 
     def _parallel_bootstrap(self) -> list[float]:
         """Run bootstrap samples in parallel.
@@ -427,18 +470,16 @@ class BootstrapMixin(abc.ABC):
                 self.bootstrap_config.n_jobs, self.bootstrap_config.n_samples
             )
 
-        with ProcessPoolExecutor(max_workers=n_workers) as executor:
-            # Submit chunks of work
-            futures = []
-            for chunk_start in range(
-                0, self.bootstrap_config.n_samples, self.bootstrap_config.chunk_size
-            ):
-                chunk_end = min(
-                    chunk_start + self.bootstrap_config.chunk_size,
-                    self.bootstrap_config.n_samples,
-                )
+        # Process futures in batches to avoid memory issues with large n_samples
+        batch_size = max(n_workers * 2, 100)  # Process in batches
 
-                for sample_idx in range(chunk_start, chunk_end):
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            for batch_start in range(0, self.bootstrap_config.n_samples, batch_size):
+                batch_end = min(batch_start + batch_size, self.bootstrap_config.n_samples)
+
+                # Submit batch of futures
+                futures = []
+                for sample_idx in range(batch_start, batch_end):
                     future = executor.submit(
                         self._single_bootstrap_sample,
                         sample_idx,
@@ -446,15 +487,15 @@ class BootstrapMixin(abc.ABC):
                     )
                     futures.append(future)
 
-            # Collect results
-            for future in as_completed(futures):
-                try:
-                    estimate = future.result()
-                    bootstrap_estimates.append(estimate)
-                except Exception as e:
-                    if hasattr(self, "verbose") and getattr(self, "verbose", False):
-                        warnings.warn(f"Bootstrap sample failed: {str(e)}")
-                    continue
+                # Collect results from this batch
+                for future in as_completed(futures):
+                    try:
+                        estimate = future.result()
+                        bootstrap_estimates.append(estimate)
+                    except Exception as e:
+                        if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                            warnings.warn(f"Bootstrap sample failed: {str(e)}")
+                        continue
 
         return bootstrap_estimates
 
@@ -478,8 +519,8 @@ class BootstrapMixin(abc.ABC):
                     self.bootstrap_config.convergence_check
                     and len(bootstrap_estimates)
                     >= self.bootstrap_config.min_convergence_samples
-                    and len(bootstrap_estimates) % 50 == 0
-                ):  # Check every 50 samples
+                    and len(bootstrap_estimates) % self.bootstrap_config.convergence_check_interval == 0
+                ):
                     if self._check_convergence(bootstrap_estimates):
                         if hasattr(self, "verbose") and getattr(self, "verbose", False):
                             print(
@@ -525,7 +566,7 @@ class BootstrapMixin(abc.ABC):
             return recent_se == 0
 
         relative_change = abs(recent_se - older_se) / older_se
-        return relative_change < self.bootstrap_config.convergence_tolerance
+        return bool(relative_change < self.bootstrap_config.convergence_tolerance)
 
     def _compute_percentile_ci(
         self, bootstrap_estimates: NDArray[Any], confidence_level: float
@@ -667,13 +708,13 @@ class BootstrapMixin(abc.ABC):
         n_obs = len(treatment_data.values)
 
         # For large datasets, use a subsample for acceleration
-        if n_obs > 1000:
+        if n_obs > self.bootstrap_config.jackknife_subsample_threshold:
             subsample_size = min(200, n_obs // 5)
             indices = np.random.choice(n_obs, size=subsample_size, replace=False)
         else:
             indices = np.arange(n_obs)
 
-        jackknife_estimates = []
+        jackknife_estimates: list[float] = []
 
         for i in indices:
             # Create leave-one-out datasets
@@ -681,6 +722,7 @@ class BootstrapMixin(abc.ABC):
             mask[i] = False
 
             try:
+                # Runtime import to avoid circular dependency
                 from ..core.base import CovariateData, OutcomeData, TreatmentData
 
                 jack_treatment = TreatmentData(
@@ -721,15 +763,15 @@ class BootstrapMixin(abc.ABC):
             except Exception:
                 continue
 
-        if len(jackknife_estimates) < 10:
+        if len(jackknife_estimates) < self.bootstrap_config.min_jackknife_samples:
             return 0.0  # Not enough jackknife samples
 
-        jackknife_estimates = np.array(jackknife_estimates)
-        jack_mean = np.mean(jackknife_estimates)
+        jackknife_estimates_array = np.array(jackknife_estimates)
+        jack_mean = np.mean(jackknife_estimates_array)
 
         # Acceleration formula
-        numerator = np.sum((jack_mean - jackknife_estimates) ** 3)
-        denominator = 6 * (np.sum((jack_mean - jackknife_estimates) ** 2) ** 1.5)
+        numerator = np.sum((jack_mean - jackknife_estimates_array) ** 3)
+        denominator = 6 * (np.sum((jack_mean - jackknife_estimates_array) ** 2) ** 1.5)
 
         if abs(denominator) < 1e-10:
             return 0.0

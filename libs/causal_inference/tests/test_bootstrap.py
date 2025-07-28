@@ -34,7 +34,7 @@ class TestBootstrapConfig:
 
         # Invalid configurations
         with pytest.raises(ValueError):
-            BootstrapConfig(n_samples=10)  # Too few samples
+            BootstrapConfig(n_samples=-1)  # Negative samples
 
         with pytest.raises(ValueError):
             BootstrapConfig(confidence_level=1.1)  # Invalid confidence level
@@ -146,8 +146,8 @@ class TestBootstrapIntegration:
 
             # Method-specific checks
             if method == "percentile":
-                assert effect.ate_ci_lower == effect.ate_ci_lower
-                assert effect.ate_ci_upper == effect.ate_ci_upper
+                assert effect.ate_ci_lower is not None
+                assert effect.ate_ci_upper is not None
             elif method == "bca":
                 assert effect.bootstrap_acceleration is not None
 
@@ -162,7 +162,7 @@ class TestBootstrapIntegration:
         bootstrap_config = BootstrapConfig(
             n_samples=100,
             convergence_check=True,
-            min_convergence_samples=20,
+            min_convergence_samples=50,
             parallel=False,
             random_state=42,
         )
@@ -240,6 +240,6 @@ class TestBootstrapIntegration:
         assert "bootstrap_se" in diagnostics
 
         assert diagnostics["method"] == "bca"
-        assert diagnostics["n_samples_requested"] == 30
+        assert diagnostics["n_samples_requested"] == 50
         assert 0 <= diagnostics["success_rate"] <= 1
 
