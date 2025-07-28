@@ -114,7 +114,9 @@ class TestGEstimationEstimator:
         with pytest.raises(ValueError, match="parameter_range must be a tuple"):
             GEstimationEstimator(parameter_range=(-5, 5, 0))
 
-        with pytest.raises(ValueError, match="parameter_range min must be less than max"):
+        with pytest.raises(
+            ValueError, match="parameter_range min must be less than max"
+        ):
             GEstimationEstimator(parameter_range=(5.0, -5.0))
 
     def test_fit_basic_linear_model(self):
@@ -149,7 +151,9 @@ class TestGEstimationEstimator:
         """Test that non-binary treatment raises error."""
         # Create categorical treatment
         categorical_treatment = TreatmentData(
-            values=pd.Series(np.random.choice([0, 1, 2], size=len(self.treatment_binary))),
+            values=pd.Series(
+                np.random.choice([0, 1, 2], size=len(self.treatment_binary))
+            ),
             treatment_type="categorical",
             categories=[0, 1, 2],
         )
@@ -300,7 +304,10 @@ class TestGEstimationEstimator:
         """Test using random forest for treatment model."""
         estimator = GEstimationEstimator(
             treatment_model="random_forest",
-            treatment_model_params={"n_estimators": 10, "max_depth": 3},  # Small for speed
+            treatment_model_params={
+                "n_estimators": 10,
+                "max_depth": 3,
+            },  # Small for speed
             optimization_method="grid_search",
             parameter_range=(-4.0, 6.0),
             n_grid_points=50,
@@ -441,7 +448,9 @@ class TestGEstimationEstimator:
 
         # G-estimation should be closer to true ATE than misspecified G-computation
         g_est_error = abs(g_est_effect.ate - self.true_ate)
-        _g_comp_error = abs(g_comp_effect.ate - self.true_ate)  # Keep for potential future use
+        _g_comp_error = abs(
+            g_comp_effect.ate - self.true_ate
+        )  # Keep for potential future use
 
         # This is a probabilistic test, so we use lenient bounds
         assert g_est_error < 1.5  # G-estimation should be reasonable
@@ -579,7 +588,9 @@ class TestGEstimationEstimatorIntegration:
         effect = estimator.estimate_ate()
 
         recovery_error = abs(effect.ate - self.true_ate) / self.true_ate
-        assert recovery_error < 0.20  # 20% error tolerance (more lenient than 5% for synthetic data)
+        assert (
+            recovery_error < 0.20
+        )  # 20% error tolerance (more lenient than 5% for synthetic data)
 
         # Test optimization convergence
         opt_results = estimator.get_optimization_results()

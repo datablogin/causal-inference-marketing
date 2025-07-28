@@ -183,7 +183,9 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             covariates: Covariate data for propensity modeling
         """
         if covariates is None:
-            raise EstimationError("G-estimation requires covariates for propensity modeling")
+            raise EstimationError(
+                "G-estimation requires covariates for propensity modeling"
+            )
 
         # Prepare features
         if isinstance(covariates.values, pd.DataFrame):
@@ -202,15 +204,25 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         self.propensity_model.fit(X, y)
 
         # Estimate propensity scores
-        self.propensity_scores = self.propensity_model.predict_proba(X)[:, 1]
+        raw_scores = self.propensity_model.predict_proba(X)[:, 1]
+
+        # Apply propensity score trimming for numerical stability
+        self.propensity_scores = np.clip(raw_scores, 0.01, 0.99)
 
         if self.verbose:
             # Calculate model fit metrics
             from sklearn.metrics import roc_auc_score
 
             try:
-                auc = roc_auc_score(y, self.propensity_scores)
+                auc = roc_auc_score(y, raw_scores)
                 print(f"Propensity model AUC: {auc:.4f}")
+                # Report trimming statistics
+                n_trimmed_low = np.sum(raw_scores < 0.01)
+                n_trimmed_high = np.sum(raw_scores > 0.99)
+                if n_trimmed_low > 0 or n_trimmed_high > 0:
+                    print(
+                        f"Trimmed {n_trimmed_low} low scores and {n_trimmed_high} high scores"
+                    )
             except ValueError:
                 print("Could not calculate AUC (possibly no treatment variation)")
 
@@ -229,9 +241,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             Design matrix for structural model
         """
         # Start with treatment
-        design_matrix = pd.DataFrame({
-            "treatment": np.asarray(treatment.values)
-        })
+        design_matrix = pd.DataFrame({"treatment": np.asarray(treatment.values)})
 
         # Add interactions if specified
         if self.covariates_for_interaction and covariates is not None:
@@ -300,8 +310,15 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         elif self.structural_model == "multiplicative":
             # Multiplicative SNMM: H = Y / (1 + psi * A)
             multiplier = 1.0 + parameters.get("main_effect", 0.0) * treatment
-            # Avoid division by zero
-            multiplier = np.maximum(multiplier, 1e-10)
+            # Protect against division by zero and negative multipliers
+            # For negative multipliers, use absolute value with minimum threshold
+            multiplier = np.where(
+                multiplier > 0,
+                np.maximum(multiplier, 1e-10),  # Positive case
+                np.maximum(
+                    np.abs(multiplier), 1e-10
+                ),  # Negative case (use absolute value)
+            )
             return outcome / multiplier
 
         elif self.structural_model == "general":
@@ -337,14 +354,20 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             Objective function value (should be minimized to zero)
         """
-        # Convert parameters to dictionary
-        if len(params) == 1:
-            parameters = {"main_effect": params[0]}
-        else:
-            parameters = {"main_effect": params[0]}
-            for i, cov_name in enumerate(self.covariates_for_interaction):
-                if i + 1 < len(params):
-                    parameters[f"{cov_name}_interaction"] = params[i + 1]
+        # Convert parameters to dictionary with bounds checking
+        if len(params) == 0:
+            raise ValueError("No parameters provided to objective function")
+
+        parameters = {"main_effect": params[0]}
+
+        # Add interaction parameters safely
+        n_interactions = len(self.covariates_for_interaction)
+        if n_interactions > 0 and len(params) > 1:
+            # Only use as many interaction parameters as we have covariates and parameters
+            n_params_to_use = min(n_interactions, len(params) - 1)
+            for i in range(n_params_to_use):
+                cov_name = self.covariates_for_interaction[i]
+                parameters[f"{cov_name}_interaction"] = params[i + 1]
 
         # Apply structural model
         adjusted_outcome = self._apply_structural_model(
@@ -359,17 +382,36 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         if np.sum(treated_mask) == 0 or np.sum(control_mask) == 0:
             return float("inf")
 
-        # IPW-weighted means
-        treated_weights = 1.0 / propensity_scores[treated_mask]
-        control_weights = 1.0 / (1.0 - propensity_scores[control_mask])
+        # IPW-weighted means with bounds checking for extreme propensity scores
+        treated_ps = propensity_scores[treated_mask]
+        control_ps = propensity_scores[control_mask]
+
+        # Check for extreme propensity scores and handle infinite weights
+        treated_weights = 1.0 / treated_ps
+        control_weights = 1.0 / (1.0 - control_ps)
+
+        # Cap weights to prevent infinite values from affecting computation
+        max_weight = 100.0  # Reasonable upper bound
+        treated_weights = np.minimum(treated_weights, max_weight)
+        control_weights = np.minimum(control_weights, max_weight)
+
+        # Check for any remaining infinite or NaN weights
+        if not np.all(np.isfinite(treated_weights)) or not np.all(
+            np.isfinite(control_weights)
+        ):
+            return float("inf")
 
         # Normalize weights
         treated_weights = treated_weights / np.sum(treated_weights)
         control_weights = control_weights / np.sum(control_weights)
 
         # Weighted means of adjusted outcomes
-        treated_mean = np.average(adjusted_outcome[treated_mask], weights=treated_weights)
-        control_mean = np.average(adjusted_outcome[control_mask], weights=control_weights)
+        treated_mean = np.average(
+            adjusted_outcome[treated_mask], weights=treated_weights
+        )
+        control_mean = np.average(
+            adjusted_outcome[control_mask], weights=control_weights
+        )
 
         # Test statistic is the difference in means
         test_statistic = treated_mean - control_mean
@@ -444,9 +486,10 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             obj_val = self._objective_function(
                 np.array([param]), outcome, treatment, propensity_scores, covariates
             )
-            # For root finding, we want the square root of the objective
-            # (since objective is squared difference)
-            return np.sqrt(obj_val)
+            # The objective function already returns squared difference,
+            # so for root finding we want the difference itself (not square root)
+            # Take square root to get the actual difference for root finding
+            return np.sqrt(obj_val) if obj_val >= 0 else -np.sqrt(-obj_val)
 
         try:
             min_param, max_param = self.parameter_range
@@ -538,7 +581,9 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
 
         except Exception as e:
             if self.verbose:
-                print(f"Gradient optimization failed: {e}. Falling back to grid search.")
+                print(
+                    f"Gradient optimization failed: {e}. Falling back to grid search."
+                )
             return self._grid_search_optimization(
                 outcome, treatment, propensity_scores, covariates
             )
@@ -597,9 +642,15 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
                 }
 
             if self.verbose:
-                print(f"G-estimation converged: {self.optimization_result['converged']}")
-                print(f"Best parameter: {self.optimization_result['best_parameter']:.4f}")
-                print(f"Objective value: {self.optimization_result['objective_value']:.8f}")
+                print(
+                    f"G-estimation converged: {self.optimization_result['converged']}"
+                )
+                print(
+                    f"Best parameter: {self.optimization_result['best_parameter']:.4f}"
+                )
+                print(
+                    f"Objective value: {self.optimization_result['objective_value']:.8f}"
+                )
         else:
             raise EstimationError("G-estimation optimization failed to converge")
 
@@ -694,7 +745,9 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             if self.bootstrap_config
             else 0.95,
             method="G-estimation",
-            n_observations=len(self.treatment_data.values) if self.treatment_data else 0,
+            n_observations=len(self.treatment_data.values)
+            if self.treatment_data
+            else 0,
             n_treated=n_treated,
             n_control=n_control,
             bootstrap_samples=self.bootstrap_config.n_samples
@@ -768,7 +821,10 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         treatment_values = np.asarray(self.treatment_data.values)
 
         adjusted_outcomes = self._apply_structural_model(
-            outcome_values, treatment_values, self.estimated_parameters, self.covariate_data
+            outcome_values,
+            treatment_values,
+            self.estimated_parameters,
+            self.covariate_data,
         )
 
         # Test statistic: correlation between original and adjusted outcomes
@@ -806,7 +862,10 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
 
             # Apply structural model
             boot_adjusted = self._apply_structural_model(
-                boot_outcome, boot_treatment, self.estimated_parameters, self.covariate_data
+                boot_outcome,
+                boot_treatment,
+                self.estimated_parameters,
+                self.covariate_data,
             )
 
             # Calculate correlations
@@ -899,7 +958,9 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
                     from .g_computation import GComputationEstimator
 
                     g_comp_estimator = GComputationEstimator(
-                        bootstrap_samples=0, random_state=self.random_state, verbose=False
+                        bootstrap_samples=0,
+                        random_state=self.random_state,
+                        verbose=False,
                     )
                     g_comp_estimator.fit(treatment, outcome, covariates)
                     effect = g_comp_estimator.estimate_ate()
@@ -907,7 +968,9 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
                     from .ipw import IPWEstimator
 
                     ipw_estimator = IPWEstimator(
-                        bootstrap_samples=0, random_state=self.random_state, verbose=False
+                        bootstrap_samples=0,
+                        random_state=self.random_state,
+                        verbose=False,
                     )
                     ipw_estimator.fit(treatment, outcome, covariates)
                     effect = ipw_estimator.estimate_ate()
@@ -915,7 +978,9 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
                     from .aipw import AIPWEstimator
 
                     aipw_estimator = AIPWEstimator(
-                        bootstrap_samples=0, random_state=self.random_state, verbose=False
+                        bootstrap_samples=0,
+                        random_state=self.random_state,
+                        verbose=False,
                     )
                     aipw_estimator.fit(treatment, outcome, covariates)
                     effect = aipw_estimator.estimate_ate()
