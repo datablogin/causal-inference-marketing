@@ -115,6 +115,45 @@ class CovariateData(BaseModel):
         return v
 
 
+class InstrumentData(BaseModel):
+    """Data model for instrumental variables.
+
+    Represents instrumental variables used in instrumental variable estimation
+    for addressing unmeasured confounding.
+    """
+
+    values: pd.Series | NDArray[Any] = Field(..., description="Instrument values")
+    name: str = Field(
+        default="instrument", description="Name of the instrument variable"
+    )
+    instrument_type: str = Field(
+        default="continuous",
+        description="Type of instrument: 'binary', 'categorical', or 'continuous'",
+    )
+    categories: list[str | int | float] | None = Field(
+        default=None, description="For categorical instruments, the possible categories"
+    )
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @field_validator("instrument_type")
+    @classmethod
+    def validate_instrument_type(cls, v: str) -> str:
+        """Validate instrument type is one of allowed values."""
+        allowed_types = {"binary", "categorical", "continuous"}
+        if v not in allowed_types:
+            raise ValueError(f"instrument_type must be one of {allowed_types}")
+        return v
+
+    @field_validator("values")
+    @classmethod
+    def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+        """Validate instrument values are not empty."""
+        if len(v) == 0:
+            raise ValueError("Instrument values cannot be empty")
+        return v
+
+
 @dataclass
 class CausalEffect:
     """Data class representing the result of a causal inference analysis.
