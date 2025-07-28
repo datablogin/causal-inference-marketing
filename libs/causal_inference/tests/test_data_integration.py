@@ -258,7 +258,9 @@ class TestDataUtilitiesIntegration:
         )
 
         # Should handle larger datasets without issues
-        assert len(processed_treatment.values) == 300  # Updated to match optimized sample size
+        assert (
+            len(processed_treatment.values) == 300
+        )  # Updated to match optimized sample size
         assert len(validator.errors) == 0
 
         # Performance check - validation should complete quickly
