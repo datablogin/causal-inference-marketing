@@ -267,7 +267,7 @@ class BootstrapMixin(abc.ABC):
         # BootstrapMixin ensures a proper BootstrapConfig is available
         if bootstrap_config is not None:
             self.bootstrap_config = bootstrap_config
-        elif not hasattr(self, 'bootstrap_config') or self.bootstrap_config is None:
+        elif not hasattr(self, "bootstrap_config") or self.bootstrap_config is None:
             self.bootstrap_config = BootstrapConfig()
         elif not isinstance(self.bootstrap_config, BootstrapConfig):
             # Convert if it's not already a BootstrapConfig
@@ -302,7 +302,7 @@ class BootstrapMixin(abc.ABC):
         """
         treatment_data = getattr(self, "treatment_data", None)
         outcome_data = getattr(self, "outcome_data", None)
-        
+
         if treatment_data is None:
             raise ValueError("Treatment data required for bootstrap")
         if outcome_data is None:
@@ -444,13 +444,19 @@ class BootstrapMixin(abc.ABC):
             return boot_effect.ate
         except (ValueError, np.linalg.LinAlgError) as e:
             # Common statistical/numerical errors
-            raise RuntimeError(f"Bootstrap sample {sample_idx} failed due to numerical issue: {str(e)}") from e
+            raise RuntimeError(
+                f"Bootstrap sample {sample_idx} failed due to numerical issue: {str(e)}"
+            ) from e
         except (AttributeError, TypeError) as e:
             # Data structure or API errors
-            raise RuntimeError(f"Bootstrap sample {sample_idx} failed due to data/API issue: {str(e)}") from e
+            raise RuntimeError(
+                f"Bootstrap sample {sample_idx} failed due to data/API issue: {str(e)}"
+            ) from e
         except Exception as e:
             # Catch-all for unexpected errors
-            raise RuntimeError(f"Bootstrap sample {sample_idx} failed with unexpected error: {str(e)}") from e
+            raise RuntimeError(
+                f"Bootstrap sample {sample_idx} failed with unexpected error: {str(e)}"
+            ) from e
 
     def _parallel_bootstrap(self) -> list[float]:
         """Run bootstrap samples in parallel.
@@ -475,7 +481,9 @@ class BootstrapMixin(abc.ABC):
 
         with ProcessPoolExecutor(max_workers=n_workers) as executor:
             for batch_start in range(0, self.bootstrap_config.n_samples, batch_size):
-                batch_end = min(batch_start + batch_size, self.bootstrap_config.n_samples)
+                batch_end = min(
+                    batch_start + batch_size, self.bootstrap_config.n_samples
+                )
 
                 # Submit batch of futures
                 futures = []
@@ -519,7 +527,9 @@ class BootstrapMixin(abc.ABC):
                     self.bootstrap_config.convergence_check
                     and len(bootstrap_estimates)
                     >= self.bootstrap_config.min_convergence_samples
-                    and len(bootstrap_estimates) % self.bootstrap_config.convergence_check_interval == 0
+                    and len(bootstrap_estimates)
+                    % self.bootstrap_config.convergence_check_interval
+                    == 0
                 ):
                     if self._check_convergence(bootstrap_estimates):
                         if hasattr(self, "verbose") and getattr(self, "verbose", False):
@@ -928,4 +938,3 @@ class BootstrapMixin(abc.ABC):
             diagnostics["acceleration_estimate"] = result.acceleration_estimate
 
         return diagnostics
-

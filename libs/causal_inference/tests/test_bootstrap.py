@@ -242,4 +242,3 @@ class TestBootstrapIntegration:
         assert diagnostics["method"] == "bca"
         assert diagnostics["n_samples_requested"] == 50
         assert 0 <= diagnostics["success_rate"] <= 1
-

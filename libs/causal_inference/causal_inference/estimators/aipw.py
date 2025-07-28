@@ -250,7 +250,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
     def _create_bootstrap_estimator(
         self, random_state: int | None = None
-    ) -> "AIPWEstimator":
+    ) -> AIPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
         Args:
