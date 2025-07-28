@@ -4,23 +4,13 @@ This module contains comprehensive tests for causal survival analysis methods
 including G-computation, IPW, and AIPW for time-to-event outcomes.
 """
 
+import importlib.util
+
 import numpy as np
 import pandas as pd
 import pytest
 from numpy.testing import assert_array_equal
 from pytest import approx
-
-# Check if lifelines is available
-try:
-    import lifelines
-    LIFELINES_AVAILABLE = True
-except ImportError:
-    LIFELINES_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    not LIFELINES_AVAILABLE,
-    reason="lifelines library not available - install with 'pip install lifelines'"
-)
 
 from causal_inference.core.base import (
     CovariateData,
@@ -32,6 +22,14 @@ from causal_inference.estimators.survival_g_computation import (
     SurvivalGComputationEstimator,
 )
 from causal_inference.estimators.survival_ipw import SurvivalIPWEstimator
+
+# Check if lifelines is available using importlib
+LIFELINES_AVAILABLE = importlib.util.find_spec("lifelines") is not None
+
+pytestmark = pytest.mark.skipif(
+    not LIFELINES_AVAILABLE,
+    reason="lifelines library not available - install with 'pip install lifelines'"
+)
 
 
 class TestSurvivalOutcomeData:
