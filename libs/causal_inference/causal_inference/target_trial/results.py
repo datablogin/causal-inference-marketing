@@ -309,7 +309,9 @@ class TargetTrialResults:
         difference = comparison["difference"]
         if difference is not None:
             if abs(difference) < 0.1:
-                comparison["interpretation"] = "ITT and per-protocol effects are similar"
+                comparison["interpretation"] = (
+                    "ITT and per-protocol effects are similar"
+                )
             elif difference > 0:
                 comparison["interpretation"] = (
                     "Per-protocol effect is larger than ITT effect"

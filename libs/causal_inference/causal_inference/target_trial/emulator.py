@@ -192,7 +192,7 @@ class TargetTrialEmulator:
         data: pd.DataFrame,
         treatment_col: str,
         outcome_col: str,
-        covariate_cols: list[str]
+        covariate_cols: list[str],
     ) -> pd.DataFrame:
         """Handle missing data systematically for target trial emulation.
 
@@ -239,7 +239,7 @@ class TargetTrialEmulator:
                     working_data[f"{col}_missing"] = missing_mask
 
                     # Impute missing values
-                    if working_data[col].dtype in ['int64', 'float64']:
+                    if working_data[col].dtype in ["int64", "float64"]:
                         # Mean imputation for numeric
                         fill_value = working_data[col].mean()
                         working_data[col] = working_data[col].fillna(fill_value)
@@ -247,14 +247,20 @@ class TargetTrialEmulator:
                         # Mode imputation for categorical
                         mode_series = working_data[col].mode()
                         if len(mode_series) > 0:
-                            working_data[col] = working_data[col].fillna(mode_series.iloc[0])
+                            working_data[col] = working_data[col].fillna(
+                                mode_series.iloc[0]
+                            )
                         else:
                             working_data[col] = working_data[col].fillna("missing")
 
         # Strategy 3: Quality checks
         if len(working_data) < len(data) * 0.5:
-            print(f"Warning: Missing data handling removed {len(data) - len(working_data):,} participants")
-            print("Consider more sophisticated missing data methods if this is substantial")
+            print(
+                f"Warning: Missing data handling removed {len(data) - len(working_data):,} participants"
+            )
+            print(
+                "Consider more sophisticated missing data methods if this is substantial"
+            )
 
         return working_data
 
@@ -280,12 +286,15 @@ class TargetTrialEmulator:
             strategy_data["clone_id"] = strategy_data.index
 
             # Apply strategy-specific treatment assignment
-            strategy_data["counterfactual_treatment"] = strategy.get_assigned_treatment_value(treatment_col)
+            strategy_data["counterfactual_treatment"] = (
+                strategy.get_assigned_treatment_value(treatment_col)
+            )
 
             # Mark whether this matches observed treatment (for adherence assessment)
             if treatment_col in strategy_data.columns:
                 strategy_data["matches_observed"] = (
-                    strategy_data[treatment_col] == strategy_data["counterfactual_treatment"]
+                    strategy_data[treatment_col]
+                    == strategy_data["counterfactual_treatment"]
                 )
             else:
                 strategy_data["matches_observed"] = True
@@ -297,7 +306,9 @@ class TargetTrialEmulator:
 
         # Add unique participant-strategy identifier
         emulated_data["participant_strategy_id"] = (
-            emulated_data["clone_id"].astype(str) + "_" + emulated_data["assigned_strategy"]
+            emulated_data["clone_id"].astype(str)
+            + "_"
+            + emulated_data["assigned_strategy"]
         )
 
         # Store cloned data for reference
@@ -307,7 +318,9 @@ class TargetTrialEmulator:
             n_original = len(data)
             n_strategies = len(self.protocol.treatment_strategies)
             n_cloned = len(emulated_data)
-            print(f"Cloned {n_original:,} participants across {n_strategies} strategies = {n_cloned:,} total observations")
+            print(
+                f"Cloned {n_original:,} participants across {n_strategies} strategies = {n_cloned:,} total observations"
+            )
 
         return emulated_data
 
@@ -390,14 +403,18 @@ class TargetTrialEmulator:
                 if len(strategy_indices) > 0:
                     np.random.seed(42)  # For reproducibility
                     adherent_indices = np.random.choice(
-                        strategy_indices, size=min(n_adherent, len(strategy_indices)), replace=False
+                        strategy_indices,
+                        size=min(n_adherent, len(strategy_indices)),
+                        replace=False,
                     )
                     adherence.loc[strategy_mask] = False
                     adherence.loc[adherent_indices] = True
 
         return adherence
 
-    def _apply_grace_period_logic(self, data: pd.DataFrame, treatment_col: str) -> pd.Series:
+    def _apply_grace_period_logic(
+        self, data: pd.DataFrame, treatment_col: str
+    ) -> pd.Series:
         """Apply grace period logic for treatment initiation.
 
         Args:
@@ -432,7 +449,9 @@ class TargetTrialEmulator:
                 if len(strategy_indices) > 0:
                     np.random.seed(43)  # Different seed for grace period
                     compliant_indices = np.random.choice(
-                        strategy_indices, size=min(n_compliant, len(strategy_indices)), replace=False
+                        strategy_indices,
+                        size=min(n_compliant, len(strategy_indices)),
+                        replace=False,
                     )
                     within_grace.loc[strategy_mask] = False
                     within_grace.loc[compliant_indices] = True
@@ -469,7 +488,9 @@ class TargetTrialEmulator:
                 if len(strategy_indices) > 0:
                     np.random.seed(44)  # Different seed for censoring
                     censored_indices = np.random.choice(
-                        strategy_indices, size=min(n_censored, len(strategy_indices)), replace=False
+                        strategy_indices,
+                        size=min(n_censored, len(strategy_indices)),
+                        replace=False,
                     )
                     censored.loc[censored_indices] = True
 
@@ -523,7 +544,9 @@ class TargetTrialEmulator:
             pp_eligible_data = data[data["adherent"]].copy()
 
         if len(pp_eligible_data) == 0:
-            raise ValueError("No participants eligible for per-protocol analysis after applying adherence and censoring criteria")
+            raise ValueError(
+                "No participants eligible for per-protocol analysis after applying adherence and censoring criteria"
+            )
 
         return self._estimate_causal_effect(
             pp_eligible_data, treatment_col, outcome_col, covariate_cols, "pp"
@@ -553,13 +576,13 @@ class TargetTrialEmulator:
         treatment_data = TreatmentData(
             values=data[treatment_col],
             name=treatment_col,
-            treatment_type=self._infer_treatment_type(data[treatment_col])
+            treatment_type=self._infer_treatment_type(data[treatment_col]),
         )
 
         outcome_data = OutcomeData(
             values=data[outcome_col],
             name=outcome_col,
-            outcome_type=self._infer_outcome_type(data[outcome_col])
+            outcome_type=self._infer_outcome_type(data[outcome_col]),
         )
 
         covariate_data = CovariateData(
@@ -606,9 +629,11 @@ class TargetTrialEmulator:
 
         if n_unique == 2:
             return "binary"
-        elif n_unique <= 10 and all(isinstance(x, int | float) and x == int(x) for x in unique_values):
+        elif n_unique <= 10 and all(
+            isinstance(x, int | float) and x == int(x) for x in unique_values
+        ):
             return "categorical"
-        elif treatment_series.dtype in ['int64', 'float64']:
+        elif treatment_series.dtype in ["int64", "float64"]:
             return "continuous"
         else:
             return "categorical"
@@ -622,17 +647,17 @@ class TargetTrialEmulator:
         Returns:
             Inferred outcome type
         """
-        if outcome_series.dtype == 'bool':
+        if outcome_series.dtype == "bool":
             return "binary"
         elif len(outcome_series.dropna().unique()) == 2:
             return "binary"
-        elif outcome_series.dtype in ['int64'] and (outcome_series >= 0).all():
+        elif outcome_series.dtype in ["int64"] and (outcome_series >= 0).all():
             # Could be count data
             if outcome_series.max() < 50:  # Arbitrary threshold for count vs continuous
                 return "count"
             else:
                 return "continuous"
-        elif outcome_series.dtype in ['int64', 'float64']:
+        elif outcome_series.dtype in ["int64", "float64"]:
             return "continuous"
         else:
             return "continuous"  # Default fallback
@@ -705,8 +730,12 @@ class TargetTrialEmulator:
             subjects_treated_in_grace = int(analysis_data["within_grace_period"].sum())
 
         # Enhanced balance and overlap diagnostics
-        covariate_balance = self._compute_covariate_balance(analysis_data, treatment_col)
-        propensity_score_overlap = self._compute_propensity_overlap(analysis_data, treatment_col)
+        covariate_balance = self._compute_covariate_balance(
+            analysis_data, treatment_col
+        )
+        propensity_score_overlap = self._compute_propensity_overlap(
+            analysis_data, treatment_col
+        )
 
         return EmulationDiagnostics(
             total_sample_size=total_sample_size,
@@ -724,7 +753,9 @@ class TargetTrialEmulator:
             propensity_score_overlap=propensity_score_overlap,
         )
 
-    def _compute_covariate_balance(self, data: pd.DataFrame, treatment_col: str) -> dict[str, float]:
+    def _compute_covariate_balance(
+        self, data: pd.DataFrame, treatment_col: str
+    ) -> dict[str, float]:
         """Compute covariate balance across treatment strategies.
 
         Args:
@@ -738,8 +769,11 @@ class TargetTrialEmulator:
 
         # Get numeric covariates for balance assessment
         numeric_cols = data.select_dtypes(include=[np.number]).columns
-        covariate_cols = [col for col in numeric_cols
-                         if col not in [treatment_col, 'clone_id', 'participant_strategy_id']]
+        covariate_cols = [
+            col
+            for col in numeric_cols
+            if col not in [treatment_col, "clone_id", "participant_strategy_id"]
+        ]
 
         if len(covariate_cols) == 0:
             return balance_stats
@@ -766,7 +800,9 @@ class TargetTrialEmulator:
 
         return balance_stats
 
-    def _compute_propensity_overlap(self, data: pd.DataFrame, treatment_col: str) -> dict[str, Any]:
+    def _compute_propensity_overlap(
+        self, data: pd.DataFrame, treatment_col: str
+    ) -> dict[str, Any]:
         """Compute propensity score overlap diagnostics.
 
         Args:
@@ -784,16 +820,23 @@ class TargetTrialEmulator:
 
             # Get numeric covariates for propensity modeling
             numeric_cols = data.select_dtypes(include=[np.number]).columns
-            covariate_cols = [col for col in numeric_cols
-                             if col not in [treatment_col, 'clone_id', 'participant_strategy_id']]
+            covariate_cols = [
+                col
+                for col in numeric_cols
+                if col not in [treatment_col, "clone_id", "participant_strategy_id"]
+            ]
 
             if len(covariate_cols) == 0:
-                return {"error": "No covariates available for propensity score modeling"}
+                return {
+                    "error": "No covariates available for propensity score modeling"
+                }
 
             # Prepare data for binary treatment
             treatment_values = data[treatment_col].unique()
             if len(treatment_values) != 2:
-                return {"error": "Propensity score overlap only implemented for binary treatments"}
+                return {
+                    "error": "Propensity score overlap only implemented for binary treatments"
+                }
 
             X = data[covariate_cols].values
             y = (data[treatment_col] == treatment_values[1]).astype(int)
@@ -814,17 +857,30 @@ class TargetTrialEmulator:
             control_ps = propensity_scores[y == 0]
 
             overlap_stats = {
-                "treated_ps_mean": float(treated_ps.mean()) if len(treated_ps) > 0 else 0.0,
-                "control_ps_mean": float(control_ps.mean()) if len(control_ps) > 0 else 0.0,
-                "treated_ps_std": float(treated_ps.std()) if len(treated_ps) > 0 else 0.0,
-                "control_ps_std": float(control_ps.std()) if len(control_ps) > 0 else 0.0,
+                "treated_ps_mean": float(treated_ps.mean())
+                if len(treated_ps) > 0
+                else 0.0,
+                "control_ps_mean": float(control_ps.mean())
+                if len(control_ps) > 0
+                else 0.0,
+                "treated_ps_std": float(treated_ps.std())
+                if len(treated_ps) > 0
+                else 0.0,
+                "control_ps_std": float(control_ps.std())
+                if len(control_ps) > 0
+                else 0.0,
                 "ps_overlap_min": float(propensity_scores.min()),
                 "ps_overlap_max": float(propensity_scores.max()),
-                "extreme_ps_rate": float((propensity_scores < 0.1).sum() + (propensity_scores > 0.9).sum()) / len(propensity_scores)
+                "extreme_ps_rate": float(
+                    (propensity_scores < 0.1).sum() + (propensity_scores > 0.9).sum()
+                )
+                / len(propensity_scores),
             }
 
         except ImportError:
-            overlap_stats = {"error": "sklearn not available for propensity score modeling"}
+            overlap_stats = {
+                "error": "sklearn not available for propensity score modeling"
+            }
         except Exception as e:
             overlap_stats = {"error": f"Propensity score computation failed: {str(e)}"}
 

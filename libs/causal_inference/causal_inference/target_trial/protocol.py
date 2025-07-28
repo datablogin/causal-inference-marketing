@@ -17,9 +17,7 @@ class EligibilityCriteria(BaseModel):
 
     age_min: int | None = Field(None, description="Minimum age for eligibility")
     age_max: int | None = Field(None, description="Maximum age for eligibility")
-    baseline_smoker: bool | None = Field(
-        None, description="Smoking status requirement"
-    )
+    baseline_smoker: bool | None = Field(None, description="Smoking status requirement")
     no_missing_weight: bool | None = Field(
         None, description="Require complete weight data"
     )
