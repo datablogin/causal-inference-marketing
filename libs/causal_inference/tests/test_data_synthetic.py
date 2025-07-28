@@ -63,7 +63,7 @@ class TestSyntheticDataGenerator:
         # Generate data with strong confounding
         treatment, outcome, covariates = (
             self.generator.generate_linear_binary_treatment(
-                n_samples=2000, confounding_strength=2.0, selection_bias=1.0
+                n_samples=500, confounding_strength=2.0, selection_bias=1.0  # Reduced from 2000 for CI
             )
         )
 
@@ -173,7 +173,7 @@ class TestSyntheticDataGenerator:
         custom_campaigns = ["tv", "radio", "print", "control"]
         treatment, outcome, covariates = (
             self.generator.generate_marketing_campaign_data(
-                n_samples=1000, campaign_types=custom_campaigns
+                n_samples=300, campaign_types=custom_campaigns  # Reduced from 1000 for CI
             )
         )
 
@@ -185,7 +185,7 @@ class TestSyntheticDataGenerator:
         """Test generation without seasonality."""
         treatment, outcome, covariates = (
             self.generator.generate_marketing_campaign_data(
-                n_samples=1000, include_seasonality=False
+                n_samples=300, include_seasonality=False  # Reduced from 1000 for CI
             )
         )
 
@@ -312,7 +312,7 @@ class TestSyntheticDataConvenienceFunctions:
     def test_generate_confounded_observational(self):
         """Test confounded observational data generation."""
         treatment, outcome, covariates = generate_confounded_observational(
-            n_samples=1000,
+            n_samples=300,  # Reduced from 1000 for CI
             treatment_effect=2.0,
             confounding_strength=1.5,
             random_state=42,

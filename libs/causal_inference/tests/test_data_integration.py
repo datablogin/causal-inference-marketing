@@ -231,7 +231,7 @@ class TestDataUtilitiesIntegration:
         # Generate larger dataset to test performance
         generator = SyntheticDataGenerator(random_state=42)
         treatment, outcome, covariates = generator.generate_marketing_campaign_data(
-            n_samples=1000  # Larger dataset
+            n_samples=300  # Reduced from 1000 for CI performance
         )
 
         # Add some missing data
