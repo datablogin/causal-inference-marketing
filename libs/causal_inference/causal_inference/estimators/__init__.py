@@ -1,7 +1,8 @@
 """Causal inference estimators module.
 
 This module provides implementations of various causal inference estimators
-including G-computation, IPW, propensity score methods, G-estimation, and doubly robust methods.
+including G-computation, IPW, propensity score methods, G-estimation, doubly robust methods,
+and survival analysis estimators.
 """
 
 from .aipw import AIPWEstimator
@@ -19,3 +20,20 @@ __all__ = [
     "IVEstimator",
     "PropensityScoreEstimator",
 ]
+
+# Optional survival analysis imports
+try:
+    from .survival import SurvivalEstimator
+    from .survival_aipw import SurvivalAIPWEstimator
+    from .survival_g_computation import SurvivalGComputationEstimator
+    from .survival_ipw import SurvivalIPWEstimator
+    
+    __all__.extend([
+        "SurvivalEstimator",
+        "SurvivalAIPWEstimator", 
+        "SurvivalGComputationEstimator",
+        "SurvivalIPWEstimator",
+    ])
+except ImportError:
+    # Survival analysis libraries not available
+    pass
