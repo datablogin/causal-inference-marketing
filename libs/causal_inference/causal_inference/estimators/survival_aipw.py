@@ -11,8 +11,15 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from lifelines import KaplanMeierFitter
-from lifelines.utils import restricted_mean_survival_time
+
+try:
+    from lifelines import KaplanMeierFitter
+    from lifelines.utils import restricted_mean_survival_time
+    LIFELINES_AVAILABLE = True
+except ImportError:
+    KaplanMeierFitter = None
+    restricted_mean_survival_time = None
+    LIFELINES_AVAILABLE = False
 
 from ..core.base import (
     CausalEffect,
@@ -62,6 +69,11 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
         """
+        if not LIFELINES_AVAILABLE:
+            raise ImportError(
+                "lifelines library is required for survival analysis. "
+                "Install with: pip install lifelines"
+            )
         # Initialize both parent classes
         SurvivalGComputationEstimator.__init__(
             self,

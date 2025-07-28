@@ -11,11 +11,19 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from lifelines import KaplanMeierFitter
-from lifelines.statistics import logrank_test
-from lifelines.utils import restricted_mean_survival_time
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+
+try:
+    from lifelines import KaplanMeierFitter
+    from lifelines.statistics import logrank_test
+    from lifelines.utils import restricted_mean_survival_time
+    LIFELINES_AVAILABLE = True
+except ImportError:
+    KaplanMeierFitter = None
+    logrank_test = None
+    restricted_mean_survival_time = None
+    LIFELINES_AVAILABLE = False
 
 from ..core.base import (
     CausalEffect,
@@ -77,6 +85,11 @@ class SurvivalIPWEstimator(SurvivalEstimator):
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
         """
+        if not LIFELINES_AVAILABLE:
+            raise ImportError(
+                "lifelines library is required for survival analysis. "
+                "Install with: pip install lifelines"
+            )
         super().__init__(
             method="ipw",
             survival_model="kaplan_meier",  # IPW uses non-parametric KM

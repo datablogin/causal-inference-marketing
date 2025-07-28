@@ -10,6 +10,18 @@ import pytest
 from numpy.testing import assert_array_equal
 from pytest import approx
 
+# Check if lifelines is available
+try:
+    import lifelines
+    LIFELINES_AVAILABLE = True
+except ImportError:
+    LIFELINES_AVAILABLE = False
+
+pytestmark = pytest.mark.skipif(
+    not LIFELINES_AVAILABLE,
+    reason="lifelines library not available - install with 'pip install lifelines'"
+)
+
 from causal_inference.core.base import (
     CovariateData,
     SurvivalOutcomeData,

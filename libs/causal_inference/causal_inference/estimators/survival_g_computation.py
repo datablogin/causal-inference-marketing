@@ -11,7 +11,15 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from lifelines import CoxPHFitter, ExponentialFitter, WeibullFitter
+
+try:
+    from lifelines import CoxPHFitter, ExponentialFitter, WeibullFitter
+    LIFELINES_AVAILABLE = True
+except ImportError:
+    CoxPHFitter = None
+    ExponentialFitter = None
+    WeibullFitter = None
+    LIFELINES_AVAILABLE = False
 
 from ..core.base import (
     CausalEffect,
@@ -67,6 +75,11 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
         """
+        if not LIFELINES_AVAILABLE:
+            raise ImportError(
+                "lifelines library is required for survival analysis. "
+                "Install with: pip install lifelines"
+            )
         super().__init__(
             method="g_computation",
             survival_model=survival_model,
