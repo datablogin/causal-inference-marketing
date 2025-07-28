@@ -114,7 +114,9 @@ class SurvivalOutcomeData(BaseModel):
     """
 
     times: pd.Series | NDArray[Any] = Field(..., description="Event/censoring times")
-    events: pd.Series | NDArray[Any] = Field(..., description="Event indicators (1=event, 0=censored)")
+    events: pd.Series | NDArray[Any] = Field(
+        ..., description="Event indicators (1=event, 0=censored)"
+    )
     name: str = Field(default="survival", description="Name of the survival outcome")
     outcome_type: str = Field(
         default="time_to_event",
@@ -122,7 +124,7 @@ class SurvivalOutcomeData(BaseModel):
     )
     event_types: pd.Series | NDArray[Any] | None = Field(
         default=None,
-        description="Event type indicators for competing risks (0=censored, 1=event of interest, 2=competing)"
+        description="Event type indicators for competing risks (0=censored, 1=event of interest, 2=competing)",
     )
     time_unit: str = Field(default="days", description="Unit of time measurement")
 
@@ -183,7 +185,9 @@ class SurvivalOutcomeData(BaseModel):
 
             if self.outcome_type == "competing_risks":
                 event_types_array = np.array(self.event_types)
-                unique_types = np.unique(event_types_array[~np.isnan(event_types_array)])
+                unique_types = np.unique(
+                    event_types_array[~np.isnan(event_types_array)]
+                )
                 if not np.all(unique_types >= 0):
                     raise ValueError("Event types must be non-negative integers")
 
@@ -213,13 +217,10 @@ class SurvivalOutcomeData(BaseModel):
         Returns:
             DataFrame with 'T' (times) and 'E' (events) columns
         """
-        df = pd.DataFrame({
-            'T': self.times,
-            'E': self.events
-        })
+        df = pd.DataFrame({"T": self.times, "E": self.events})
 
         if self.event_types is not None:
-            df['event_type'] = self.event_types
+            df["event_type"] = self.event_types
 
         return df
 

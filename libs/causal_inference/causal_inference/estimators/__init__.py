@@ -27,13 +27,15 @@ try:
     from .survival_aipw import SurvivalAIPWEstimator
     from .survival_g_computation import SurvivalGComputationEstimator
     from .survival_ipw import SurvivalIPWEstimator
-    
-    __all__.extend([
-        "SurvivalEstimator",
-        "SurvivalAIPWEstimator", 
-        "SurvivalGComputationEstimator",
-        "SurvivalIPWEstimator",
-    ])
+
+    __all__.extend(
+        [
+            "SurvivalEstimator",
+            "SurvivalAIPWEstimator",
+            "SurvivalGComputationEstimator",
+            "SurvivalIPWEstimator",
+        ]
+    )
 except ImportError:
     # Survival analysis libraries not available
     pass
