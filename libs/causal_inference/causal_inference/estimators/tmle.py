@@ -123,6 +123,11 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self.propensity_scores_: NDArray[Any] | None = None
         self.efficient_influence_function_: NDArray[Any] | None = None
 
+        # Convergence tracking for iterative TMLE
+        self.convergence_history_: list[dict[str, float]] = []
+        self.converged_: bool = False
+        self.n_iterations_: int = 0
+
     def _fit_implementation(
         self,
         treatment: TreatmentData,
@@ -141,6 +146,9 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         if self.cross_fitting:
             # Perform cross-fitting
             self._perform_cross_fitting(X, Y, A)
+            # Perform targeting step after cross-fitting
+            self.propensity_scores_ = self.nuisance_estimates_["propensity_scores"]
+            self._perform_targeting_step(X, Y, A)
         else:
             # Fit on full data (no cross-fitting)
             self._fit_full_data(X, Y, A)
@@ -264,7 +272,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         # Use logistic model if outcomes are binary, linear if continuous
         if len(np.unique(Y)) == 2 and set(np.unique(Y)).issubset({0, 1}):
             # Binary outcome - use logistic targeting
-            Q_AW_logit = logit(np.clip(Q_AW, 0.001, 0.999))
+            Q_AW_logit = logit(np.clip(Q_AW, 0.01, 0.99))
 
             targeting_model = LogisticRegression(fit_intercept=False)
             targeting_model.fit(H_AW.reshape(-1, 1), Y)
@@ -273,10 +281,10 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
             # Update Q functions
             Q1W_targeted = expit(
-                logit(np.clip(Q1W, 0.001, 0.999)) + epsilon / self.propensity_scores_
+                logit(np.clip(Q1W, 0.01, 0.99)) + epsilon / self.propensity_scores_
             )
             Q0W_targeted = expit(
-                logit(np.clip(Q0W, 0.001, 0.999))
+                logit(np.clip(Q0W, 0.01, 0.99))
                 - epsilon / (1 - self.propensity_scores_)
             )
 
@@ -284,7 +292,6 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             # Continuous outcome - use linear targeting
             residuals = Y - Q_AW
 
-            targeting_model = LogisticRegression(fit_intercept=False)
             # Use OLS for continuous outcomes
             from sklearn.linear_model import LinearRegression
 
@@ -317,6 +324,8 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         Q0W_current = Q0W.copy()
 
         targeting_models = []
+        self.convergence_history_ = []
+        self.converged_ = False
 
         for iteration in range(self.max_iterations):
             # Current targeted outcome
@@ -325,7 +334,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             # Fit targeting model for this iteration
             if len(np.unique(Y)) == 2 and set(np.unique(Y)).issubset({0, 1}):
                 # Binary outcome
-                Q_AW_logit = logit(np.clip(Q_AW, 0.001, 0.999))
+                Q_AW_logit = logit(np.clip(Q_AW, 0.01, 0.99))
 
                 targeting_model = LogisticRegression(fit_intercept=False)
                 targeting_model.fit(H_AW.reshape(-1, 1), Y)
@@ -333,11 +342,9 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
                 epsilon = targeting_model.coef_[0, 0]
 
                 # Update Q functions
-                Q1W_new = expit(
-                    logit(np.clip(Q1W_current, 0.001, 0.999)) + epsilon / g1W
-                )
+                Q1W_new = expit(logit(np.clip(Q1W_current, 0.01, 0.99)) + epsilon / g1W)
                 Q0W_new = expit(
-                    logit(np.clip(Q0W_current, 0.001, 0.999)) - epsilon / (1 - g1W)
+                    logit(np.clip(Q0W_current, 0.01, 0.99)) - epsilon / (1 - g1W)
                 )
 
             else:
@@ -360,19 +367,38 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             # Check convergence
             q1_change = np.mean(np.abs(Q1W_new - Q1W_current))
             q0_change = np.mean(np.abs(Q0W_new - Q0W_current))
+            max_change = max(q1_change, q0_change)
+
+            # Store convergence history
+            convergence_info = {
+                "iteration": iteration + 1,
+                "q1_change": q1_change,
+                "q0_change": q0_change,
+                "max_change": max_change,
+                "epsilon": epsilon,
+            }
+            self.convergence_history_.append(convergence_info)
 
             if self.verbose:
                 print(
                     f"Iteration {iteration + 1}: Q1W change = {q1_change:.6f}, Q0W change = {q0_change:.6f}"
                 )
 
-            if max(q1_change, q0_change) < self.convergence_threshold:
+            if max_change < self.convergence_threshold:
+                self.converged_ = True
+                self.n_iterations_ = iteration + 1
                 if self.verbose:
                     print(f"Converged after {iteration + 1} iterations")
                 break
 
             Q1W_current = Q1W_new
             Q0W_current = Q0W_new
+
+        # Store final iteration count if not converged
+        if not self.converged_:
+            self.n_iterations_ = self.max_iterations
+            if self.verbose:
+                print(f"Did not converge after {self.max_iterations} iterations")
 
         # Store final targeting models and estimates
         self.targeting_models_ = targeting_models
@@ -441,7 +467,12 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
                 "cross_fitting": self.cross_fitting,
                 "iterative": self.iterative,
                 "targeted_regularization": self.targeted_regularization,
-                "convergence_achieved": True,  # Would track this in iterative case
+                "convergence_achieved": self.converged_ if self.iterative else True,
+                "n_iterations": self.n_iterations_ if self.iterative else 1,
+                "convergence_threshold": self.convergence_threshold
+                if self.iterative
+                else None,
+                "max_iterations": self.max_iterations if self.iterative else None,
             },
         )
 
@@ -564,3 +595,19 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
         return avg_importance
 
+    def get_convergence_info(self) -> dict[str, Any] | None:
+        """Get convergence information for iterative TMLE.
+
+        Returns:
+            Dictionary with convergence information, or None if not using iterative TMLE
+        """
+        if not self.iterative or not self.is_fitted:
+            return None
+
+        return {
+            "converged": self.converged_,
+            "n_iterations": self.n_iterations_,
+            "max_iterations": self.max_iterations,
+            "convergence_threshold": self.convergence_threshold,
+            "convergence_history": self.convergence_history_,
+        }

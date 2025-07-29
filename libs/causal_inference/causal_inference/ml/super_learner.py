@@ -126,18 +126,34 @@ class SuperLearner:
             config: Configuration for the Super Learner
             task_type: Type of task (auto-detected if 'auto')
         """
+        # Store original parameters for cloning
+        self._original_base_learners = base_learners
         self.config = config or SuperLearnerConfig()
         self.task_type = task_type
         self.is_fitted = False
 
         # Initialize base learners
         if base_learners is None:
-            base_learners = ["linear_regression", "ridge", "lasso", "random_forest"]
+            if task_type == "classification":
+                base_learners = [
+                    "logistic_regression",
+                    "ridge_logistic",
+                    "lasso_logistic",
+                    "random_forest",
+                ]
+            elif task_type == "regression":
+                base_learners = ["linear_regression", "ridge", "lasso", "random_forest"]
+            else:  # auto - will determine later
+                base_learners = ["linear_regression", "ridge", "lasso", "random_forest"]
 
         if isinstance(base_learners, list):
+            self._base_learner_names = base_learners
             self.base_learners = self._get_predefined_learners(base_learners)
         else:
-            self.base_learners = base_learners.copy()
+            self._base_learner_names = None
+            self.base_learners = (
+                base_learners.copy() if base_learners is not None else {}
+            )
 
         # Storage for fitted models and performance
         self.fitted_learners_: dict[str, BaseEstimator] = {}
@@ -156,9 +172,23 @@ class SuperLearner:
 
         for name in learner_names:
             if name in self._REGRESSION_LEARNERS:
-                learners[name] = clone(self._REGRESSION_LEARNERS[name])
+                learner = clone(self._REGRESSION_LEARNERS[name])
+                # Update random state if learner supports it
+                if (
+                    hasattr(learner, "random_state")
+                    and self.config.random_state is not None
+                ):
+                    learner.set_params(random_state=self.config.random_state)
+                learners[name] = learner
             elif name in self._CLASSIFICATION_LEARNERS:
-                learners[name] = clone(self._CLASSIFICATION_LEARNERS[name])
+                learner = clone(self._CLASSIFICATION_LEARNERS[name])
+                # Update random state if learner supports it
+                if (
+                    hasattr(learner, "random_state")
+                    and self.config.random_state is not None
+                ):
+                    learner.set_params(random_state=self.config.random_state)
+                learners[name] = learner
             else:
                 available = list(self._REGRESSION_LEARNERS.keys()) + list(
                     self._CLASSIFICATION_LEARNERS.keys()
@@ -266,8 +296,14 @@ class SuperLearner:
                 self.learner_performance_[name] = score
 
             except Exception as e:
-                if self.config.verbose:
-                    print(f"Warning: Failed to get CV predictions for {name}: {e}")
+                import warnings
+
+                warnings.warn(
+                    f"SuperLearner base learner '{name}' failed during cross-validation: {str(e)}. "
+                    f"This learner will be excluded from ensemble weight calculation.",
+                    UserWarning,
+                    stacklevel=2,
+                )
                 continue
 
         return cv_predictions
@@ -355,7 +391,23 @@ class SuperLearner:
         y = np.array(y)
 
         # Detect task type
-        self.task_type = self._detect_task_type(y)
+        detected_task_type = self._detect_task_type(y)
+
+        # If task type was auto and we have predefined learner names,
+        # recreate learners with appropriate type
+        if self.task_type == "auto" and self._base_learner_names is not None:
+            if detected_task_type == "classification":
+                learner_names = [
+                    "logistic_regression",
+                    "ridge_logistic",
+                    "lasso_logistic",
+                    "random_forest",
+                ]
+            else:
+                learner_names = ["linear_regression", "ridge", "lasso", "random_forest"]
+            self.base_learners = self._get_predefined_learners(learner_names)
+
+        self.task_type = detected_task_type
 
         # Filter learners by task type
         self.fitted_learners_ = self._filter_learners_by_task(self.task_type)
@@ -366,14 +418,23 @@ class SuperLearner:
             X = self.scaler_.fit_transform(X)
 
         # Fit all base learners
-        for name, learner in self.fitted_learners_.items():
+        failed_learners = []
+        for name, learner in list(self.fitted_learners_.items()):
             try:
                 if self.config.verbose:
                     print(f"Fitting {name}")
                 learner.fit(X, y)
             except Exception as e:
-                if self.config.verbose:
-                    print(f"Warning: Failed to fit {name}: {e}")
+                import warnings
+
+                warnings.warn(
+                    f"SuperLearner base learner '{name}' failed to fit: {str(e)}. "
+                    f"This learner will be excluded from the ensemble. "
+                    f"Consider checking data quality or learner hyperparameters.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                failed_learners.append(name)
                 # Remove failed learner
                 del self.fitted_learners_[name]
 
@@ -453,8 +514,14 @@ class SuperLearner:
                     preds = learner.predict(X)
                 base_predictions.append(preds)
             except Exception as e:
-                if self.config.verbose:
-                    print(f"Warning: Failed to get predictions from {name}: {e}")
+                import warnings
+
+                warnings.warn(
+                    f"SuperLearner base learner '{name}' failed during prediction: {str(e)}. "
+                    f"This learner will be excluded from ensemble prediction.",
+                    UserWarning,
+                    stacklevel=2,
+                )
                 continue
 
         if not base_predictions:
@@ -569,3 +636,17 @@ class SuperLearner:
 
         return importance_df
 
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Get parameters for this estimator (scikit-learn compatibility)."""
+        params = {
+            "base_learners": self._original_base_learners,
+            "config": self.config,
+            "task_type": self.task_type,
+        }
+        return params
+
+    def set_params(self, **parameters: Any) -> SuperLearner:
+        """Set parameters for this estimator (scikit-learn compatibility)."""
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+        return self

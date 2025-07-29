@@ -173,26 +173,68 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         # Outcome model for treated units: E[Y|A=1,X]
         if np.sum(treated_mask) > 0:
-            outcome_model_treated = clone(self.outcome_learner)
-            outcome_model_treated.fit(X_train[treated_mask], y_train[treated_mask])
+            try:
+                outcome_model_treated = clone(self.outcome_learner)
+                outcome_model_treated.fit(X_train[treated_mask], y_train[treated_mask])
+            except Exception as e:
+                import warnings
+
+                warnings.warn(
+                    f"Failed to fit outcome model for treated units: {str(e)}. "
+                    f"Using zero predictions for treated outcome model.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                outcome_model_treated = None
         else:
+            import warnings
+
+            warnings.warn(
+                "No treated units in training data. Using zero predictions for treated outcome model.",
+                UserWarning,
+                stacklevel=2,
+            )
             outcome_model_treated = None
 
         # Outcome model for control units: E[Y|A=0,X]
         if np.sum(control_mask) > 0:
-            outcome_model_control = clone(self.outcome_learner)
-            outcome_model_control.fit(X_train[control_mask], y_train[control_mask])
+            try:
+                outcome_model_control = clone(self.outcome_learner)
+                outcome_model_control.fit(X_train[control_mask], y_train[control_mask])
+            except Exception as e:
+                import warnings
+
+                warnings.warn(
+                    f"Failed to fit outcome model for control units: {str(e)}. "
+                    f"Using zero predictions for control outcome model.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                outcome_model_control = None
         else:
+            import warnings
+
+            warnings.warn(
+                "No control units in training data. Using zero predictions for control outcome model.",
+                UserWarning,
+                stacklevel=2,
+            )
             outcome_model_control = None
 
         # Combined outcome model: E[Y|A,X] (for orthogonal moments)
         X_with_treatment = np.column_stack([X_train, treatment_train])
-        outcome_model_combined = clone(self.outcome_learner)
-        outcome_model_combined.fit(X_with_treatment, y_train)
+        try:
+            outcome_model_combined = clone(self.outcome_learner)
+            outcome_model_combined.fit(X_with_treatment, y_train)
+        except Exception as e:
+            raise EstimationError(f"Failed to fit combined outcome model: {str(e)}")
 
         # Fit propensity score model: P(A=1|X)
-        propensity_model = clone(self.propensity_learner)
-        propensity_model.fit(X_train, treatment_train)
+        try:
+            propensity_model = clone(self.propensity_learner)
+            propensity_model.fit(X_train, treatment_train)
+        except Exception as e:
+            raise EstimationError(f"Failed to fit propensity score model: {str(e)}")
 
         return {
             "outcome_model_treated": outcome_model_treated,
@@ -501,4 +543,3 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             raise EstimationError("Estimator must be fitted first")
 
         return self.influence_function_
-
