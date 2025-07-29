@@ -467,7 +467,9 @@ class TestTimeVaryingEstimator:
         # Effect should vary as bias increases (but with minimal data, direction may not be consistent)
         effects = sensitivity_results["effect_by_bias_strength"]
         # Just check that we get different effects (relaxed assertion for minimal test data)
-        assert len(effects) == len(bias_strengths)  # We get an effect for each bias strength
+        assert len(effects) == len(
+            bias_strengths
+        )  # We get an effect for each bias strength
 
     def test_find_optimal_strategy(self, sample_longitudinal_data, sample_strategies):
         """Test finding optimal treatment strategy."""
