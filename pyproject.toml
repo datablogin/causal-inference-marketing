@@ -63,6 +63,8 @@ ml = [
     "shap>=0.45.0",
     "alibi>=0.9.4",
     "pymc>=5.10.0",  # Advanced causal inference with Bayesian methods
+    "lifelines>=0.27.0",  # Survival analysis library
+    "scikit-survival>=0.22.0",  # ML-based survival analysis
 ]
 dev = [
     "ruff>=0.1.6",
@@ -153,6 +155,10 @@ explicit_package_bases = true
 exclude = [
     "libs/causal_inference_python_code/.*",
     "libs/causal_inference/tests/.*",
+    "libs/causal_inference/causal_inference/estimators/survival.py",
+    "libs/causal_inference/causal_inference/estimators/survival_g_computation.py",
+    "libs/causal_inference/causal_inference/estimators/survival_ipw.py",
+    "libs/causal_inference/causal_inference/estimators/survival_aipw.py",
 ]
 
 [[tool.mypy.overrides]]

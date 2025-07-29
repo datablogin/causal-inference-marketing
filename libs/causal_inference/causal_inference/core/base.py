@@ -18,6 +18,21 @@ import pandas as pd
 from numpy.typing import NDArray
 from pydantic import BaseModel, Field, field_validator
 
+__all__ = [
+    "TreatmentData",
+    "OutcomeData",
+    "SurvivalOutcomeData",
+    "CovariateData",
+    "InstrumentData",
+    "CausalEffect",
+    "BaseEstimator",
+    "EstimatorProtocol",
+    "CausalInferenceError",
+    "AssumptionViolationError",
+    "DataValidationError",
+    "EstimationError",
+]
+
 
 class TreatmentData(BaseModel):
     """Data model for treatment assignments.
@@ -68,7 +83,7 @@ class OutcomeData(BaseModel):
     name: str = Field(default="outcome", description="Name of the outcome variable")
     outcome_type: str = Field(
         default="continuous",
-        description="Type of outcome: 'continuous', 'binary', or 'count'",
+        description="Type of outcome: 'continuous', 'binary', 'count', or 'time_to_event'",
     )
 
     model_config = {"arbitrary_types_allowed": True}
@@ -77,7 +92,7 @@ class OutcomeData(BaseModel):
     @classmethod
     def validate_outcome_type(cls, v: str) -> str:
         """Validate outcome type is one of allowed values."""
-        allowed_types = {"continuous", "binary", "count"}
+        allowed_types = {"continuous", "binary", "count", "time_to_event"}
         if v not in allowed_types:
             raise ValueError(f"outcome_type must be one of {allowed_types}")
         return v
@@ -89,6 +104,125 @@ class OutcomeData(BaseModel):
         if len(v) == 0:
             raise ValueError("Outcome values cannot be empty")
         return v
+
+
+class SurvivalOutcomeData(BaseModel):
+    """Data model for survival (time-to-event) outcome variables.
+
+    Represents survival outcomes with event times and censoring indicators
+    for causal survival analysis.
+    """
+
+    times: pd.Series | NDArray[Any] = Field(..., description="Event/censoring times")
+    events: pd.Series | NDArray[Any] = Field(
+        ..., description="Event indicators (1=event, 0=censored)"
+    )
+    name: str = Field(default="survival", description="Name of the survival outcome")
+    outcome_type: str = Field(
+        default="time_to_event",
+        description="Type of survival outcome: 'time_to_event', 'competing_risks', or 'recurrent_events'",
+    )
+    event_types: pd.Series | NDArray[Any] | None = Field(
+        default=None,
+        description="Event type indicators for competing risks (0=censored, 1=event of interest, 2=competing)",
+    )
+    time_unit: str = Field(default="days", description="Unit of time measurement")
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @field_validator("outcome_type")
+    @classmethod
+    def validate_outcome_type(cls, v: str) -> str:
+        """Validate survival outcome type is one of allowed values."""
+        allowed_types = {"time_to_event", "competing_risks", "recurrent_events"}
+        if v not in allowed_types:
+            raise ValueError(f"survival outcome_type must be one of {allowed_types}")
+        return v
+
+    @field_validator("times")
+    @classmethod
+    def validate_times(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+        """Validate survival times are positive and not empty."""
+        if len(v) == 0:
+            raise ValueError("Survival times cannot be empty")
+
+        times_array = np.array(v)
+        if np.any(times_array <= 0):
+            raise ValueError("Survival times must be positive")
+
+        if np.any(np.isnan(times_array)):
+            raise ValueError("Survival times cannot contain missing values")
+
+        return v
+
+    @field_validator("events")
+    @classmethod
+    def validate_events(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+        """Validate event indicators are binary and not empty."""
+        if len(v) == 0:
+            raise ValueError("Event indicators cannot be empty")
+
+        events_array = np.array(v)
+        unique_events = np.unique(events_array[~np.isnan(events_array)])
+
+        if not np.all(np.isin(unique_events, [0, 1])):
+            raise ValueError("Event indicators must be 0 (censored) or 1 (event)")
+
+        return v
+
+    def __init__(self, **data: Any) -> None:
+        """Initialize survival outcome data with validation."""
+        super().__init__(**data)
+
+        # Check that times and events have same length
+        if len(self.times) != len(self.events):
+            raise ValueError("Times and events must have the same length")
+
+        # Validate event_types if provided
+        if self.event_types is not None:
+            if len(self.event_types) != len(self.times):
+                raise ValueError("Event types must have the same length as times")
+
+            if self.outcome_type == "competing_risks":
+                event_types_array = np.array(self.event_types)
+                unique_types = np.unique(
+                    event_types_array[~np.isnan(event_types_array)]
+                )
+                if not np.all(unique_types >= 0):
+                    raise ValueError("Event types must be non-negative integers")
+
+    @property
+    def n_events(self) -> int:
+        """Number of observed events (not censored)."""
+        return int(np.sum(self.events == 1))
+
+    @property
+    def n_censored(self) -> int:
+        """Number of censored observations."""
+        return int(np.sum(self.events == 0))
+
+    @property
+    def censoring_rate(self) -> float:
+        """Proportion of observations that are censored."""
+        return self.n_censored / len(self.events)
+
+    @property
+    def median_time(self) -> float:
+        """Median observed time (including censored)."""
+        return float(np.median(self.times))
+
+    def to_lifelines_format(self) -> pd.DataFrame:
+        """Convert to format expected by lifelines library.
+
+        Returns:
+            DataFrame with 'T' (times) and 'E' (events) columns
+        """
+        df = pd.DataFrame({"T": self.times, "E": self.events})
+
+        if self.event_types is not None:
+            df["event_type"] = self.event_types
+
+        return df
 
 
 class CovariateData(BaseModel):
@@ -177,6 +311,25 @@ class CausalEffect:
     # Potential outcomes means
     potential_outcome_treated: float | None = None  # E[Y(1)]
     potential_outcome_control: float | None = None  # E[Y(0)]
+
+    # Survival-specific estimates
+    hazard_ratio: float | None = None  # Hazard ratio for survival outcomes
+    hazard_ratio_se: float | None = None  # Standard error of hazard ratio
+    hazard_ratio_ci_lower: float | None = None  # Lower CI for hazard ratio
+    hazard_ratio_ci_upper: float | None = None  # Upper CI for hazard ratio
+
+    rmst_treated: float | None = None  # Restricted mean survival time - treated
+    rmst_control: float | None = None  # Restricted mean survival time - control
+    rmst_difference: float | None = None  # RMST difference (treated - control)
+    rmst_ci_lower: float | None = None  # Lower CI for RMST difference
+    rmst_ci_upper: float | None = None  # Upper CI for RMST difference
+
+    median_survival_treated: float | None = None  # Median survival time - treated
+    median_survival_control: float | None = None  # Median survival time - control
+
+    log_rank_test_pvalue: float | None = None  # Log-rank test p-value
+
+    survival_curves: dict[str, Any] | None = None  # Estimated survival curves
 
     # Method-specific information
     method: str = "unknown"  # Name of the estimation method used
