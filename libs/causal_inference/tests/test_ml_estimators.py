@@ -246,7 +246,9 @@ class TestHighDimensionalData:
             effect = estimator.estimate_ate()
 
             # Should recover true ATE within reasonable bounds
-            assert abs(effect.ate - true_ate) < 1.5  # Relaxed tolerance for statistical variability
+            assert (
+                abs(effect.ate - true_ate) < 1.5
+            )  # Relaxed tolerance for statistical variability
             assert effect.ate_ci_lower < effect.ate_ci_upper
             assert effect.method == f"DoublyRobustML_{moment_function}"
 
@@ -481,7 +483,9 @@ class TestCrossValidationPerformance:
         treatment_data = TreatmentData(
             values=np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1]), treatment_type="binary"
         )
-        outcome_data = OutcomeData(values=np.array([1.0, 2.0, 1.5, 2.5, 1.0, 2.0, 1.5, 2.5, 1.0, 2.0]))
+        outcome_data = OutcomeData(
+            values=np.array([1.0, 2.0, 1.5, 2.5, 1.0, 2.0, 1.5, 2.5, 1.0, 2.0])
+        )
 
         estimator = TMLEEstimator()
         with pytest.raises(EstimationError, match="requires covariates"):
@@ -489,9 +493,12 @@ class TestCrossValidationPerformance:
 
         # Test DoublyRobustML with non-binary treatment - need sufficient sample size
         treatment_data_cont = TreatmentData(
-            values=np.array([0.1, 0.5, 0.8, 0.3, 0.2, 0.6, 0.9, 0.4, 0.1, 0.7]), treatment_type="continuous"
+            values=np.array([0.1, 0.5, 0.8, 0.3, 0.2, 0.6, 0.9, 0.4, 0.1, 0.7]),
+            treatment_type="continuous",
         )
-        outcome_data_cont = OutcomeData(values=np.array([1.0, 2.0, 1.5, 2.5, 1.0, 2.0, 1.5, 2.5, 1.0, 2.0]))
+        outcome_data_cont = OutcomeData(
+            values=np.array([1.0, 2.0, 1.5, 2.5, 1.0, 2.0, 1.5, 2.5, 1.0, 2.0])
+        )
         covariate_data = CovariateData(values=pd.DataFrame(np.random.randn(10, 3)))
 
         estimator_drml = DoublyRobustMLEstimator()
