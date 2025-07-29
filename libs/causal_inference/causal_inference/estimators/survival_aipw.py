@@ -174,16 +174,28 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         assert self.outcome_data is not None
 
         # Create mask for observations with the specified treatment
-        treatment_mask = self.treatment_data.values == treatment_value
+        if isinstance(self.treatment_data.values, pd.Series):
+            treatment_mask = self.treatment_data.values == treatment_value
+        else:
+            treatment_mask = np.array(self.treatment_data.values) == treatment_value
 
         if not np.any(treatment_mask):
             # No observations with this treatment value
             return outcome_curve
 
         # Get observed data for this treatment group
-        observed_times = self.outcome_data.times[treatment_mask]
-        observed_events = self.outcome_data.events[treatment_mask]
-        observed_weights = weights_to_use[treatment_mask]
+        if isinstance(self.outcome_data.times, pd.Series):
+            observed_times = self.outcome_data.times[treatment_mask]
+            observed_events = self.outcome_data.events[treatment_mask]
+        else:
+            observed_times = pd.Series(
+                np.array(self.outcome_data.times)[treatment_mask]
+            )
+            observed_events = pd.Series(
+                np.array(self.outcome_data.events)[treatment_mask]
+            )
+
+        observed_weights = pd.Series(weights_to_use[treatment_mask])
 
         # Fit weighted Kaplan-Meier to observed data
         kmf_observed = KaplanMeierFitter()
@@ -193,21 +205,57 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         observed_probs = []
         for t in times:
             if t in kmf_observed.timeline:
-                prob = kmf_observed.survival_function_at_times(t).iloc[0]
+                prob_val = kmf_observed.survival_function_at_times(t)
+                if hasattr(prob_val, "iloc"):
+                    prob = prob_val.iloc[0]
+                else:
+                    prob = (
+                        float(prob_val[0])
+                        if isinstance(prob_val, np.ndarray)
+                        else float(prob_val)
+                    )
             else:
                 # Interpolate
                 timeline = kmf_observed.timeline
-                survival_func = kmf_observed.survival_function_.iloc[:, 0]
+                survival_func = kmf_observed.survival_function_
 
-                if t <= timeline.min():
+                # Ensure we have the right access method
+                if hasattr(survival_func, "iloc"):
+                    survival_func = survival_func.iloc[:, 0]
+                else:
+                    survival_func = (
+                        survival_func[:, 0] if survival_func.ndim > 1 else survival_func
+                    )
+
+                if hasattr(timeline, "min"):
+                    timeline_min = timeline.min()
+                    timeline_max = timeline.max()
+                else:
+                    timeline_min = np.min(timeline)
+                    timeline_max = np.max(timeline)
+
+                if t <= timeline_min:
                     prob = 1.0
-                elif t >= timeline.max():
-                    prob = survival_func.iloc[-1]
+                elif t >= timeline_max:
+                    if hasattr(survival_func, "iloc"):
+                        prob = survival_func.iloc[-1]
+                    else:
+                        prob = survival_func[-1]
                 else:
                     # Linear interpolation
                     idx = np.searchsorted(timeline, t)
-                    t_low, t_high = timeline.iloc[idx - 1], timeline.iloc[idx]
-                    p_low, p_high = survival_func.iloc[idx - 1], survival_func.iloc[idx]
+                    if hasattr(timeline, "iloc"):
+                        t_low, t_high = timeline.iloc[idx - 1], timeline.iloc[idx]
+                    else:
+                        t_low, t_high = timeline[idx - 1], timeline[idx]
+
+                    if hasattr(survival_func, "iloc"):
+                        p_low, p_high = (
+                            survival_func.iloc[idx - 1],
+                            survival_func.iloc[idx],
+                        )
+                    else:
+                        p_low, p_high = survival_func[idx - 1], survival_func[idx]
                     prob = p_low + (p_high - p_low) * (t - t_low) / (t_high - t_low)
 
             observed_probs.append(prob)
@@ -280,17 +328,20 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         treated_curve = curves["treated"]
         control_curve = curves["control"]
 
-        rmst_treated = restricted_mean_survival_time(
-            treated_curve["timeline"],
-            treated_curve["survival_prob"],
-            self.time_horizon,
+        # Create proper DataFrames for RMST calculation
+        treated_sf = pd.DataFrame(
+            treated_curve["survival_prob"].values,
+            index=treated_curve["timeline"].values,
+            columns=["survival_prob"],
+        )
+        control_sf = pd.DataFrame(
+            control_curve["survival_prob"].values,
+            index=control_curve["timeline"].values,
+            columns=["survival_prob"],
         )
 
-        rmst_control = restricted_mean_survival_time(
-            control_curve["timeline"],
-            control_curve["survival_prob"],
-            self.time_horizon,
-        )
+        rmst_treated = restricted_mean_survival_time(treated_sf, self.time_horizon)
+        rmst_control = restricted_mean_survival_time(control_sf, self.time_horizon)
 
         rmst_difference = rmst_treated - rmst_control
 
@@ -464,37 +515,58 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
 
         # Add RMST comparison if time_horizon is set
         if self.time_horizon is not None:
+            # G-computation RMST
+            gcomp_treated_sf = pd.DataFrame(
+                gcomp_treated["survival_prob"].values,
+                index=gcomp_treated["timeline"].values,
+                columns=["survival_prob"],
+            )
+            gcomp_control_sf = pd.DataFrame(
+                gcomp_control["survival_prob"].values,
+                index=gcomp_control["timeline"].values,
+                columns=["survival_prob"],
+            )
             comparison["g_computation"]["rmst_treated"] = restricted_mean_survival_time(
-                gcomp_treated["timeline"],
-                gcomp_treated["survival_prob"],
-                self.time_horizon,
+                gcomp_treated_sf, self.time_horizon
             )
             comparison["g_computation"]["rmst_control"] = restricted_mean_survival_time(
-                gcomp_control["timeline"],
-                gcomp_control["survival_prob"],
-                self.time_horizon,
+                gcomp_control_sf, self.time_horizon
             )
 
+            # IPW RMST
+            ipw_treated_sf = pd.DataFrame(
+                ipw_curves["treated"]["survival_prob"].values,
+                index=ipw_curves["treated"]["timeline"].values,
+                columns=["survival_prob"],
+            )
+            ipw_control_sf = pd.DataFrame(
+                ipw_curves["control"]["survival_prob"].values,
+                index=ipw_curves["control"]["timeline"].values,
+                columns=["survival_prob"],
+            )
             comparison["ipw"]["rmst_treated"] = restricted_mean_survival_time(
-                ipw_curves["treated"]["timeline"],
-                ipw_curves["treated"]["survival_prob"],
-                self.time_horizon,
+                ipw_treated_sf, self.time_horizon
             )
             comparison["ipw"]["rmst_control"] = restricted_mean_survival_time(
-                ipw_curves["control"]["timeline"],
-                ipw_curves["control"]["survival_prob"],
-                self.time_horizon,
+                ipw_control_sf, self.time_horizon
             )
 
+            # AIPW RMST
+            aipw_treated_sf = pd.DataFrame(
+                aipw_curves["treated"]["survival_prob"].values,
+                index=aipw_curves["treated"]["timeline"].values,
+                columns=["survival_prob"],
+            )
+            aipw_control_sf = pd.DataFrame(
+                aipw_curves["control"]["survival_prob"].values,
+                index=aipw_curves["control"]["timeline"].values,
+                columns=["survival_prob"],
+            )
             comparison["aipw"]["rmst_treated"] = restricted_mean_survival_time(
-                aipw_curves["treated"]["timeline"],
-                aipw_curves["treated"]["survival_prob"],
-                self.time_horizon,
+                aipw_treated_sf, self.time_horizon
             )
             comparison["aipw"]["rmst_control"] = restricted_mean_survival_time(
-                aipw_curves["control"]["timeline"],
-                aipw_curves["control"]["survival_prob"],
-                self.time_horizon,
+                aipw_control_sf, self.time_horizon
             )
 
         return comparison

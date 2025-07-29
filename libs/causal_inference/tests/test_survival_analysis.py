@@ -457,11 +457,36 @@ class TestSurvivalEstimatorEdgeCases:
 
     def test_high_censoring_warning(self):
         """Test warning for high censoring rates."""
-        # Create data with high censoring rate
-        times = np.random.exponential(10, 100)
-        events = np.random.binomial(1, 0.05, 100)  # 95% censored
-        treatment = np.random.binomial(1, 0.5, 100)
-        covariates_df = pd.DataFrame({"x": np.random.normal(0, 1, 100)})
+        # Create data with high censoring rate (>90%) but enough events to pass validation
+        np.random.seed(42)  # Fixed seed for reproducibility
+        times = np.random.exponential(10, 200)  # Larger sample size
+        # Create events to have exactly 90%+ censoring but sufficient events per group
+        events = np.zeros(200, dtype=int)
+        events[:15] = 1  # 15 events out of 200 = 92.5% censoring
+        np.random.shuffle(events)  # Randomize event positions
+
+        treatment = np.random.binomial(1, 0.5, 200)
+        # Ensure both treatment groups have sufficient events
+        treated_mask = treatment == 1
+        control_mask = treatment == 0
+
+        # Adjust events to ensure at least 5 per group
+        treated_events = events[treated_mask]
+        control_events = events[control_mask]
+
+        if np.sum(treated_events) < 5:
+            # Add more events to treated group
+            treated_indices = np.where(treated_mask)[0]
+            zero_indices = treated_indices[treated_events == 0][:5]
+            events[zero_indices] = 1
+
+        if np.sum(control_events) < 5:
+            # Add more events to control group
+            control_indices = np.where(control_mask)[0]
+            zero_indices = control_indices[events[control_indices] == 0][:5]
+            events[zero_indices] = 1
+
+        covariates_df = pd.DataFrame({"x": np.random.normal(0, 1, 200)})
 
         treatment_data = TreatmentData(values=treatment, treatment_type="binary")
         outcome_data = SurvivalOutcomeData(times=times, events=events)

@@ -415,18 +415,20 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         treated_curve = curves["treated"]
         control_curve = curves["control"]
 
-        # Use lifelines RMST function
-        rmst_treated = restricted_mean_survival_time(
-            treated_curve["timeline"],
-            treated_curve["survival_prob"],
-            self.time_horizon,
+        # Create proper DataFrames for RMST calculation
+        treated_sf = pd.DataFrame(
+            treated_curve["survival_prob"].values,
+            index=treated_curve["timeline"].values,
+            columns=["survival_prob"],
+        )
+        control_sf = pd.DataFrame(
+            control_curve["survival_prob"].values,
+            index=control_curve["timeline"].values,
+            columns=["survival_prob"],
         )
 
-        rmst_control = restricted_mean_survival_time(
-            control_curve["timeline"],
-            control_curve["survival_prob"],
-            self.time_horizon,
-        )
+        rmst_treated = restricted_mean_survival_time(treated_sf, self.time_horizon)
+        rmst_control = restricted_mean_survival_time(control_sf, self.time_horizon)
 
         rmst_difference = rmst_treated - rmst_control
 
