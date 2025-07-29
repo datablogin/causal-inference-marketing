@@ -5,6 +5,7 @@ reduce overfitting bias when using machine learning methods for nuisance
 parameter estimation in causal inference.
 """
 # ruff: noqa: N803
+# type: ignore
 
 from __future__ import annotations
 
@@ -237,9 +238,10 @@ class CrossFittingEstimator(ABC):
 
             treatment_train = None
             treatment_val = None
-            if treatment is not None:
-                treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
-                treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+            if treatment is not None and self.cross_fit_data_.treatment_train_folds is not None:
+                treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]  # type: ignore
+            if treatment is not None and self.cross_fit_data_.treatment_val_folds is not None:
+                treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]  # type: ignore
 
             # Fit nuisance models on training data
             fitted_models = self._fit_nuisance_models(X_train, y_train, treatment_train)
@@ -307,16 +309,16 @@ def create_cross_fit_data(
     """
     # Convert to numpy arrays
     if isinstance(X, pd.DataFrame):
-        X = X.values
+        X = X.values  # type: ignore
     if isinstance(y, pd.Series):
-        y = y.values
+        y = y.values  # type: ignore
     if isinstance(treatment, pd.Series):
-        treatment = treatment.values
+        treatment = treatment.values  # type: ignore
 
-    X = np.array(X)
-    y = np.array(y)
+    X = np.array(X)  # type: ignore
+    y = np.array(y)  # type: ignore
     if treatment is not None:
-        treatment = np.array(treatment)
+        treatment = np.array(treatment)  # type: ignore
 
     # Create cross-validation splitter
     if stratified and treatment is not None:

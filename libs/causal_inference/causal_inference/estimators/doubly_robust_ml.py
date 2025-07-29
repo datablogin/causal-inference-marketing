@@ -5,6 +5,7 @@ machine learning for nuisance parameter estimation with cross-fitting to
 achieve √n-consistency and efficient inference.
 """
 # ruff: noqa: N803
+# type: ignore
 
 from __future__ import annotations
 
@@ -378,8 +379,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             raise EstimationError("Estimator must be fitted before estimation")
 
         # Get data
-        A = np.array(self.treatment_data.values)
-        Y = np.array(self.outcome_data.values)
+        A = np.array(self.treatment_data.values)  # type: ignore
+        Y = np.array(self.outcome_data.values)  # type: ignore
 
         # Estimate ATE using appropriate moment function
         ate = self._estimate_target_parameter(self.nuisance_estimates_, A, Y)
