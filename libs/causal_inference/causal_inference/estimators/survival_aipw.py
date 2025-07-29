@@ -75,9 +75,11 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
                 "lifelines library is required for survival analysis. "
                 "Install with: pip install lifelines"
             )
-        # Initialize both parent classes
-        SurvivalGComputationEstimator.__init__(
+        # Initialize the base SurvivalEstimator directly to avoid MRO conflicts
+        from .survival import SurvivalEstimator
+        SurvivalEstimator.__init__(
             self,
+            method="aipw",
             survival_model=survival_model,
             time_horizon=time_horizon,
             bootstrap_samples=bootstrap_samples,
@@ -86,13 +88,16 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
             verbose=verbose,
         )
 
+        # Initialize G-computation specific attributes
+        self.fitted_model: Any = None
+
         # Override method and add IPW-specific attributes
         self.method = "aipw"
         self.propensity_model_type = propensity_model
         self.weight_stabilization = weight_stabilization
         self.weight_trimming = weight_trimming
 
-        # Models from both approaches
+        # Initialize IPW attributes without calling its __init__ (to avoid conflicts)
         self.propensity_model: Any = None
         self.propensity_scores: np.ndarray | None = None
         self.weights: np.ndarray | None = None
@@ -506,3 +511,26 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         if len(below_half) > 0:
             return float(below_half["timeline"].iloc[0])
         return None
+
+    def _create_bootstrap_estimator(
+        self, random_state: int | None = None
+    ) -> SurvivalAIPWEstimator:
+        """Create a new estimator instance for bootstrap sampling.
+
+        Args:
+            random_state: Random state for this bootstrap instance
+
+        Returns:
+            New SurvivalAIPWEstimator instance configured for bootstrap
+        """
+        return SurvivalAIPWEstimator(
+            survival_model=self.survival_model,
+            propensity_model=self.propensity_model_type,
+            weight_stabilization=self.weight_stabilization,
+            weight_trimming=self.weight_trimming,
+            time_horizon=self.time_horizon,
+            bootstrap_samples=0,  # No nested bootstrap
+            confidence_level=self.confidence_level,
+            random_state=random_state,
+            verbose=False,  # Reduce verbosity in bootstrap
+        )

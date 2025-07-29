@@ -554,3 +554,25 @@ class SurvivalIPWEstimator(SurvivalEstimator):
                 "weight_trimming": self.weight_trimming,
             },
         }
+
+    def _create_bootstrap_estimator(
+        self, random_state: int | None = None
+    ) -> SurvivalIPWEstimator:
+        """Create a new estimator instance for bootstrap sampling.
+
+        Args:
+            random_state: Random state for this bootstrap instance
+
+        Returns:
+            New SurvivalIPWEstimator instance configured for bootstrap
+        """
+        return SurvivalIPWEstimator(
+            propensity_model=self.propensity_model_type,
+            weight_stabilization=self.weight_stabilization,
+            weight_trimming=self.weight_trimming,
+            time_horizon=self.time_horizon,
+            bootstrap_samples=0,  # No nested bootstrap
+            confidence_level=self.confidence_level,
+            random_state=random_state,
+            verbose=False,  # Reduce verbosity in bootstrap
+        )

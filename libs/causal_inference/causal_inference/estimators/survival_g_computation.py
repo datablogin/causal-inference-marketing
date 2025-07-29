@@ -381,3 +381,23 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
             results.append(survival_curve)
 
         return pd.concat(results, ignore_index=True)
+
+    def _create_bootstrap_estimator(
+        self, random_state: int | None = None
+    ) -> SurvivalGComputationEstimator:
+        """Create a new estimator instance for bootstrap sampling.
+
+        Args:
+            random_state: Random state for this bootstrap instance
+
+        Returns:
+            New SurvivalGComputationEstimator instance configured for bootstrap
+        """
+        return SurvivalGComputationEstimator(
+            survival_model=self.survival_model,
+            time_horizon=self.time_horizon,
+            bootstrap_samples=0,  # No nested bootstrap
+            confidence_level=self.confidence_level,
+            random_state=random_state,
+            verbose=False,  # Reduce verbosity in bootstrap
+        )
