@@ -238,9 +238,15 @@ class CrossFittingEstimator(ABC):
 
             treatment_train = None
             treatment_val = None
-            if treatment is not None and self.cross_fit_data_.treatment_train_folds is not None:
+            if (
+                treatment is not None
+                and self.cross_fit_data_.treatment_train_folds is not None
+            ):
                 treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]  # type: ignore
-            if treatment is not None and self.cross_fit_data_.treatment_val_folds is not None:
+            if (
+                treatment is not None
+                and self.cross_fit_data_.treatment_val_folds is not None
+            ):
                 treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]  # type: ignore
 
             # Fit nuisance models on training data
