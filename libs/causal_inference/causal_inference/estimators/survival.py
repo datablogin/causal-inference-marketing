@@ -189,10 +189,16 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
                 )
 
         # Check for sufficient events
-        if outcome.n_events < 10:
+        if outcome.n_events < 5:
             raise EstimationError(
                 f"Insufficient events for survival analysis. "
-                f"Got {outcome.n_events} events, need at least 10."
+                f"Got {outcome.n_events} events, need at least 5."
+            )
+        elif outcome.n_events < 10:
+            warnings.warn(
+                f"Low number of events for survival analysis. "
+                f"Got {outcome.n_events} events. Results may be unreliable with fewer than 10 events.",
+                UserWarning,
             )
 
         # Check censoring rate
@@ -207,11 +213,18 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
             treated_events = np.sum((treatment.values == 1) & (outcome.events == 1))
             control_events = np.sum((treatment.values == 0) & (outcome.events == 1))
 
-            if treated_events < 5 or control_events < 5:
+            if treated_events < 2 or control_events < 2:
                 raise EstimationError(
                     f"Insufficient events per treatment group. "
                     f"Treated: {treated_events}, Control: {control_events}. "
-                    f"Need at least 5 events per group."
+                    f"Need at least 2 events per group."
+                )
+            elif treated_events < 5 or control_events < 5:
+                warnings.warn(
+                    f"Low number of events per treatment group. "
+                    f"Treated: {treated_events}, Control: {control_events}. "
+                    f"Results may be unreliable with fewer than 5 events per group.",
+                    UserWarning,
                 )
 
     def _create_survival_data(
@@ -406,13 +419,13 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         rmst_treated = restricted_mean_survival_time(
             treated_curve["timeline"],
             treated_curve["survival_prob"],
-            t=self.time_horizon,
+            self.time_horizon,
         )
 
         rmst_control = restricted_mean_survival_time(
             control_curve["timeline"],
             control_curve["survival_prob"],
-            t=self.time_horizon,
+            self.time_horizon,
         )
 
         rmst_difference = rmst_treated - rmst_control

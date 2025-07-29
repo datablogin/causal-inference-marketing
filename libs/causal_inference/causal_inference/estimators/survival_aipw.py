@@ -283,13 +283,13 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         rmst_treated = restricted_mean_survival_time(
             treated_curve["timeline"],
             treated_curve["survival_prob"],
-            t=self.time_horizon,
+            self.time_horizon,
         )
 
         rmst_control = restricted_mean_survival_time(
             control_curve["timeline"],
             control_curve["survival_prob"],
-            t=self.time_horizon,
+            self.time_horizon,
         )
 
         rmst_difference = rmst_treated - rmst_control
@@ -467,34 +467,34 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
             comparison["g_computation"]["rmst_treated"] = restricted_mean_survival_time(
                 gcomp_treated["timeline"],
                 gcomp_treated["survival_prob"],
-                t=self.time_horizon,
+                self.time_horizon,
             )
             comparison["g_computation"]["rmst_control"] = restricted_mean_survival_time(
                 gcomp_control["timeline"],
                 gcomp_control["survival_prob"],
-                t=self.time_horizon,
+                self.time_horizon,
             )
 
             comparison["ipw"]["rmst_treated"] = restricted_mean_survival_time(
                 ipw_curves["treated"]["timeline"],
                 ipw_curves["treated"]["survival_prob"],
-                t=self.time_horizon,
+                self.time_horizon,
             )
             comparison["ipw"]["rmst_control"] = restricted_mean_survival_time(
                 ipw_curves["control"]["timeline"],
                 ipw_curves["control"]["survival_prob"],
-                t=self.time_horizon,
+                self.time_horizon,
             )
 
             comparison["aipw"]["rmst_treated"] = restricted_mean_survival_time(
                 aipw_curves["treated"]["timeline"],
                 aipw_curves["treated"]["survival_prob"],
-                t=self.time_horizon,
+                self.time_horizon,
             )
             comparison["aipw"]["rmst_control"] = restricted_mean_survival_time(
                 aipw_curves["control"]["timeline"],
                 aipw_curves["control"]["survival_prob"],
-                t=self.time_horizon,
+                self.time_horizon,
             )
 
         return comparison

@@ -344,13 +344,13 @@ class SurvivalIPWEstimator(SurvivalEstimator):
         rmst_treated = restricted_mean_survival_time(
             treated_curve["timeline"],
             treated_curve["survival_prob"],
-            t=self.time_horizon,
+            self.time_horizon,
         )
 
         rmst_control = restricted_mean_survival_time(
             control_curve["timeline"],
             control_curve["survival_prob"],
-            t=self.time_horizon,
+            self.time_horizon,
         )
 
         rmst_difference = rmst_treated - rmst_control
