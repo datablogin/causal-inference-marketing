@@ -6,21 +6,25 @@ and survival analysis estimators.
 """
 
 from .aipw import AIPWEstimator
+from .doubly_robust_ml import DoublyRobustMLEstimator
 from .g_computation import GComputationEstimator
 from .g_estimation import GEstimationEstimator
 from .ipw import IPWEstimator
 from .iv import IVEstimator
 from .propensity_score import PropensityScoreEstimator
 from .time_varying import StrategyComparison, StrategyOutcome, TimeVaryingEstimator
+from .tmle import TMLEEstimator
 
 __all__ = [
     "AIPWEstimator",
+    "DoublyRobustMLEstimator",
     "GComputationEstimator",
     "GEstimationEstimator",
     "IPWEstimator",
     "IVEstimator",
     "PropensityScoreEstimator",
     "TimeVaryingEstimator",
+    "TMLEEstimator",
     "StrategyComparison",
     "StrategyOutcome",
 ]
