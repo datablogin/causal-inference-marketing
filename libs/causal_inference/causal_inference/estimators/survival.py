@@ -41,6 +41,7 @@ from ..core.base import (
     BaseEstimator,
     CausalEffect,
     CovariateData,
+    DataValidationError,
     EstimationError,
     SurvivalOutcomeData,
     TreatmentData,
@@ -153,14 +154,39 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         Raises:
             EstimationError: If survival-specific validation fails
         """
-        # Call parent validation
-        super()._validate_inputs(treatment, outcome, covariates)
-
         # Check that we have SurvivalOutcomeData
         if not isinstance(outcome, SurvivalOutcomeData):
             raise EstimationError(
                 "SurvivalEstimator requires SurvivalOutcomeData for outcome"
             )
+
+        # Custom validation for survival data (skip parent validation that expects outcome.values)
+        # Check that treatment and outcome have same length
+        if len(treatment.values) != len(outcome.times):
+            raise DataValidationError(
+                f"Treatment ({len(treatment.values)}) and outcome ({len(outcome.times)}) "
+                "must have the same number of observations"
+            )
+
+        # Check times and events have same length
+        if len(outcome.times) != len(outcome.events):
+            raise DataValidationError(
+                f"Survival times ({len(outcome.times)}) and events ({len(outcome.events)}) "
+                "must have the same length"
+            )
+
+        # Validate covariates if provided
+        if covariates is not None:
+            covariate_length = (
+                len(covariates.values)
+                if hasattr(covariates.values, "__len__")
+                else covariates.values.shape[0]
+            )
+            if len(treatment.values) != covariate_length:
+                raise DataValidationError(
+                    f"Treatment ({len(treatment.values)}) and covariates ({covariate_length}) "
+                    "must have the same number of observations"
+                )
 
         # Check for sufficient events
         if outcome.n_events < 10:
