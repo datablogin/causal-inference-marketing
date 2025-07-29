@@ -77,6 +77,7 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
             )
         # Initialize the base SurvivalEstimator directly to avoid MRO conflicts
         from .survival import SurvivalEstimator
+
         SurvivalEstimator.__init__(
             self,
             method="aipw",
