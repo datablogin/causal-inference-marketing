@@ -55,7 +55,7 @@ jobs:
         uv run mypy libs/causal_inference/ shared/
     
     - name: Run tests
-      timeout-minutes: 10  # Most tests should complete quickly
+      timeout-minutes: 12  # Allow extra time for Python 3.13 post-processing
       run: |
         uv run pytest libs/causal_inference/tests/ --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term
     

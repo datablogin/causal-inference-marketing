@@ -11,6 +11,7 @@ from .g_estimation import GEstimationEstimator
 from .ipw import IPWEstimator
 from .iv import IVEstimator
 from .propensity_score import PropensityScoreEstimator
+from .time_varying import StrategyComparison, StrategyOutcome, TimeVaryingEstimator
 
 __all__ = [
     "AIPWEstimator",
@@ -19,6 +20,9 @@ __all__ = [
     "IPWEstimator",
     "IVEstimator",
     "PropensityScoreEstimator",
+    "TimeVaryingEstimator",
+    "StrategyComparison",
+    "StrategyOutcome",
 ]
 
 # Optional survival analysis imports

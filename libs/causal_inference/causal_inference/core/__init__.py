@@ -18,6 +18,13 @@ from .bootstrap import (
     BootstrapMixin,
     BootstrapResult,
 )
+from .longitudinal import (
+    LongitudinalData,
+    TimeVaryingCovariateData,
+    TimeVaryingOutcomeData,
+    TimeVaryingTreatmentData,
+    TreatmentStrategy,
+)
 
 __all__ = [
     "BaseEstimator",
@@ -34,4 +41,9 @@ __all__ = [
     "BootstrapConfig",
     "BootstrapMixin",
     "BootstrapResult",
+    "LongitudinalData",
+    "TimeVaryingTreatmentData",
+    "TimeVaryingOutcomeData",
+    "TimeVaryingCovariateData",
+    "TreatmentStrategy",
 ]
