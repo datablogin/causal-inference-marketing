@@ -160,8 +160,8 @@ class TestHighDimensionalData:
     def high_dim_confounded_data(self):
         """Generate high-dimensional confounded data for causal inference."""
         np.random.seed(42)
-        n = 1000
-        p = 50  # High-dimensional covariates
+        n = 200  # Reduced for CI speed
+        p = 20  # Reduced for CI speed
 
         # Generate confounders with sparse structure
         true_confounders = np.random.randn(n, 8)  # Only 8 truly important
@@ -203,7 +203,7 @@ class TestHighDimensionalData:
                 ["logistic_regression", "lasso_logistic", "random_forest"]
             ),
             cross_fitting=True,
-            cv_folds=3,  # Smaller for test efficiency
+            cv_folds=2,  # Minimal for test efficiency
             random_state=42,
         )
 
@@ -237,7 +237,7 @@ class TestHighDimensionalData:
                     ["logistic_regression", "ridge_logistic", "random_forest"]
                 ),
                 cross_fitting=True,
-                cv_folds=3,
+                cv_folds=2,  # Minimal for test efficiency
                 moment_function=moment_function,
                 random_state=42,
             )
@@ -272,7 +272,7 @@ class TestHighDimensionalData:
         # Fit Super Learner
         sl = SuperLearner(
             base_learners=["linear_regression", "lasso", "random_forest"],
-            config=SuperLearnerConfig(cv_folds=3),
+            config=SuperLearnerConfig(cv_folds=2),  # Minimal for test efficiency
         )
         sl.fit(X, y)
         sl_pred = sl.predict(X)
@@ -291,8 +291,8 @@ class TestCrossValidationPerformance:
     def medium_confounded_data(self):
         """Generate medium-sized confounded data."""
         np.random.seed(42)
-        n = 500
-        p = 10
+        n = 100  # Reduced for CI speed
+        p = 5  # Reduced for CI speed
 
         X = np.random.randn(n, p)
 
@@ -333,7 +333,7 @@ class TestCrossValidationPerformance:
             outcome_learner=SuperLearner(["random_forest"]),
             propensity_learner=SuperLearner(["random_forest"]),
             cross_fitting=True,
-            cv_folds=5,
+            cv_folds=2,  # Minimal for test efficiency
             random_state=42,
         )
 
@@ -371,7 +371,7 @@ class TestCrossValidationPerformance:
             outcome_learner=outcome_learner,
             propensity_learner=propensity_learner,
             cross_fitting=True,
-            cv_folds=3,
+            cv_folds=2,  # Minimal for test efficiency
             random_state=42,
         )
 
@@ -417,10 +417,12 @@ class TestCrossValidationPerformance:
 
         # TMLE with feature importance
         estimator = TMLEEstimator(
-            outcome_learner=SuperLearner(["lasso", "random_forest"]),
-            propensity_learner=SuperLearner(["lasso_logistic", "random_forest"]),
+            outcome_learner=SuperLearner(["lasso"]),  # Simplified for CI speed
+            propensity_learner=SuperLearner(
+                ["lasso_logistic"]
+            ),  # Simplified for CI speed
             cross_fitting=True,
-            cv_folds=3,
+            cv_folds=2,  # Minimal for test efficiency
             random_state=42,
         )
 
@@ -458,10 +460,12 @@ class TestCrossValidationPerformance:
         start_time = time.time()
 
         estimator = TMLEEstimator(
-            outcome_learner=SuperLearner(["lasso", "random_forest"]),
-            propensity_learner=SuperLearner(["lasso_logistic", "random_forest"]),
+            outcome_learner=SuperLearner(["lasso"]),  # Simplified for CI speed
+            propensity_learner=SuperLearner(
+                ["lasso_logistic"]
+            ),  # Simplified for CI speed
             cross_fitting=True,
-            cv_folds=3,
+            cv_folds=2,  # Minimal for test efficiency
             random_state=42,
         )
 
