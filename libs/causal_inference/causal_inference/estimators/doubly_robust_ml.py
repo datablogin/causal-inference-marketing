@@ -4,6 +4,7 @@ This module implements doubly robust causal inference methods that combine
 machine learning for nuisance parameter estimation with cross-fitting to
 achieve √n-consistency and efficient inference.
 """
+# ruff: noqa: N803
 
 from __future__ import annotations
 

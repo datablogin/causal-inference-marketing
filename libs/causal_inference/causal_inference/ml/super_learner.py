@@ -4,6 +4,7 @@ The Super Learner is an ensemble method that optimally combines multiple
 machine learning algorithms using cross-validation to achieve the best
 possible prediction performance.
 """
+# ruff: noqa: N803
 
 from __future__ import annotations
 

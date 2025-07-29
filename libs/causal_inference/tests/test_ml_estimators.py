@@ -569,4 +569,3 @@ class TestIntegrationWithExistingEstimators:
             assert isinstance(effect.ate, float)
             assert effect.n_observations == n
             assert effect.n_treated + effect.n_control == n
-

@@ -4,6 +4,7 @@ Cross-fitting (also called cross-validation or sample splitting) is used to
 reduce overfitting bias when using machine learning methods for nuisance
 parameter estimation in causal inference.
 """
+# ruff: noqa: N803
 
 from __future__ import annotations
 
@@ -154,8 +155,6 @@ class CrossFittingEstimator(ABC):
         Returns:
             CrossFitData object with splits
         """
-        n_samples = X.shape[0]
-
         # Create cross-validation splitter
         if self.stratified and treatment is not None:
             # Stratify on treatment assignment
@@ -363,4 +362,3 @@ def create_cross_fit_data(
         treatment_train_folds=treatment_train_folds if treatment is not None else None,
         treatment_val_folds=treatment_val_folds if treatment is not None else None,
     )
-

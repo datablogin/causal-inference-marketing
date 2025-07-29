@@ -4,6 +4,7 @@ TMLE is a doubly robust, semi-parametric estimation method that combines
 machine learning for nuisance parameter estimation with targeting to
 reduce bias for the parameter of interest.
 """
+# ruff: noqa: N803
 
 from __future__ import annotations
 
@@ -272,8 +273,6 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         # Use logistic model if outcomes are binary, linear if continuous
         if len(np.unique(Y)) == 2 and set(np.unique(Y)).issubset({0, 1}):
             # Binary outcome - use logistic targeting
-            Q_AW_logit = logit(np.clip(Q_AW, 0.01, 0.99))
-
             targeting_model = LogisticRegression(fit_intercept=False)
             targeting_model.fit(H_AW.reshape(-1, 1), Y)
 
@@ -334,8 +333,6 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             # Fit targeting model for this iteration
             if len(np.unique(Y)) == 2 and set(np.unique(Y)).issubset({0, 1}):
                 # Binary outcome
-                Q_AW_logit = logit(np.clip(Q_AW, 0.01, 0.99))
-
                 targeting_model = LogisticRegression(fit_intercept=False)
                 targeting_model.fit(H_AW.reshape(-1, 1), Y)
 
