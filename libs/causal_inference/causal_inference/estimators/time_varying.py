@@ -194,7 +194,10 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
 
         # Get strategy comparison results
         from typing import cast
-        results = self.estimate_strategy_effects(cast(dict[str, TreatmentStrategy], strategies), confidence_level=0.95)
+
+        results = self.estimate_strategy_effects(
+            cast(dict[str, TreatmentStrategy], strategies), confidence_level=0.95
+        )
 
         # Extract the ATE as the contrast between always treat and never treat
         contrast_name = "always_treat_vs_never_treat"
