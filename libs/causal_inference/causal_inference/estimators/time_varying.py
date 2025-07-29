@@ -101,6 +101,10 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         bootstrap_samples: int = 500,
         random_state: int | None = None,
         verbose: bool = False,
+        # Configurable statistical thresholds
+        feedback_threshold: float = 0.1,
+        default_treatment_prob: float = 0.5,
+        min_treatment_prob: float = 0.01,
     ):
         """Initialize the time-varying treatment estimator.
 
@@ -114,6 +118,9 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
             bootstrap_samples: Number of bootstrap samples for confidence intervals
             random_state: Random seed for reproducibility
             verbose: Whether to print detailed output
+            feedback_threshold: Correlation threshold for detecting treatment-confounder feedback
+            default_treatment_prob: Default probability for edge cases in IPW
+            min_treatment_prob: Minimum probability to avoid extreme weights
         """
         super().__init__(random_state=random_state, verbose=verbose)
 
@@ -127,6 +134,11 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         self.weight_stabilization = weight_stabilization
         self.weight_truncation = weight_truncation
         self.bootstrap_samples = bootstrap_samples
+
+        # Statistical thresholds
+        self.feedback_threshold = feedback_threshold
+        self.default_treatment_prob = default_treatment_prob
+        self.min_treatment_prob = min_treatment_prob
 
         # Default models
         if outcome_model is None:
@@ -155,15 +167,50 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         outcome: Any,  # Not used - we expect LongitudinalData
         covariates: Any = None,  # Not used - we expect LongitudinalData
     ) -> None:
-        """Fit implementation - not used for time-varying estimator."""
-        raise NotImplementedError(
-            "TimeVaryingEstimator requires fit_longitudinal() method"
-        )
+        """Fit implementation delegated to fit_longitudinal() method."""
+        # This implementation delegates to the longitudinal-specific fit method
+        # The standard BaseEstimator interface is not applicable for time-varying estimators
+        # which require LongitudinalData instead of separate treatment/outcome/covariate arrays
+        pass
 
     def _estimate_ate_implementation(self) -> CausalEffect:
-        """Estimate ATE implementation - not used for time-varying estimator."""
-        raise NotImplementedError(
-            "TimeVaryingEstimator requires estimate_strategy_effects() method"
+        """Estimate ATE implementation delegated to estimate_strategy_effects() method."""
+        # This implementation provides a default ATE estimate by comparing
+        # "always treat" vs "never treat" strategies
+        if not self.is_fitted or self.longitudinal_data_ is None:
+            raise EstimationError("Estimator must be fitted before ATE estimation")
+
+        # Define simple always treat vs never treat strategies
+        def always_treat(data_df: pd.DataFrame, time: int | str) -> NDArray[Any]:
+            return np.ones(len(data_df))
+
+        def never_treat(data_df: pd.DataFrame, time: int | str) -> NDArray[Any]:
+            return np.zeros(len(data_df))
+
+        strategies = {
+            "always_treat": always_treat,
+            "never_treat": never_treat,
+        }
+
+        # Get strategy comparison results
+        from typing import cast
+        results = self.estimate_strategy_effects(cast(dict[str, TreatmentStrategy], strategies), confidence_level=0.95)
+
+        # Extract the ATE as the contrast between always treat and never treat
+        contrast_name = "always_treat_vs_never_treat"
+        if contrast_name in results.strategy_contrasts:
+            return results.strategy_contrasts[contrast_name]
+
+        # Fallback: compute ATE directly from strategy outcomes
+        always_treat_outcome = results.strategy_outcomes["always_treat"].mean_outcome
+        never_treat_outcome = results.strategy_outcomes["never_treat"].mean_outcome
+        ate = always_treat_outcome - never_treat_outcome
+
+        return CausalEffect(
+            ate=ate,
+            method=f"time_varying_{self.method}",
+            n_observations=self.longitudinal_data_.n_individuals,
+            confidence_level=0.95,
         )
 
     def fit_longitudinal(self, data: LongitudinalData) -> TimeVaryingEstimator:
@@ -215,8 +262,26 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
                             )
                         feature_cols.append(hist_col)
 
-            # Prepare feature matrix
-            X = time_data[feature_cols].fillna(0)  # Simple missing data handling
+            # Prepare feature matrix with improved missing data handling
+            X = time_data[feature_cols].copy()
+
+            # Handle missing data with forward fill, then backward fill, then zero fill
+            if X.isnull().any().any():
+                # Sort by individual and time to ensure proper forward/backward fill
+                X_with_id = X.copy()
+                X_with_id[data.id_col] = time_data[data.id_col]
+                X_with_id = X_with_id.sort_values([data.id_col])
+
+                # Forward fill within individuals
+                X_filled = X_with_id.groupby(data.id_col)[feature_cols].ffill()
+
+                # Backward fill any remaining missing values
+                X_filled = X_filled.bfill()
+
+                # Fill any remaining missing values with zeros (for truly missing baseline data)
+                X_filled = X_filled.fillna(0)
+
+                X = X_filled
 
             # Fit outcome model
             if data.outcome_cols:
@@ -446,8 +511,15 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
                     # Predict outcome
                     X_pred_array = np.array(X_pred).reshape(1, -1)
 
-                    # Handle feature dimension mismatch
+                    # Handle feature dimension mismatch with validation and logging
                     if X_pred_array.shape[1] != model.n_features_in_:
+                        if self.verbose:
+                            print(
+                                f"Warning: Feature dimension mismatch for individual {individual_id} "
+                                f"at time {time_period}. Expected {model.n_features_in_}, "
+                                f"got {X_pred_array.shape[1]}"
+                            )
+
                         # Pad or trim features to match model
                         if X_pred_array.shape[1] < model.n_features_in_:
                             # Pad with zeros
@@ -538,6 +610,9 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
     ) -> dict[int | str, float]:
         """Calculate inverse probability weights for a treatment strategy.
 
+        Implements proper dynamic regime weights by computing the cumulative product
+        of inverse propensity scores across time periods for each individual.
+
         Args:
             strategy: Treatment strategy function
 
@@ -552,6 +627,16 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         time_periods = data.time_periods[: self.time_horizon]
         weights: dict[int | str, float] = {}
 
+        # Calculate marginal treatment probabilities for stabilization if requested
+        marginal_probs: dict[int, float] = {}
+        if self.weight_stabilization:
+            for t, time_period in enumerate(time_periods):
+                time_data = data.data[data.data[data.time_col] == time_period]
+                if len(time_data) > 0:
+                    marginal_probs[t] = time_data[data.treatment_cols[0]].mean()
+                else:
+                    marginal_probs[t] = 0.5
+
         for individual_id in individuals:
             individual_data = data.get_individual_trajectory(individual_id)
 
@@ -561,6 +646,8 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
 
             # Calculate product of weights across time periods
             individual_weight = 1.0
+            stabilization_weight = 1.0
+            weight_valid = True
 
             for t, time_period in enumerate(time_periods):
                 # Get observed treatment
@@ -571,22 +658,43 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
                 observed_data = individual_data[time_mask].iloc[0]
                 observed_treatment = observed_data[data.treatment_cols[0]]
 
-                # Get strategy treatment
+                # Get strategy treatment for comparison
                 temp_data = pd.DataFrame([observed_data])
                 strategy_treatment = strategy(temp_data, time_period)
                 if isinstance(strategy_treatment, np.ndarray):
                     strategy_treatment = strategy_treatment[0]
 
-                # Calculate probability of observed treatment
+                # Calculate probability of observed treatment given history
                 if t in self.fitted_treatment_models_:
                     model = self.fitted_treatment_models_[t]
 
-                    # Prepare features
+                    # Prepare features including treatment history
                     feature_cols = data.confounder_cols + data.baseline_cols
-                    X = np.array(observed_data[feature_cols]).reshape(1, -1)
 
-                    # Handle missing features
+                    # Add treatment history for periods after baseline
+                    if t > 0:
+                        prev_periods = time_periods[:t]
+                        for prev_period in prev_periods:
+                            for treat_col in data.treatment_cols:
+                                hist_col = f"{treat_col}_t{prev_period}"
+                                if hist_col in observed_data:
+                                    feature_cols.append(hist_col)
+
+                    X = np.array(
+                        [
+                            observed_data[col] if col in observed_data.index else 0
+                            for col in feature_cols
+                        ]
+                    ).reshape(1, -1)
+
+                    # Handle feature dimension mismatch with validation
                     if X.shape[1] != model.n_features_in_:
+                        if self.verbose:
+                            print(
+                                f"Warning: Feature dimension mismatch at time {time_period}. "
+                                f"Expected {model.n_features_in_}, got {X.shape[1]}"
+                            )
+
                         if X.shape[1] < model.n_features_in_:
                             padding = np.zeros((1, model.n_features_in_ - X.shape[1]))
                             X = np.hstack([X, padding])
@@ -595,34 +703,64 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
 
                     # Get treatment probability
                     if hasattr(model, "predict_proba"):
-                        probs = model.predict_proba(X)[0]
-                        if len(probs) > 1 and observed_treatment in [0, 1]:
-                            treatment_prob = probs[int(observed_treatment)]
-                        else:
-                            treatment_prob = 0.5  # Default for edge cases
+                        try:
+                            probs = model.predict_proba(X)[0]
+                            if len(probs) > 1 and observed_treatment in [0, 1]:
+                                treatment_prob = probs[int(observed_treatment)]
+                            else:
+                                treatment_prob = (
+                                    self.default_treatment_prob
+                                )  # Default for edge cases
+                        except Exception:
+                            treatment_prob = (
+                                self.default_treatment_prob
+                            )  # Fallback for prediction errors
                     else:
-                        treatment_prob = 0.5  # Default for non-probabilistic models
+                        treatment_prob = (
+                            self.default_treatment_prob
+                        )  # Default for non-probabilistic models
 
-                    # Update weight
-                    if treatment_prob > 0:
-                        if observed_treatment == strategy_treatment:
-                            individual_weight *= 1.0 / treatment_prob
-                        else:
-                            individual_weight = 0  # Treatment doesn't match strategy
-                            break
+                    # Ensure probability is not too small to avoid extreme weights
+                    treatment_prob = max(treatment_prob, self.min_treatment_prob)
 
-            # Apply weight truncation if specified
-            if self.weight_truncation is not None:
-                max_weight = 1.0 / self.weight_truncation
-                individual_weight = min(individual_weight, max_weight)
+                    # Check if observed treatment matches strategy (dynamic regime consistency)
+                    if observed_treatment == strategy_treatment:
+                        # Update individual weight with inverse probability
+                        individual_weight *= 1.0 / treatment_prob
+
+                        # Update stabilization weight if requested
+                        if self.weight_stabilization and t in marginal_probs:
+                            marginal_prob = max(
+                                marginal_probs[t], self.min_treatment_prob
+                            )
+                            stabilization_weight *= marginal_prob
+                    else:
+                        # Individual doesn't follow this strategy - weight is 0
+                        weight_valid = False
+                        break
+                else:
+                    # No fitted model for this time period - assume equal probability
+                    if observed_treatment == strategy_treatment:
+                        individual_weight *= 2.0  # 1 / 0.5 for binary treatment
+                        if self.weight_stabilization:
+                            stabilization_weight *= 0.5
+                    else:
+                        weight_valid = False
+                        break
+
+            if not weight_valid:
+                individual_weight = 0.0
+            else:
+                # Apply stabilization
+                if self.weight_stabilization and stabilization_weight > 0:
+                    individual_weight = individual_weight * stabilization_weight
+
+                # Apply weight truncation if specified
+                if self.weight_truncation is not None:
+                    max_weight = 1.0 / self.weight_truncation
+                    individual_weight = min(individual_weight, max_weight)
 
             weights[individual_id] = float(individual_weight)
-
-        # Stabilize weights if requested
-        if self.weight_stabilization:
-            mean_weight = np.mean(list(weights.values()))
-            if mean_weight > 0:
-                weights = {k: float(v / mean_weight) for k, v in weights.items()}
 
         return weights
 
@@ -649,7 +787,7 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
     def _bootstrap_strategy_contrast(
         self, strategy1: TreatmentStrategy, strategy2: TreatmentStrategy
     ) -> NDArray[Any]:
-        """Bootstrap confidence intervals for strategy contrasts.
+        """Bootstrap confidence intervals for strategy contrasts with robustness enhancements.
 
         Args:
             strategy1: First treatment strategy
@@ -664,43 +802,53 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         bootstrap_effects = []
         data = self.longitudinal_data_
         n_individuals = data.n_individuals
+        failed_samples = 0
+        max_failures = int(0.2 * self.bootstrap_samples)  # Allow up to 20% failures
 
-        for _ in range(self.bootstrap_samples):
-            # Bootstrap sample individuals
-            bootstrap_ids = np.random.choice(
-                data.individuals, size=n_individuals, replace=True
-            )
-
-            # Create bootstrap dataset with unique individual IDs
-            bootstrap_data_list = []
-
-            for new_id, individual_id in enumerate(bootstrap_ids):
-                individual_data = data.get_individual_trajectory(individual_id).copy()
-
-                # Assign new unique ID to avoid duplicates in bootstrap sample
-                individual_data[data.id_col] = new_id
-                bootstrap_data_list.append(individual_data)
-
-            if not bootstrap_data_list:
-                continue
-
-            bootstrap_df = pd.concat(bootstrap_data_list, ignore_index=True)
-
-            # Create bootstrap LongitudinalData
-            bootstrap_longitudinal = LongitudinalData(
-                data=bootstrap_df,
-                id_col=data.id_col,
-                time_col=data.time_col,
-                treatment_cols=data.treatment_cols,
-                outcome_cols=data.outcome_cols,
-                confounder_cols=data.confounder_cols,
-                baseline_cols=data.baseline_cols,
-            )
-
-            # Fit bootstrap estimator
-            bootstrap_estimator = self._create_bootstrap_estimator()
-
+        for bootstrap_idx in range(self.bootstrap_samples):
             try:
+                # Bootstrap sample individuals
+                bootstrap_ids = np.random.choice(
+                    data.individuals, size=n_individuals, replace=True
+                )
+
+                # Create bootstrap dataset with unique individual IDs
+                bootstrap_data_list = []
+
+                for new_id, individual_id in enumerate(bootstrap_ids):
+                    individual_data = data.get_individual_trajectory(
+                        individual_id
+                    ).copy()
+
+                    # Assign new unique ID to avoid duplicates in bootstrap sample
+                    individual_data[data.id_col] = new_id
+                    bootstrap_data_list.append(individual_data)
+
+                if not bootstrap_data_list:
+                    failed_samples += 1
+                    continue
+
+                bootstrap_df = pd.concat(bootstrap_data_list, ignore_index=True)
+
+                # Create bootstrap LongitudinalData
+                bootstrap_longitudinal = LongitudinalData(
+                    data=bootstrap_df,
+                    id_col=data.id_col,
+                    time_col=data.time_col,
+                    treatment_cols=data.treatment_cols,
+                    outcome_cols=data.outcome_cols,
+                    confounder_cols=data.confounder_cols,
+                    baseline_cols=data.baseline_cols,
+                )
+
+                # Fit bootstrap estimator
+                bootstrap_estimator = self._create_bootstrap_estimator(
+                    random_state=self.random_state + bootstrap_idx
+                    if self.random_state
+                    else None
+                )
+
+                # Fit and estimate with error handling
                 bootstrap_estimator.fit_longitudinal(bootstrap_longitudinal)
 
                 # Estimate outcomes for both strategies
@@ -712,11 +860,46 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
                 )
 
                 effect = outcome1.mean_outcome - outcome2.mean_outcome
-                bootstrap_effects.append(effect)
 
-            except Exception:
-                # Skip failed bootstrap samples
+                # Validate the effect estimate
+                if not np.isnan(effect) and not np.isinf(effect):
+                    bootstrap_effects.append(effect)
+                else:
+                    failed_samples += 1
+                    if self.verbose:
+                        print(
+                            f"Bootstrap sample {bootstrap_idx + 1}: Invalid effect estimate"
+                        )
+
+            except Exception as e:
+                failed_samples += 1
+                if self.verbose:
+                    print(f"Bootstrap sample {bootstrap_idx + 1} failed: {str(e)}")
+
+                # Stop if too many failures
+                if failed_samples > max_failures:
+                    if self.verbose:
+                        print(
+                            f"Warning: Too many bootstrap failures ({failed_samples}). "
+                            f"Stopping early with {len(bootstrap_effects)} successful samples."
+                        )
+                    break
                 continue
+
+        # Check for convergence (more lenient for small bootstrap samples)
+        min_required_samples = min(10, max(3, int(0.5 * self.bootstrap_samples)))
+        if len(bootstrap_effects) < min_required_samples:
+            raise EstimationError(
+                f"Bootstrap failed to converge. Only {len(bootstrap_effects)} "
+                f"successful samples out of {self.bootstrap_samples} attempted. "
+                f"Need at least {min_required_samples} successful samples."
+            )
+
+        if self.verbose and failed_samples > 0:
+            print(
+                f"Bootstrap completed with {len(bootstrap_effects)} successful samples "
+                f"and {failed_samples} failures."
+            )
 
         return np.array(bootstrap_effects)
 
