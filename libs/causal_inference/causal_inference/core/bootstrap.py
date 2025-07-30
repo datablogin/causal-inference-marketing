@@ -51,6 +51,7 @@ from __future__ import annotations
 import abc
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import numpy as np
@@ -118,6 +119,23 @@ class BootstrapConfig(BaseModel):
 
     chunk_size: int = Field(
         default=50, ge=1, le=1000, description="Size of chunks for parallel processing"
+    )
+
+    # Large dataset optimization parameters
+    max_memory_mb: float = Field(
+        default=4000.0, gt=0.0, description="Maximum memory usage in MB before chunking"
+    )
+
+    large_dataset_threshold: int = Field(
+        default=100000, ge=1000, description="Sample size threshold for large dataset optimizations"
+    )
+
+    chunked_bootstrap: bool = Field(
+        default=True, description="Use chunked bootstrap for large datasets"
+    )
+
+    bootstrap_chunk_size: int = Field(
+        default=100, ge=10, le=1000, description="Size of bootstrap sample chunks"
     )
 
     progress_bar: bool = Field(
@@ -467,6 +485,15 @@ class BootstrapMixin(abc.ABC):
         Returns:
             List of bootstrap estimates
         """
+        # Get data size for optimization decisions
+        treatment_data, outcome_data, _ = self._validate_bootstrap_data()
+        n_obs = len(treatment_data.values)
+
+        # Use chunked bootstrap for large datasets
+        if (self.bootstrap_config.chunked_bootstrap and
+            n_obs >= self.bootstrap_config.large_dataset_threshold):
+            return self._chunked_parallel_bootstrap()
+
         bootstrap_estimates = []
 
         # Determine number of workers
@@ -509,6 +536,178 @@ class BootstrapMixin(abc.ABC):
                         continue
 
         return bootstrap_estimates
+
+    def _chunked_parallel_bootstrap(self) -> list[float]:
+        """Run bootstrap with memory-efficient chunked processing for large datasets.
+
+        Returns:
+            List of bootstrap estimates
+        """
+        import gc
+
+        from ..utils.memory_efficient import MemoryMonitor, efficient_bootstrap_indices
+
+        bootstrap_estimates = []
+
+        # Get validated data
+        treatment_data, outcome_data, covariate_data = self._validate_bootstrap_data()
+        n_obs = len(treatment_data.values)
+
+        if hasattr(self, "verbose") and getattr(self, "verbose", False):
+            print(f"Using chunked bootstrap for {n_obs:,} observations")
+
+        # Determine stratification array
+        stratify_by: NDArray[Any] | None = None
+        if self.bootstrap_config.stratified and hasattr(treatment_data, "treatment_type"):
+            if isinstance(treatment_data.values, pd.Series):
+                stratify_by = treatment_data.values.to_numpy()
+            else:
+                stratify_by = np.asarray(treatment_data.values)
+
+        # Generate bootstrap indices in chunks
+        chunk_size = self.bootstrap_config.bootstrap_chunk_size
+
+        with MemoryMonitor("chunked_bootstrap") if hasattr(self, "verbose") and getattr(self, "verbose", False) else nullcontext():
+            for batch_indices in efficient_bootstrap_indices(
+                n_obs,
+                self.bootstrap_config.n_samples,
+                stratify_by=stratify_by,
+                chunk_size=chunk_size,
+                random_state=self.bootstrap_config.random_state,
+            ):
+                # Process this batch of bootstrap samples
+                batch_estimates = self._process_bootstrap_batch(
+                    batch_indices, treatment_data, outcome_data, covariate_data
+                )
+                bootstrap_estimates.extend(batch_estimates)
+
+                # Force garbage collection to free memory
+                del batch_indices, batch_estimates
+                gc.collect()
+
+                if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                    print(f"Processed {len(bootstrap_estimates)}/{self.bootstrap_config.n_samples} samples")
+
+        return bootstrap_estimates
+
+    def _process_bootstrap_batch(
+        self,
+        batch_indices: NDArray[Any],
+        treatment_data: Any,
+        outcome_data: Any,
+        covariate_data: Any | None,
+    ) -> list[float]:
+        """Process a batch of bootstrap indices efficiently.
+
+        Args:
+            batch_indices: Array of bootstrap indices (batch_size x n_obs)
+            treatment_data: Original treatment data
+            outcome_data: Original outcome data
+            covariate_data: Original covariate data
+
+        Returns:
+            List of bootstrap estimates for this batch
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        batch_estimates = []
+
+        # Use thread-based parallelism for I/O bound bootstrap operations
+        max_workers = min(4, len(batch_indices))  # Limit threads to avoid memory issues
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+
+            for i, bootstrap_idx in enumerate(batch_indices):
+                future = executor.submit(
+                    self._single_bootstrap_from_indices,
+                    bootstrap_idx,
+                    treatment_data,
+                    outcome_data,
+                    covariate_data,
+                    i,
+                )
+                futures.append(future)
+
+            # Collect results
+            for future in as_completed(futures):
+                try:
+                    estimate = future.result()
+                    batch_estimates.append(estimate)
+                except Exception as e:
+                    if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                        warnings.warn(f"Bootstrap sample in batch failed: {str(e)}")
+                    continue
+
+        return batch_estimates
+
+    def _single_bootstrap_from_indices(
+        self,
+        bootstrap_indices: NDArray[Any],
+        treatment_data: Any,
+        outcome_data: Any,
+        covariate_data: Any | None,
+        sample_idx: int,
+    ) -> float:
+        """Generate bootstrap estimate from pre-computed indices.
+
+        Args:
+            bootstrap_indices: Bootstrap indices for this sample
+            treatment_data: Original treatment data
+            outcome_data: Original outcome data
+            covariate_data: Original covariate data
+            sample_idx: Sample index for debugging
+
+        Returns:
+            Bootstrap estimate
+        """
+        try:
+            # Runtime import to avoid circular dependency
+            from ..core.base import CovariateData, OutcomeData, TreatmentData
+
+            # Create bootstrap datasets using indices
+            boot_treatment = TreatmentData(
+                values=treatment_data.values.iloc[bootstrap_indices]
+                if isinstance(treatment_data.values, pd.Series)
+                else treatment_data.values[bootstrap_indices],
+                name=treatment_data.name,
+                treatment_type=getattr(treatment_data, "treatment_type", "binary"),
+                categories=getattr(treatment_data, "categories", None),
+            )
+
+            boot_outcome = OutcomeData(
+                values=outcome_data.values.iloc[bootstrap_indices]
+                if isinstance(outcome_data.values, pd.Series)
+                else outcome_data.values[bootstrap_indices],
+                name=outcome_data.name,
+                outcome_type=getattr(outcome_data, "outcome_type", "continuous"),
+            )
+
+            boot_covariates = None
+            if covariate_data is not None:
+                if isinstance(covariate_data.values, pd.DataFrame):
+                    boot_cov_values = covariate_data.values.iloc[bootstrap_indices]
+                else:
+                    boot_cov_values = covariate_data.values[bootstrap_indices]
+
+                boot_covariates = CovariateData(
+                    values=boot_cov_values,
+                    names=covariate_data.names,
+                )
+
+            # Create bootstrap estimator and fit
+            boot_estimator = self._create_bootstrap_estimator(
+                random_state=None  # Don't set random state for efficiency
+            )
+
+            boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)
+            boot_effect = boot_estimator.estimate_ate()
+            return boot_effect.ate
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Bootstrap sample {sample_idx} failed: {str(e)}"
+            ) from e
 
     def _sequential_bootstrap(self) -> list[float]:
         """Run bootstrap samples sequentially.

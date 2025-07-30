@@ -7,6 +7,7 @@ treatment scenarios.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 import numpy as np
@@ -26,6 +27,10 @@ from ..core.base import (
     TreatmentData,
 )
 from ..core.bootstrap import BootstrapConfig, BootstrapMixin
+from ..utils.memory_efficient import (
+    MemoryMonitor,
+    optimize_pandas_dtypes,
+)
 
 
 class GComputationEstimator(BootstrapMixin, BaseEstimator):
@@ -55,6 +60,10 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         confidence_level: float = 0.95,
         random_state: int | None = None,
         verbose: bool = False,
+        # Large dataset optimization parameters
+        chunk_size: int = 10000,
+        memory_efficient: bool = True,
+        large_dataset_threshold: int = 100000,
     ) -> None:
         """Initialize the G-computation estimator.
 
@@ -66,6 +75,9 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
+            chunk_size: Size of chunks for processing large datasets
+            memory_efficient: Enable memory optimizations for large datasets
+            large_dataset_threshold: Sample size threshold for enabling optimizations
         """
         # Create bootstrap config if not provided (for backward compatibility)
         if bootstrap_config is None:
@@ -83,6 +95,11 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
         self.model_type = model_type
         self.model_params = model_params or {}
+
+        # Large dataset optimization parameters
+        self.chunk_size = chunk_size
+        self.memory_efficient = memory_efficient
+        self.large_dataset_threshold = large_dataset_threshold
 
         # Model storage
         self.outcome_model: SklearnBaseEstimator | None = None
@@ -191,6 +208,44 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
         return features
 
+    def _prepare_features_efficient(
+        self,
+        treatment: TreatmentData,
+        covariates: CovariateData | None = None,
+        n_samples: int | None = None,
+    ) -> pd.DataFrame:
+        """Prepare feature matrix with memory optimizations for large datasets.
+
+        Args:
+            treatment: Treatment data
+            covariates: Optional covariate data
+            n_samples: Number of samples (for optimization decisions)
+
+        Returns:
+            Optimized feature DataFrame
+        """
+        if n_samples is None:
+            n_samples = len(treatment.values)
+
+        # Start with regular feature preparation
+        features = self._prepare_features(treatment, covariates)
+
+        # Apply memory optimizations for large datasets
+        if self.memory_efficient and n_samples >= self.large_dataset_threshold:
+            if self.verbose:
+                memory_before = features.memory_usage(deep=True).sum() / 1024**2
+                print(f"Feature matrix memory before optimization: {memory_before:.1f} MB")
+
+            # Optimize data types
+            features = optimize_pandas_dtypes(features)
+
+            if self.verbose:
+                memory_after = features.memory_usage(deep=True).sum() / 1024**2
+                print(f"Feature matrix memory after optimization: {memory_after:.1f} MB")
+                print(f"Memory saved: {memory_before - memory_after:.1f} MB ({((memory_before - memory_after) / memory_before * 100):.1f}%)")
+
+        return features
+
     def _fit_implementation(
         self,
         treatment: TreatmentData,
@@ -204,18 +259,28 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             outcome: Outcome variable data
             covariates: Optional covariate data for adjustment
         """
-        # Prepare features
-        X = self._prepare_features(treatment, covariates)
-        self._model_features = list(X.columns)
+        n_samples = len(treatment.values)
 
-        # Prepare outcome
-        if isinstance(outcome.values, pd.Series):
-            y = outcome.values.values
-        else:
-            y = outcome.values
+        # Use memory monitoring for large datasets
+        monitor_memory = (
+            self.memory_efficient and
+            n_samples >= self.large_dataset_threshold and
+            self.verbose
+        )
 
-        # Select and fit model
-        self.outcome_model = self._select_model(outcome.outcome_type)
+        with MemoryMonitor("fit_implementation") if monitor_memory else nullcontext():
+            # Prepare features with memory optimization
+            X = self._prepare_features_efficient(treatment, covariates, n_samples)
+            self._model_features = list(X.columns)
+
+            # Prepare outcome
+            if isinstance(outcome.values, pd.Series):
+                y = outcome.values.values
+            else:
+                y = outcome.values
+
+            # Select and fit model
+            self.outcome_model = self._select_model(outcome.outcome_type)
 
         try:
             # Check for treatment variation first
@@ -291,6 +356,24 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             else:
                 n_obs = covariates.values.shape[0]
 
+        # Use chunked prediction for large datasets
+        if self.memory_efficient and n_obs >= self.large_dataset_threshold:
+            return self._predict_counterfactuals_chunked(treatment_value, covariates, n_obs)
+
+        # Regular prediction for smaller datasets
+        return self._predict_counterfactuals_regular(treatment_value, covariates, n_obs)
+
+    def _predict_counterfactuals_regular(
+        self,
+        treatment_value: float | int,
+        covariates: CovariateData | None,
+        n_obs: int,
+    ) -> NDArray[Any]:
+        """Regular prediction method for smaller datasets."""
+        # Check if treatment_data exists
+        if self.treatment_data is None:
+            raise EstimationError("Treatment data is required for counterfactual prediction")
+
         # Start with treatment set to specified value
         counterfactual_features = pd.DataFrame(
             {self.treatment_data.name: [treatment_value] * n_obs}
@@ -313,7 +396,66 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             counterfactual_features = counterfactual_features[self._model_features]
 
         # Predict counterfactual outcomes
+        if self.outcome_model is None:
+            raise EstimationError("Outcome model must be fitted before prediction")
         return self.outcome_model.predict(counterfactual_features)
+
+    def _predict_counterfactuals_chunked(
+        self,
+        treatment_value: float | int,
+        covariates: CovariateData | None,
+        n_obs: int,
+    ) -> NDArray[Any]:
+        """Memory-efficient chunked prediction for large datasets."""
+        def predict_chunk(chunk_slice: slice) -> NDArray[Any]:
+            """Predict for a single chunk."""
+            chunk_size = chunk_slice.stop - chunk_slice.start
+
+            # Check if treatment_data exists
+            if self.treatment_data is None:
+                raise EstimationError("Treatment data is required for chunked prediction")
+
+            # Create chunk features
+            chunk_features = pd.DataFrame(
+                {self.treatment_data.name: [treatment_value] * chunk_size}
+            )
+
+            # Add covariates for this chunk
+            if covariates is not None:
+                if isinstance(covariates.values, pd.DataFrame):
+                    chunk_covariates = covariates.values.iloc[chunk_slice]
+                    for col in chunk_covariates.columns:
+                        chunk_features[col] = chunk_covariates[col].values
+                else:
+                    chunk_covariates_values = covariates.values[chunk_slice]
+                    cov_names = covariates.names or [
+                        f"X{i}" for i in range(chunk_covariates_values.shape[1])
+                    ]
+                    for i, name in enumerate(cov_names):
+                        chunk_features[name] = chunk_covariates_values[:, i]
+
+            # Ensure correct feature order
+            if self._model_features is not None:
+                chunk_features = chunk_features[self._model_features]
+
+            if self.outcome_model is None:
+                raise EstimationError("Outcome model must be fitted before prediction")
+            return self.outcome_model.predict(chunk_features)
+
+        # Use chunked operation to predict
+        def chunk_operation(chunk_start: int) -> NDArray[Any]:
+            chunk_end = min(chunk_start + self.chunk_size, n_obs)
+            return predict_chunk(slice(chunk_start, chunk_end))
+
+        # Combine results from all chunks
+        chunks = range(0, n_obs, self.chunk_size)
+        results = []
+
+        for chunk_start in chunks:
+            chunk_result = chunk_operation(chunk_start)
+            results.append(chunk_result)
+
+        return np.concatenate(results)
 
     def _estimate_ate_implementation(self) -> CausalEffect:
         """Estimate Average Treatment Effect using G-computation.
