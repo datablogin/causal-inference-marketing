@@ -266,7 +266,9 @@ def sparse_safe_operation(
                 variance = data.multiply(data).mean() - mean_val * mean_val  # type: ignore[union-attr]
             else:
                 if sparse.issparse(mean_val):
-                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(mean_val)  # type: ignore[union-attr]
+                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(
+                        mean_val
+                    )  # type: ignore[union-attr]
                 else:
                     # mean_val is not sparse, use element-wise multiplication
                     variance = data.multiply(data).mean(axis=axis) - mean_val * mean_val  # type: ignore[union-attr]
@@ -279,7 +281,9 @@ def sparse_safe_operation(
                 return data.multiply(data).mean() - mean_val * mean_val  # type: ignore[union-attr]
             else:
                 if sparse.issparse(mean_val):
-                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(mean_val)  # type: ignore[union-attr]
+                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(
+                        mean_val
+                    )  # type: ignore[union-attr]
                 else:
                     # mean_val is not sparse, use element-wise multiplication
                     variance = data.multiply(data).mean(axis=axis) - mean_val * mean_val  # type: ignore[union-attr]
