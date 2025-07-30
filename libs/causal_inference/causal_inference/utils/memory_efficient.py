@@ -257,36 +257,29 @@ def sparse_safe_operation(
         Result of the operation
     """
     if sparse.issparse(data):
+        # Cast to sparse matrix to avoid type issues
+        sparse_data = data
         if operation == "mean":
-            return np.array(data.mean(axis=axis)).flatten()  # type: ignore[union-attr]
+            return np.array(sparse_data.mean(axis=axis)).flatten()  # type: ignore[union-attr]
         elif operation == "std":
             # For sparse matrices, compute std manually
-            mean_val = data.mean(axis=axis)  # type: ignore[union-attr]
+            mean_val = sparse_data.mean(axis=axis)  # type: ignore[union-attr]
+            var_base = sparse_data.multiply(sparse_data).mean(axis=axis)  # type: ignore[union-attr]
             if axis is None:
-                variance = data.multiply(data).mean() - mean_val * mean_val  # type: ignore[union-attr]
+                variance = var_base - mean_val * mean_val
             else:
-                if sparse.issparse(mean_val):
-                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(
-                        mean_val
-                    )  # type: ignore[union-attr]
-                else:
-                    # mean_val is not sparse, use element-wise multiplication
-                    variance = data.multiply(data).mean(axis=axis) - mean_val * mean_val  # type: ignore[union-attr]
+                # Handle both scalar and matrix mean values
+                variance = var_base - mean_val * mean_val  # type: ignore[operator]
             return np.sqrt(np.array(variance)).flatten()
         elif operation == "sum":
-            return np.array(data.sum(axis=axis)).flatten()  # type: ignore[union-attr]
+            return np.array(sparse_data.sum(axis=axis)).flatten()  # type: ignore[union-attr]
         elif operation == "var":
-            mean_val = data.mean(axis=axis)  # type: ignore[union-attr]
+            mean_val = sparse_data.mean(axis=axis)  # type: ignore[union-attr]
+            var_base = sparse_data.multiply(sparse_data).mean(axis=axis)  # type: ignore[union-attr]
             if axis is None:
-                return data.multiply(data).mean() - mean_val * mean_val  # type: ignore[union-attr]
+                return var_base - mean_val * mean_val
             else:
-                if sparse.issparse(mean_val):
-                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(
-                        mean_val
-                    )  # type: ignore[union-attr]
-                else:
-                    # mean_val is not sparse, use element-wise multiplication
-                    variance = data.multiply(data).mean(axis=axis) - mean_val * mean_val  # type: ignore[union-attr]
+                variance = var_base - mean_val * mean_val  # type: ignore[operator]
                 return np.array(variance).flatten()
         else:
             raise ValueError(f"Unsupported operation for sparse data: {operation}")
