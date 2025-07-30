@@ -150,7 +150,7 @@ class ParquetDataStream(DataStream):
 
     def _validate_and_setup(self) -> None:
         """Validate file and setup streaming parameters."""
-        import pyarrow.parquet as pq  # type: ignore[import-untyped]
+        import pyarrow.parquet as pq  # type: ignore[import-untyped,import-not-found]
 
         # Read parquet metadata
         parquet_file = pq.ParquetFile(self.file_path)
@@ -178,7 +178,7 @@ class ParquetDataStream(DataStream):
 
     def __iter__(self) -> Iterator[tuple[pd.DataFrame, pd.Series, pd.Series]]:
         """Iterate over batches."""
-        import pyarrow.parquet as pq  # type: ignore[import-untyped]
+        import pyarrow.parquet as pq  # type: ignore[import-untyped,import-not-found]
 
         # Read in batches using pyarrow
         parquet_file = pq.ParquetFile(self.file_path)
