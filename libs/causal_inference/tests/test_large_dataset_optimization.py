@@ -220,12 +220,12 @@ class TestBootstrapOptimizations:
             n_samples=500,
             chunked_bootstrap=True,
             bootstrap_chunk_size=50,
-            large_dataset_threshold=100,
+            large_dataset_threshold=1000,
         )
 
         assert config.chunked_bootstrap is True
         assert config.bootstrap_chunk_size == 50
-        assert config.large_dataset_threshold == 100
+        assert config.large_dataset_threshold == 1000
 
     def test_large_dataset_bootstrap(self):
         """Test bootstrap with large dataset optimizations."""
@@ -244,14 +244,14 @@ class TestBootstrapOptimizations:
             n_samples=100,  # Reduced for testing
             chunked_bootstrap=True,
             bootstrap_chunk_size=20,
-            large_dataset_threshold=400,  # Below our dataset size
+            large_dataset_threshold=1000,  # Minimum allowed value
             parallel=False,  # Disable for simpler testing
         )
 
         # Create estimator with optimizations
         estimator = GComputationEstimator(
             bootstrap_config=bootstrap_config,
-            large_dataset_threshold=400,
+            large_dataset_threshold=500,  # Can be lower in estimator
             memory_efficient=True,
             verbose=False,
         )
@@ -361,7 +361,7 @@ class TestLargeDatasetEstimator:
         # Create estimator with optimizations
         estimator = GComputationEstimator(
             memory_efficient=True,
-            large_dataset_threshold=500,  # Below our dataset size
+            large_dataset_threshold=500,  # Below our dataset size (1000 samples)
             chunk_size=200,
             bootstrap_config=BootstrapConfig(n_samples=50),  # Small bootstrap
             verbose=False,
@@ -391,7 +391,7 @@ class TestLargeDatasetEstimator:
         # Create estimator with small chunk size to force chunking
         estimator = GComputationEstimator(
             memory_efficient=True,
-            large_dataset_threshold=500,  # Enable optimizations
+            large_dataset_threshold=500,  # Enable optimizations (800 samples > 500)
             chunk_size=100,  # Small chunks
             bootstrap_config=BootstrapConfig(n_samples=0),  # No bootstrap
             verbose=False,
