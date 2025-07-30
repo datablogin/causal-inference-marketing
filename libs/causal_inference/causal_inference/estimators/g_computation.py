@@ -261,11 +261,12 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         """
         n_samples = len(treatment.values)
 
-        # Use memory monitoring for large datasets
+        # Use memory monitoring for large datasets (if enabled in bootstrap config)
         monitor_memory = (
             self.memory_efficient and
             n_samples >= self.large_dataset_threshold and
-            self.verbose
+            self.verbose and
+            getattr(self.bootstrap_config, 'enable_memory_monitoring', True)  # Default to True for backward compatibility
         )
 
         with MemoryMonitor("fit_implementation") if monitor_memory else nullcontext():
@@ -358,6 +359,10 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
         # Use chunked prediction for large datasets
         if self.memory_efficient and n_obs >= self.large_dataset_threshold:
+            # Record telemetry if enabled
+            if getattr(self.bootstrap_config, 'enable_telemetry', False):
+                from ..core.bootstrap import OptimizationTelemetry
+                OptimizationTelemetry.record_optimization("chunked_prediction")
             return self._predict_counterfactuals_chunked(treatment_value, covariates, n_obs)
 
         # Regular prediction for smaller datasets
@@ -406,7 +411,13 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         covariates: CovariateData | None,
         n_obs: int,
     ) -> NDArray[Any]:
-        """Memory-efficient chunked prediction for large datasets."""
+        """Memory-efficient chunked prediction for large datasets.
+
+        Performance Characteristics:
+            - Memory: O(chunk_size * n_features) instead of O(n_obs * n_features)
+            - Time: O(n_obs / chunk_size) prediction passes
+            - Optimal for: n_obs >> chunk_size (e.g., 1M+ observations)
+        """
         def predict_chunk(chunk_slice: slice) -> NDArray[Any]:
             """Predict for a single chunk."""
             chunk_size = chunk_slice.stop - chunk_slice.start

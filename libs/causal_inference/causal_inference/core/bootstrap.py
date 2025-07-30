@@ -50,7 +50,7 @@ from __future__ import annotations
 
 import abc
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -62,6 +62,39 @@ from scipy import stats
 
 if TYPE_CHECKING:
     pass
+
+
+class OptimizationTelemetry:
+    """Simple telemetry collector for optimization usage statistics."""
+
+    _stats: dict[str, int] = {}
+    _enabled: bool = False
+
+    @classmethod
+    def enable(cls) -> None:
+        """Enable telemetry collection."""
+        cls._enabled = True
+
+    @classmethod
+    def disable(cls) -> None:
+        """Disable telemetry collection."""
+        cls._enabled = False
+
+    @classmethod
+    def record_optimization(cls, optimization_type: str) -> None:
+        """Record an optimization activation."""
+        if cls._enabled:
+            cls._stats[optimization_type] = cls._stats.get(optimization_type, 0) + 1
+
+    @classmethod
+    def get_stats(cls) -> dict[str, int]:
+        """Get collected statistics."""
+        return cls._stats.copy()
+
+    @classmethod
+    def reset_stats(cls) -> None:
+        """Reset collected statistics."""
+        cls._stats.clear()
 
 
 class BootstrapConfig(BaseModel):
@@ -144,6 +177,14 @@ class BootstrapConfig(BaseModel):
 
     memory_efficient: bool = Field(
         default=True, description="Use memory-efficient mode for large datasets"
+    )
+
+    enable_memory_monitoring: bool = Field(
+        default=True, description="Enable memory monitoring during bootstrap operations (disable in production for performance)"
+    )
+
+    enable_telemetry: bool = Field(
+        default=False, description="Enable telemetry collection for optimization usage statistics"
     )
 
     convergence_check: bool = Field(
@@ -277,6 +318,27 @@ class BootstrapMixin(abc.ABC):
     approaches with parallel processing and comprehensive diagnostics.
     """
 
+    # Class-level thread pool for efficient worker reuse
+    _thread_pool: ThreadPoolExecutor | None = None
+    _thread_pool_workers: int = 4
+
+    @classmethod
+    def _get_thread_pool(cls) -> ThreadPoolExecutor:
+        """Get or create shared thread pool for bootstrap operations."""
+        if cls._thread_pool is None or cls._thread_pool._shutdown:
+            cls._thread_pool = ThreadPoolExecutor(
+                max_workers=cls._thread_pool_workers,
+                thread_name_prefix="bootstrap_worker"
+            )
+        return cls._thread_pool
+
+    @classmethod
+    def _shutdown_thread_pool(cls) -> None:
+        """Shutdown shared thread pool."""
+        if cls._thread_pool is not None:
+            cls._thread_pool.shutdown(wait=True)
+            cls._thread_pool = None
+
     def __init__(
         self, *args: Any, bootstrap_config: Any | None = None, **kwargs: Any
     ) -> None:
@@ -294,6 +356,10 @@ class BootstrapMixin(abc.ABC):
             # Convert if it's not already a BootstrapConfig
             self.bootstrap_config = BootstrapConfig()
         self._bootstrap_result: BootstrapResult | None = None
+
+        # Enable telemetry if configured
+        if self.bootstrap_config.enable_telemetry:
+            OptimizationTelemetry.enable()
 
     @abc.abstractmethod
     def _create_bootstrap_estimator(
@@ -492,6 +558,7 @@ class BootstrapMixin(abc.ABC):
         # Use chunked bootstrap for large datasets
         if (self.bootstrap_config.chunked_bootstrap and
             n_obs >= self.bootstrap_config.large_dataset_threshold):
+            OptimizationTelemetry.record_optimization("chunked_bootstrap")
             return self._chunked_parallel_bootstrap()
 
         bootstrap_estimates = []
@@ -540,6 +607,11 @@ class BootstrapMixin(abc.ABC):
     def _chunked_parallel_bootstrap(self) -> list[float]:
         """Run bootstrap with memory-efficient chunked processing for large datasets.
 
+        Performance Characteristics:
+            - Memory: O(bootstrap_chunk_size * n_obs) instead of O(n_samples * n_obs)
+            - Time: O(n_samples / bootstrap_chunk_size) chunks processed
+            - Memory Savings: Significant for large n_samples (1M+ observations)
+
         Returns:
             List of bootstrap estimates
         """
@@ -567,7 +639,14 @@ class BootstrapMixin(abc.ABC):
         # Generate bootstrap indices in chunks
         chunk_size = self.bootstrap_config.bootstrap_chunk_size
 
-        with MemoryMonitor("chunked_bootstrap") if hasattr(self, "verbose") and getattr(self, "verbose", False) else nullcontext():
+        # Use memory monitoring only if enabled in config and verbose mode
+        should_monitor_memory = (
+            self.bootstrap_config.enable_memory_monitoring and
+            hasattr(self, "verbose") and
+            getattr(self, "verbose", False)
+        )
+
+        with MemoryMonitor("chunked_bootstrap") if should_monitor_memory else nullcontext():
             for batch_indices in efficient_bootstrap_indices(
                 n_obs,
                 self.bootstrap_config.n_samples,
@@ -608,36 +687,34 @@ class BootstrapMixin(abc.ABC):
         Returns:
             List of bootstrap estimates for this batch
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from concurrent.futures import as_completed
 
         batch_estimates = []
 
-        # Use thread-based parallelism for I/O bound bootstrap operations
-        max_workers = min(4, len(batch_indices))  # Limit threads to avoid memory issues
+        # Use shared thread pool for efficient worker reuse
+        executor = self._get_thread_pool()
+        futures = []
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = []
+        for i, bootstrap_idx in enumerate(batch_indices):
+            future = executor.submit(
+                self._single_bootstrap_from_indices,
+                bootstrap_idx,
+                treatment_data,
+                outcome_data,
+                covariate_data,
+                i,
+            )
+            futures.append(future)
 
-            for i, bootstrap_idx in enumerate(batch_indices):
-                future = executor.submit(
-                    self._single_bootstrap_from_indices,
-                    bootstrap_idx,
-                    treatment_data,
-                    outcome_data,
-                    covariate_data,
-                    i,
-                )
-                futures.append(future)
-
-            # Collect results
-            for future in as_completed(futures):
-                try:
-                    estimate = future.result()
-                    batch_estimates.append(estimate)
-                except Exception as e:
-                    if hasattr(self, "verbose") and getattr(self, "verbose", False):
-                        warnings.warn(f"Bootstrap sample in batch failed: {str(e)}")
-                    continue
+        # Collect results
+        for future in as_completed(futures):
+            try:
+                estimate = future.result()
+                batch_estimates.append(estimate)
+            except Exception as e:
+                if hasattr(self, "verbose") and getattr(self, "verbose", False):
+                    warnings.warn(f"Bootstrap sample in batch failed: {str(e)}")
+                continue
 
         return batch_estimates
 
@@ -696,8 +773,15 @@ class BootstrapMixin(abc.ABC):
                 )
 
             # Create bootstrap estimator and fit
+            # Use deterministic random state for reproducibility while maintaining efficiency
+            # Generate child random state based on sample index and base random state
+            if self.bootstrap_config.random_state is not None:
+                child_random_state = (self.bootstrap_config.random_state + sample_idx) % (2**31 - 1)
+            else:
+                child_random_state = None
+
             boot_estimator = self._create_bootstrap_estimator(
-                random_state=None  # Don't set random state for efficiency
+                random_state=child_random_state
             )
 
             boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)

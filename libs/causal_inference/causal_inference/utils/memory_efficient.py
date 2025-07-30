@@ -65,6 +65,11 @@ def chunked_operation(
 ) -> Any:
     """Apply operation to data in chunks to manage memory usage.
 
+    Performance Characteristics:
+        - Memory: O(chunk_size) instead of O(n)
+        - Time: O(n/chunk_size) passes over data
+        - Space-Time Tradeoff: Smaller chunks = lower memory, more passes
+
     Args:
         data: Input data (DataFrame or array)
         operation: Function to apply to each chunk
@@ -119,6 +124,11 @@ def efficient_bootstrap_indices(
     random_state: int | None = None,
 ) -> Iterator[NDArray[np.int64]]:
     """Generate bootstrap indices efficiently for large datasets.
+
+    Performance Characteristics:
+        - Memory: O(chunk_size * n_samples) instead of O(n_bootstrap * n_samples)
+        - Time: O(n_bootstrap/chunk_size) iterations
+        - Memory Savings: ~chunk_size/n_bootstrap of peak memory usage
 
     Args:
         n_samples: Number of samples in original dataset
@@ -188,13 +198,18 @@ def memory_efficient_matmul(
 ) -> NDArray[Any]:
     """Perform matrix multiplication in chunks for memory efficiency.
 
+    Performance Characteristics:
+        - Memory: O(chunk_size * k + k * n) instead of O(m * k + k * n + m * n)
+        - Time: O(m * k * n / chunk_size) operations per chunk
+        - Best for: Large matrices where m >> chunk_size
+
     Args:
-        a: Left matrix
-        b: Right matrix
+        a: Left matrix (m x k)
+        b: Right matrix (k x n)
         chunk_size: Size of chunks for computation
 
     Returns:
-        Result of a @ b
+        Result of a @ b (m x n)
     """
     if sparse.issparse(a) or sparse.issparse(b):
         # Use sparse matrix operations
