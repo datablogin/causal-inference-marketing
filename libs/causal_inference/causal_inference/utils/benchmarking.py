@@ -100,12 +100,14 @@ def memory_profiler() -> Iterator[dict[str, float]]:
         gc.collect()
         end_memory = process.memory_info().rss / 1024 / 1024
 
-        memory_info.update({
-            "end_mb": end_memory,
-            "peak_mb": peak_memory,
-            "used_mb": end_memory - memory_info["start_mb"],
-            "peak_used_mb": peak_memory - memory_info["start_mb"],
-        })
+        memory_info.update(
+            {
+                "end_mb": end_memory,
+                "peak_mb": peak_memory,
+                "used_mb": end_memory - memory_info["start_mb"],
+                "peak_used_mb": peak_memory - memory_info["start_mb"],
+            }
+        )
 
     except ImportError:
         # Fallback if psutil not available
@@ -169,8 +171,10 @@ class PerformanceBenchmark:
 
         for n_samples in self.sample_sizes:
             for n_features in self.n_features_list:
-                print(f"Benchmarking {estimator_class.__name__} with "
-                      f"n_samples={n_samples}, n_features={n_features}")
+                print(
+                    f"Benchmarking {estimator_class.__name__} with "
+                    f"n_samples={n_samples}, n_features={n_features}"
+                )
 
                 trial_results = []
 
@@ -215,11 +219,15 @@ class PerformanceBenchmark:
                 **dataset_params,
             }
 
-            generator = SyntheticDataGenerator(random_state=data_params.get("random_state", self.random_state))
-            treatment_data, outcome_data, covariate_data = generator.generate_linear_binary_treatment(
-                n_samples=n_samples,
-                n_confounders=n_features,
-                treatment_effect=data_params.get("treatment_effect", 2.0),
+            generator = SyntheticDataGenerator(
+                random_state=data_params.get("random_state", self.random_state)
+            )
+            treatment_data, outcome_data, covariate_data = (
+                generator.generate_linear_binary_treatment(
+                    n_samples=n_samples,
+                    n_confounders=n_features,
+                    treatment_effect=data_params.get("treatment_effect", 2.0),
+                )
             )
 
             # Initialize estimator
@@ -248,7 +256,10 @@ class PerformanceBenchmark:
                 confidence_interval=(
                     causal_effect.ate_ci_lower,
                     causal_effect.ate_ci_upper,
-                ) if causal_effect.ate_ci_lower is not None and causal_effect.ate_ci_upper is not None else None,
+                )
+                if causal_effect.ate_ci_lower is not None
+                and causal_effect.ate_ci_upper is not None
+                else None,
             )
 
         except Exception as e:
@@ -277,7 +288,9 @@ class PerformanceBenchmark:
         # Average timing metrics
         avg_fit_time = np.mean([r.fit_time for r in valid_results])
         avg_ate_time = np.mean([r.ate_time for r in valid_results if r.ate_time])
-        avg_peak_memory = np.mean([r.peak_memory_mb for r in valid_results if r.peak_memory_mb])
+        avg_peak_memory = np.mean(
+            [r.peak_memory_mb for r in valid_results if r.peak_memory_mb]
+        )
 
         # Use first valid result as template
         template = valid_results[0]
@@ -289,7 +302,11 @@ class PerformanceBenchmark:
             fit_time=float(avg_fit_time),
             ate_time=float(avg_ate_time) if avg_ate_time else None,
             peak_memory_mb=float(avg_peak_memory) if avg_peak_memory else None,
-            ate_estimate=float(np.mean([r.ate_estimate for r in valid_results if r.ate_estimate])) if any(r.ate_estimate for r in valid_results) else None,
+            ate_estimate=float(
+                np.mean([r.ate_estimate for r in valid_results if r.ate_estimate])
+            )
+            if any(r.ate_estimate for r in valid_results)
+            else None,
         )
 
     def compare_estimators(
@@ -317,20 +334,22 @@ class PerformanceBenchmark:
         # Convert to DataFrame for analysis
         results_data = []
         for result in all_results:
-            results_data.append({
-                "method": result.method_name,
-                "n_samples": result.n_samples,
-                "n_features": result.n_features,
-                "fit_time": result.fit_time,
-                "ate_time": result.ate_time,
-                "total_time": result.total_time,
-                "peak_memory_mb": result.peak_memory_mb,
-                "memory_efficiency": result.memory_efficiency,
-                "time_per_sample_ms": result.time_per_sample_ms,
-                "samples_per_second": result.samples_per_second,
-                "ate_estimate": result.ate_estimate,
-                "error": result.error,
-            })
+            results_data.append(
+                {
+                    "method": result.method_name,
+                    "n_samples": result.n_samples,
+                    "n_features": result.n_features,
+                    "fit_time": result.fit_time,
+                    "ate_time": result.ate_time,
+                    "total_time": result.total_time,
+                    "peak_memory_mb": result.peak_memory_mb,
+                    "memory_efficiency": result.memory_efficiency,
+                    "time_per_sample_ms": result.time_per_sample_ms,
+                    "samples_per_second": result.samples_per_second,
+                    "ate_estimate": result.ate_estimate,
+                    "error": result.error,
+                }
+            )
 
         return pd.DataFrame(results_data)
 
@@ -399,21 +418,25 @@ class PerformanceBenchmark:
         ]
 
         # Summary statistics
-        report_lines.extend([
-            "SUMMARY STATISTICS",
-            "-" * 20,
-            f"Total configurations tested: {len(results_df)}",
-            f"Methods compared: {', '.join(results_df['method'].unique())}",
-            f"Sample sizes: {sorted(results_df['n_samples'].unique())}",
-            f"Feature counts: {sorted(results_df['n_features'].unique())}",
-            "",
-        ])
+        report_lines.extend(
+            [
+                "SUMMARY STATISTICS",
+                "-" * 20,
+                f"Total configurations tested: {len(results_df)}",
+                f"Methods compared: {', '.join(results_df['method'].unique())}",
+                f"Sample sizes: {sorted(results_df['n_samples'].unique())}",
+                f"Feature counts: {sorted(results_df['n_features'].unique())}",
+                "",
+            ]
+        )
 
         # Performance by method
-        report_lines.extend([
-            "PERFORMANCE BY METHOD",
-            "-" * 25,
-        ])
+        report_lines.extend(
+            [
+                "PERFORMANCE BY METHOD",
+                "-" * 25,
+            ]
+        )
 
         for method in results_df["method"].unique():
             method_data = results_df[results_df["method"] == method]
@@ -427,57 +450,74 @@ class PerformanceBenchmark:
             max_samples = valid_data["n_samples"].max()
             avg_memory = valid_data["peak_memory_mb"].mean()
 
-            report_lines.extend([
-                f"{method}:",
-                f"  Average fit time: {avg_fit_time:.3f}s",
-                f"  Max samples tested: {max_samples:,}",
-                f"  Average memory usage: {avg_memory:.1f} MB",
-                f"  Success rate: {len(valid_data)/len(method_data)*100:.1f}%",
-                "",
-            ])
+            report_lines.extend(
+                [
+                    f"{method}:",
+                    f"  Average fit time: {avg_fit_time:.3f}s",
+                    f"  Max samples tested: {max_samples:,}",
+                    f"  Average memory usage: {avg_memory:.1f} MB",
+                    f"  Success rate: {len(valid_data) / len(method_data) * 100:.1f}%",
+                    "",
+                ]
+            )
 
         # Scalability analysis
         scalability = self.scalability_analysis(results_df)
         if scalability:
-            report_lines.extend([
-                "SCALABILITY ANALYSIS",
-                "-" * 20,
-            ])
+            report_lines.extend(
+                [
+                    "SCALABILITY ANALYSIS",
+                    "-" * 20,
+                ]
+            )
 
             for method, metrics in scalability.items():
-                report_lines.extend([
-                    f"{method}:",
-                    f"  Time scaling: {metrics['time_scaling_per_sample']:.2e} s/sample",
-                    f"  Memory scaling: {metrics.get('memory_scaling_per_sample', 'N/A'):.2e} MB/sample"
-                    if metrics.get('memory_scaling_per_sample') else "  Memory scaling: N/A",
-                    f"  Memory efficiency: {metrics['avg_memory_efficiency']:.2f} MB/1K samples",
-                    "",
-                ])
+                report_lines.extend(
+                    [
+                        f"{method}:",
+                        f"  Time scaling: {metrics['time_scaling_per_sample']:.2e} s/sample",
+                        f"  Memory scaling: {metrics.get('memory_scaling_per_sample', 'N/A'):.2e} MB/sample"
+                        if metrics.get("memory_scaling_per_sample")
+                        else "  Memory scaling: N/A",
+                        f"  Memory efficiency: {metrics['avg_memory_efficiency']:.2f} MB/1K samples",
+                        "",
+                    ]
+                )
 
         # Recommendations
-        report_lines.extend([
-            "RECOMMENDATIONS",
-            "-" * 15,
-        ])
+        report_lines.extend(
+            [
+                "RECOMMENDATIONS",
+                "-" * 15,
+            ]
+        )
 
         fastest_method = results_df.groupby("method")["fit_time"].mean().idxmin()
-        most_memory_efficient = results_df.groupby("method")["memory_efficiency"].mean().idxmin()
+        most_memory_efficient = (
+            results_df.groupby("method")["memory_efficiency"].mean().idxmin()
+        )
 
-        report_lines.extend([
-            f"Fastest method overall: {fastest_method}",
-            f"Most memory efficient: {most_memory_efficient}",
-            "",
-            "For 1M+ sample datasets:",
-        ])
+        report_lines.extend(
+            [
+                f"Fastest method overall: {fastest_method}",
+                f"Most memory efficient: {most_memory_efficient}",
+                "",
+                "For 1M+ sample datasets:",
+            ]
+        )
 
         # Check which methods can handle large datasets
         large_sample_data = results_df[results_df["n_samples"] >= 50000]
         if not large_sample_data.empty:
-            successful_methods = large_sample_data[large_sample_data["error"].isna()]["method"].unique()
-            report_lines.extend([
-                f"  Recommended methods: {', '.join(successful_methods)}",
-                "  Avoid methods with high memory scaling",
-            ])
+            successful_methods = large_sample_data[large_sample_data["error"].isna()][
+                "method"
+            ].unique()
+            report_lines.extend(
+                [
+                    f"  Recommended methods: {', '.join(successful_methods)}",
+                    "  Avoid methods with high memory scaling",
+                ]
+            )
 
         return "\n".join(report_lines)
 
@@ -511,10 +551,12 @@ class ScalabilityTester:
         """
         # Generate test data
         generator = SyntheticDataGenerator()
-        treatment_data, outcome_data, covariate_data = generator.generate_linear_binary_treatment(
-            n_samples=n_samples,
-            n_confounders=10,
-            treatment_effect=2.0,
+        treatment_data, outcome_data, covariate_data = (
+            generator.generate_linear_binary_treatment(
+                n_samples=n_samples,
+                n_confounders=10,
+                treatment_effect=2.0,
+            )
         )
 
         # Test memory usage
@@ -558,10 +600,12 @@ class ScalabilityTester:
         """
         # Generate test data
         generator = SyntheticDataGenerator()
-        treatment_data, outcome_data, covariate_data = generator.generate_linear_binary_treatment(
-            n_samples=n_samples,
-            n_confounders=10,
-            treatment_effect=2.0,
+        treatment_data, outcome_data, covariate_data = (
+            generator.generate_linear_binary_treatment(
+                n_samples=n_samples,
+                n_confounders=10,
+                treatment_effect=2.0,
+            )
         )
 
         try:
@@ -588,7 +632,7 @@ class ScalabilityTester:
             error = None
 
         except Exception as e:
-            test_time = float('inf')
+            test_time = float("inf")
             success = False
             error = str(e)
 

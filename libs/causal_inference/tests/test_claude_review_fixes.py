@@ -1,6 +1,5 @@
 """Tests for Claude review fixes and improvements."""
 
-
 from causal_inference.core.bootstrap import BootstrapConfig, OptimizationTelemetry
 from causal_inference.data.synthetic import SyntheticDataGenerator
 from causal_inference.estimators.g_computation import GComputationEstimator
@@ -13,17 +12,17 @@ class TestRandomStateFix:
         """Test that bootstrap results are reproducible with random state."""
         # Generate synthetic data
         generator = SyntheticDataGenerator(random_state=42)
-        treatment_data, outcome_data, covariate_data = generator.generate_linear_binary_treatment(
-            n_samples=1000,
-            n_confounders=5,
-            treatment_effect=0.5
+        treatment_data, outcome_data, covariate_data = (
+            generator.generate_linear_binary_treatment(
+                n_samples=1000, n_confounders=5, treatment_effect=0.5
+            )
         )
 
         # Create estimator with random state
         config = BootstrapConfig(
             n_samples=100,
             random_state=123,
-            chunked_bootstrap=False  # Use regular bootstrap for this test
+            chunked_bootstrap=False,  # Use regular bootstrap for this test
         )
 
         estimator1 = GComputationEstimator(bootstrap_config=config)
@@ -80,10 +79,7 @@ class TestMemoryMonitoringConfig:
 
     def test_memory_monitoring_disabled(self):
         """Test that memory monitoring is disabled when configured."""
-        config = BootstrapConfig(
-            enable_memory_monitoring=False,
-            n_samples=10
-        )
+        config = BootstrapConfig(enable_memory_monitoring=False, n_samples=10)
 
         # Test that the config is properly created and handled
         assert not config.enable_memory_monitoring
@@ -182,17 +178,19 @@ class TestOptimizationTelemetry:
         """Test that telemetry integrates with bootstrap config."""
         # Generate small dataset to avoid chunked bootstrap
         generator = SyntheticDataGenerator(random_state=42)
-        treatment_data, outcome_data, covariate_data = generator.generate_linear_binary_treatment(
-            n_samples=50,  # Small dataset
-            n_confounders=3,
-            treatment_effect=0.3
+        treatment_data, outcome_data, covariate_data = (
+            generator.generate_linear_binary_treatment(
+                n_samples=50,  # Small dataset
+                n_confounders=3,
+                treatment_effect=0.3,
+            )
         )
 
         # Enable telemetry
         config = BootstrapConfig(
             enable_telemetry=True,
             n_samples=10,
-            large_dataset_threshold=1000  # High threshold to avoid chunked bootstrap
+            large_dataset_threshold=1000,  # High threshold to avoid chunked bootstrap
         )
 
         OptimizationTelemetry.reset_stats()
@@ -212,10 +210,12 @@ class TestIntegration:
         """Test that large dataset activates all optimizations correctly."""
         # Generate larger dataset
         generator = SyntheticDataGenerator(random_state=42)
-        treatment_data, outcome_data, covariate_data = generator.generate_linear_binary_treatment(
-            n_samples=2000,  # Large enough to trigger optimizations
-            n_confounders=10,
-            treatment_effect=0.4
+        treatment_data, outcome_data, covariate_data = (
+            generator.generate_linear_binary_treatment(
+                n_samples=2000,  # Large enough to trigger optimizations
+                n_confounders=10,
+                treatment_effect=0.4,
+            )
         )
 
         # Config with all optimizations enabled
@@ -225,7 +225,7 @@ class TestIntegration:
             enable_telemetry=True,
             chunked_bootstrap=True,
             large_dataset_threshold=1000,  # Lower threshold to trigger optimizations
-            random_state=123
+            random_state=123,
         )
 
         OptimizationTelemetry.reset_stats()
@@ -234,7 +234,7 @@ class TestIntegration:
             bootstrap_config=config,
             memory_efficient=True,
             large_dataset_threshold=1000,
-            verbose=False  # Disable verbose to avoid output during tests
+            verbose=False,  # Disable verbose to avoid output during tests
         )
 
         estimator.fit(treatment_data, outcome_data, covariate_data)

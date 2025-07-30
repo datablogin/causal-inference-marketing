@@ -160,7 +160,9 @@ class BootstrapConfig(BaseModel):
     )
 
     large_dataset_threshold: int = Field(
-        default=100000, ge=1000, description="Sample size threshold for large dataset optimizations"
+        default=100000,
+        ge=1000,
+        description="Sample size threshold for large dataset optimizations",
     )
 
     chunked_bootstrap: bool = Field(
@@ -180,11 +182,13 @@ class BootstrapConfig(BaseModel):
     )
 
     enable_memory_monitoring: bool = Field(
-        default=True, description="Enable memory monitoring during bootstrap operations (disable in production for performance)"
+        default=True,
+        description="Enable memory monitoring during bootstrap operations (disable in production for performance)",
     )
 
     enable_telemetry: bool = Field(
-        default=False, description="Enable telemetry collection for optimization usage statistics"
+        default=False,
+        description="Enable telemetry collection for optimization usage statistics",
     )
 
     convergence_check: bool = Field(
@@ -328,7 +332,7 @@ class BootstrapMixin(abc.ABC):
         if cls._thread_pool is None or cls._thread_pool._shutdown:
             cls._thread_pool = ThreadPoolExecutor(
                 max_workers=cls._thread_pool_workers,
-                thread_name_prefix="bootstrap_worker"
+                thread_name_prefix="bootstrap_worker",
             )
         return cls._thread_pool
 
@@ -556,8 +560,10 @@ class BootstrapMixin(abc.ABC):
         n_obs = len(treatment_data.values)
 
         # Use chunked bootstrap for large datasets
-        if (self.bootstrap_config.chunked_bootstrap and
-            n_obs >= self.bootstrap_config.large_dataset_threshold):
+        if (
+            self.bootstrap_config.chunked_bootstrap
+            and n_obs >= self.bootstrap_config.large_dataset_threshold
+        ):
             OptimizationTelemetry.record_optimization("chunked_bootstrap")
             return self._chunked_parallel_bootstrap()
 
@@ -630,7 +636,9 @@ class BootstrapMixin(abc.ABC):
 
         # Determine stratification array
         stratify_by: NDArray[Any] | None = None
-        if self.bootstrap_config.stratified and hasattr(treatment_data, "treatment_type"):
+        if self.bootstrap_config.stratified and hasattr(
+            treatment_data, "treatment_type"
+        ):
             if isinstance(treatment_data.values, pd.Series):
                 stratify_by = treatment_data.values.to_numpy()
             else:
@@ -641,12 +649,16 @@ class BootstrapMixin(abc.ABC):
 
         # Use memory monitoring only if enabled in config and verbose mode
         should_monitor_memory = (
-            self.bootstrap_config.enable_memory_monitoring and
-            hasattr(self, "verbose") and
-            getattr(self, "verbose", False)
+            self.bootstrap_config.enable_memory_monitoring
+            and hasattr(self, "verbose")
+            and getattr(self, "verbose", False)
         )
 
-        with MemoryMonitor("chunked_bootstrap") if should_monitor_memory else nullcontext():
+        with (
+            MemoryMonitor("chunked_bootstrap")
+            if should_monitor_memory
+            else nullcontext()
+        ):
             for batch_indices in efficient_bootstrap_indices(
                 n_obs,
                 self.bootstrap_config.n_samples,
@@ -665,7 +677,9 @@ class BootstrapMixin(abc.ABC):
                 gc.collect()
 
                 if hasattr(self, "verbose") and getattr(self, "verbose", False):
-                    print(f"Processed {len(bootstrap_estimates)}/{self.bootstrap_config.n_samples} samples")
+                    print(
+                        f"Processed {len(bootstrap_estimates)}/{self.bootstrap_config.n_samples} samples"
+                    )
 
         return bootstrap_estimates
 
@@ -776,7 +790,9 @@ class BootstrapMixin(abc.ABC):
             # Use deterministic random state for reproducibility while maintaining efficiency
             # Generate child random state based on sample index and base random state
             if self.bootstrap_config.random_state is not None:
-                child_random_state = (self.bootstrap_config.random_state + sample_idx) % (2**31 - 1)
+                child_random_state = (
+                    self.bootstrap_config.random_state + sample_idx
+                ) % (2**31 - 1)
             else:
                 child_random_state = None
 
@@ -789,9 +805,7 @@ class BootstrapMixin(abc.ABC):
             return boot_effect.ate
 
         except Exception as e:
-            raise RuntimeError(
-                f"Bootstrap sample {sample_idx} failed: {str(e)}"
-            ) from e
+            raise RuntimeError(f"Bootstrap sample {sample_idx} failed: {str(e)}") from e
 
     def _sequential_bootstrap(self) -> list[float]:
         """Run bootstrap samples sequentially.

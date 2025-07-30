@@ -84,7 +84,8 @@ class CSVDataStream(DataStream):
         if self.covariate_cols is None:
             # Use all columns except treatment and outcome
             self.covariate_cols = [
-                col for col in sample_df.columns
+                col
+                for col in sample_df.columns
                 if col not in {self.treatment_col, self.outcome_col}
             ]
         else:
@@ -99,9 +100,7 @@ class CSVDataStream(DataStream):
     def __iter__(self) -> Iterator[tuple[pd.DataFrame, pd.Series, pd.Series]]:
         """Iterate over batches."""
         reader = pd.read_csv(
-            self.file_path,
-            chunksize=self._batch_size,
-            **self.pd_kwargs
+            self.file_path, chunksize=self._batch_size, **self.pd_kwargs
         )
 
         for chunk in reader:
@@ -168,7 +167,8 @@ class ParquetDataStream(DataStream):
 
         if self.covariate_cols is None:
             self.covariate_cols = [
-                col for col in available_columns
+                col
+                for col in available_columns
                 if col not in {self.treatment_col, self.outcome_col}
             ]
         else:
@@ -229,8 +229,7 @@ class DataFrameStream(DataStream):
 
         if covariate_cols is None:
             self.covariate_cols = [
-                col for col in df.columns
-                if col not in {treatment_col, outcome_col}
+                col for col in df.columns if col not in {treatment_col, outcome_col}
             ]
         else:
             self.covariate_cols = covariate_cols
@@ -322,7 +321,9 @@ class StreamingEstimator:
 
         This method should be overridden by subclasses.
         """
-        raise NotImplementedError("Subclasses must implement _partial_fit_implementation")
+        raise NotImplementedError(
+            "Subclasses must implement _partial_fit_implementation"
+        )
 
     def fit_stream(self, data_stream: DataStream) -> StreamingEstimator:
         """Fit estimator using a data stream.
@@ -342,8 +343,7 @@ class StreamingEstimator:
 
             if len(covariates_df.columns) > 0:
                 covariate_data = CovariateData(
-                    values=covariates_df,
-                    names=list(covariates_df.columns)
+                    values=covariates_df, names=list(covariates_df.columns)
                 )
             else:
                 covariate_data = None
@@ -448,8 +448,12 @@ class ExternalSortMerge:
             # Try to get next row from same file
             try:
                 next_row_idx, next_row = next(iterator)
-                next_sort_value = next_row[sort_key] if not ascending else -next_row[sort_key]
-                heapq.heappush(heap, (next_sort_value, file_idx, next_row_idx, next_row, iterator))
+                next_sort_value = (
+                    next_row[sort_key] if not ascending else -next_row[sort_key]
+                )
+                heapq.heappush(
+                    heap, (next_sort_value, file_idx, next_row_idx, next_row, iterator)
+                )
             except StopIteration:
                 continue
 
@@ -477,9 +481,9 @@ class ExternalSortMerge:
         outcome_col = None
 
         for col in batch_df.columns:
-            if 'treatment' in col.lower():
+            if "treatment" in col.lower():
                 treatment_col = col
-            elif 'outcome' in col.lower():
+            elif "outcome" in col.lower():
                 outcome_col = col
 
         if treatment_col is None or outcome_col is None:
@@ -531,11 +535,11 @@ def create_data_stream(
 
     data_path = Path(data)
 
-    if data_path.suffix.lower() == '.csv':
+    if data_path.suffix.lower() == ".csv":
         return CSVDataStream(
             data_path, treatment_col, outcome_col, covariate_cols, batch_size, **kwargs
         )
-    elif data_path.suffix.lower() in {'.parquet', '.pq'}:
+    elif data_path.suffix.lower() in {".parquet", ".pq"}:
         return ParquetDataStream(
             data_path, treatment_col, outcome_col, covariate_cols, batch_size
         )

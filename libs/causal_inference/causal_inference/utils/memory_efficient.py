@@ -31,11 +31,11 @@ def optimize_pandas_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     for col in df_optimized.columns:
         col_type = df_optimized[col].dtype
 
-        if col_type != 'object':
+        if col_type != "object":
             c_min = df_optimized[col].min()
             c_max = df_optimized[col].max()
 
-            if str(col_type)[:3] == 'int':
+            if str(col_type)[:3] == "int":
                 if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
                     df_optimized[col] = df_optimized[col].astype(np.int8)
                 elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
@@ -43,15 +43,18 @@ def optimize_pandas_dtypes(df: pd.DataFrame) -> pd.DataFrame:
                 elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
                     df_optimized[col] = df_optimized[col].astype(np.int32)
 
-            elif str(col_type)[:5] == 'float':
-                if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+            elif str(col_type)[:5] == "float":
+                if (
+                    c_min > np.finfo(np.float32).min
+                    and c_max < np.finfo(np.float32).max
+                ):
                     df_optimized[col] = df_optimized[col].astype(np.float32)
         else:
             # Convert object columns to category if beneficial
             num_unique_values = len(df_optimized[col].unique())
             num_total_values = len(df_optimized[col])
             if num_unique_values / num_total_values < 0.5:
-                df_optimized[col] = df_optimized[col].astype('category')
+                df_optimized[col] = df_optimized[col].astype("category")
 
     return df_optimized
 
@@ -254,38 +257,44 @@ def sparse_safe_operation(
         Result of the operation
     """
     if sparse.issparse(data):
-        if operation == 'mean':
-            return np.array(data.mean(axis=axis)).flatten()
-        elif operation == 'std':
+        if operation == "mean":
+            return np.array(data.mean(axis=axis)).flatten()  # type: ignore[union-attr]
+        elif operation == "std":
             # For sparse matrices, compute std manually
-            assert sparse.issparse(data), "Expected sparse matrix"
             mean_val = data.mean(axis=axis)  # type: ignore[union-attr]
             if axis is None:
                 variance = data.multiply(data).mean() - mean_val * mean_val  # type: ignore[union-attr]
             else:
-                variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(mean_val)  # type: ignore[union-attr]
+                if sparse.issparse(mean_val):
+                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(mean_val)  # type: ignore[union-attr]
+                else:
+                    # mean_val is not sparse, use element-wise multiplication
+                    variance = data.multiply(data).mean(axis=axis) - mean_val * mean_val  # type: ignore[union-attr]
             return np.sqrt(np.array(variance)).flatten()
-        elif operation == 'sum':
-            return np.array(data.sum(axis=axis)).flatten()
-        elif operation == 'var':
-            assert sparse.issparse(data), "Expected sparse matrix"
+        elif operation == "sum":
+            return np.array(data.sum(axis=axis)).flatten()  # type: ignore[union-attr]
+        elif operation == "var":
             mean_val = data.mean(axis=axis)  # type: ignore[union-attr]
             if axis is None:
                 return data.multiply(data).mean() - mean_val * mean_val  # type: ignore[union-attr]
             else:
-                variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(mean_val)  # type: ignore[union-attr]
+                if sparse.issparse(mean_val):
+                    variance = data.multiply(data).mean(axis=axis) - mean_val.multiply(mean_val)  # type: ignore[union-attr]
+                else:
+                    # mean_val is not sparse, use element-wise multiplication
+                    variance = data.multiply(data).mean(axis=axis) - mean_val * mean_val  # type: ignore[union-attr]
                 return np.array(variance).flatten()
         else:
             raise ValueError(f"Unsupported operation for sparse data: {operation}")
     else:
         # Dense data - use standard numpy operations
-        if operation == 'mean':
+        if operation == "mean":
             return np.mean(data, axis=axis, **kwargs)
-        elif operation == 'std':
+        elif operation == "std":
             return np.std(data, axis=axis, **kwargs)
-        elif operation == 'sum':
+        elif operation == "sum":
             return np.sum(data, axis=axis, **kwargs)
-        elif operation == 'var':
+        elif operation == "var":
             return np.var(data, axis=axis, **kwargs)
         else:
             raise ValueError(f"Unsupported operation: {operation}")
@@ -331,9 +340,13 @@ def estimate_memory_usage(
     elif memory_gb < 8:
         recommendation = "Use chunked operations and monitor memory usage"
     elif memory_gb < 16:
-        recommendation = "Strongly recommend chunked processing and streaming operations"
+        recommendation = (
+            "Strongly recommend chunked processing and streaming operations"
+        )
     else:
-        recommendation = "Dataset too large - use streaming operations and external storage"
+        recommendation = (
+            "Dataset too large - use streaming operations and external storage"
+        )
 
     return memory_gb, recommendation
 
@@ -361,7 +374,11 @@ def create_sparse_features(
     feature_names = []
 
     for col in df.columns:
-        if col in categorical_columns or df[col].dtype == 'object' or df[col].dtype.name == 'category':
+        if (
+            col in categorical_columns
+            or df[col].dtype == "object"
+            or df[col].dtype.name == "category"
+        ):
             # One-hot encode
             encoded = pd.get_dummies(df[col], prefix=col, sparse=True)
             encoded_dfs.append(encoded)
@@ -378,7 +395,9 @@ def create_sparse_features(
         combined_df = df
 
     # Convert to sparse if beneficial
-    sparsity = 1 - (combined_df.count().sum() / (combined_df.shape[0] * combined_df.shape[1]))
+    sparsity = 1 - (
+        combined_df.count().sum() / (combined_df.shape[0] * combined_df.shape[1])
+    )
 
     if sparsity > threshold:
         # Convert to sparse matrix
@@ -444,23 +463,23 @@ def efficient_cross_validation_indices(
     if stratify_by is not None:
         # Stratified CV
         from sklearn.model_selection import StratifiedKFold
+
         skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=random_state)
         cv_splits = list(skf.split(indices, stratify_by))
     else:
         # Regular CV
         np.random.shuffle(indices)
         fold_sizes = np.full(n_folds, n_samples // n_folds, dtype=int)
-        fold_sizes[:n_samples % n_folds] += 1
+        fold_sizes[: n_samples % n_folds] += 1
 
         cv_splits = []
         start_idx = 0
 
         for fold_size in fold_sizes:
-            val_indices = indices[start_idx:start_idx + fold_size]
-            train_indices = np.concatenate([
-                indices[:start_idx],
-                indices[start_idx + fold_size:]
-            ])
+            val_indices = indices[start_idx : start_idx + fold_size]
+            train_indices = np.concatenate(
+                [indices[:start_idx], indices[start_idx + fold_size :]]
+            )
             cv_splits.append((train_indices, val_indices))
             start_idx += fold_size
 
