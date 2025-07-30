@@ -1,0 +1,654 @@
+"""Super Learner ensemble method for machine learning in causal inference.
+
+The Super Learner is an ensemble method that optimally combines multiple
+machine learning algorithms using cross-validation to achieve the best
+possible prediction performance.
+"""
+# ruff: noqa: N803
+# type: ignore
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+from pydantic import BaseModel, Field, field_validator
+from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, clone
+from sklearn.ensemble import (
+    GradientBoostingClassifier,
+    GradientBoostingRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+)
+from sklearn.linear_model import (
+    LassoCV,
+    LinearRegression,
+    LogisticRegression,
+    LogisticRegressionCV,
+    RidgeCV,
+)
+from sklearn.metrics import accuracy_score, mean_squared_error, roc_auc_score
+from sklearn.model_selection import KFold, StratifiedKFold, cross_val_predict
+from sklearn.neural_network import MLPClassifier, MLPRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC, SVR
+
+__all__ = ["SuperLearner", "SuperLearnerConfig"]
+
+
+class SuperLearnerConfig(BaseModel):
+    """Configuration for Super Learner ensemble method."""
+
+    cv_folds: int = Field(default=5, description="Number of cross-validation folds")
+    ensemble_method: Literal["stacking", "nnls", "discrete"] = Field(
+        default="stacking", description="Method for combining base learners"
+    )
+    use_stratified_cv: bool = Field(
+        default=True, description="Use stratified CV for classification tasks"
+    )
+    scale_features: bool = Field(
+        default=True, description="Scale features before training"
+    )
+    random_state: int | None = Field(
+        default=None, description="Random state for reproducibility"
+    )
+    n_jobs: int = Field(default=-1, description="Number of parallel jobs")
+    verbose: bool = Field(default=False, description="Verbose output")
+
+    @field_validator("cv_folds")
+    @classmethod
+    def validate_cv_folds(cls, v: int) -> int:
+        if v < 2:
+            raise ValueError("cv_folds must be at least 2")
+        if v > 20:
+            raise ValueError(
+                "cv_folds should not exceed 20 for computational efficiency"
+            )
+        return v
+
+
+class SuperLearner:
+    """Super Learner ensemble method for optimal prediction.
+
+    The Super Learner uses cross-validation to optimally combine multiple
+    machine learning algorithms to achieve the best possible prediction
+    performance. It provides theoretical guarantees for asymptotic optimality.
+
+    Attributes:
+        base_learners: Dictionary of base learning algorithms
+        meta_learner: The meta-learner for combining base learner predictions
+        config: Configuration for the Super Learner
+        is_fitted: Whether the Super Learner has been fitted
+        task_type: Whether this is a regression or classification task
+    """
+
+    # Predefined base learners
+    _REGRESSION_LEARNERS = {
+        "linear_regression": LinearRegression(),
+        "ridge": RidgeCV(alphas=np.logspace(-3, 3, 10)),
+        "lasso": LassoCV(cv=3, max_iter=2000),
+        "random_forest": RandomForestRegressor(n_estimators=100, random_state=42),
+        "gradient_boosting": GradientBoostingRegressor(
+            n_estimators=100, random_state=42
+        ),
+        "svr": SVR(kernel="rbf", C=1.0),
+        "neural_network": MLPRegressor(
+            hidden_layer_sizes=(100,), max_iter=500, random_state=42
+        ),
+    }
+
+    _CLASSIFICATION_LEARNERS = {
+        "logistic_regression": LogisticRegression(max_iter=1000),
+        "lasso_logistic": LogisticRegressionCV(
+            cv=3, penalty="l1", solver="liblinear", max_iter=1000
+        ),
+        "ridge_logistic": LogisticRegressionCV(cv=3, penalty="l2", max_iter=1000),
+        "random_forest": RandomForestClassifier(n_estimators=100, random_state=42),
+        "gradient_boosting": GradientBoostingClassifier(
+            n_estimators=100, random_state=42
+        ),
+        "svc": SVC(kernel="rbf", C=1.0, probability=True),
+        "neural_network": MLPClassifier(
+            hidden_layer_sizes=(100,), max_iter=500, random_state=42
+        ),
+    }
+
+    def __init__(
+        self,
+        base_learners: list[str] | dict[str, BaseEstimator] | None = None,
+        config: SuperLearnerConfig | None = None,
+        task_type: Literal["auto", "regression", "classification"] = "auto",
+    ) -> None:
+        """Initialize the Super Learner.
+
+        Args:
+            base_learners: List of learner names or dict of custom learners
+            config: Configuration for the Super Learner
+            task_type: Type of task (auto-detected if 'auto')
+        """
+        # Store original parameters for cloning
+        self._original_base_learners = base_learners
+        self.config = config or SuperLearnerConfig()
+        self.task_type = task_type
+        self.is_fitted = False
+
+        # Initialize base learners
+        if base_learners is None:
+            if task_type == "classification":
+                base_learners = [
+                    "logistic_regression",
+                    "ridge_logistic",
+                    "lasso_logistic",
+                    "random_forest",
+                ]
+            elif task_type == "regression":
+                base_learners = ["linear_regression", "ridge", "lasso", "random_forest"]
+            else:  # auto - will determine later
+                base_learners = ["linear_regression", "ridge", "lasso", "random_forest"]
+
+        if isinstance(base_learners, list):
+            self._base_learner_names: list[str] | None = base_learners
+            self.base_learners = self._get_predefined_learners(base_learners)
+        else:
+            self._base_learner_names = None
+            self.base_learners = (
+                base_learners.copy() if base_learners is not None else {}
+            )
+
+        # Storage for fitted models and performance
+        self.fitted_learners_: dict[str, BaseEstimator] = {}
+        self.meta_learner_: BaseEstimator | None = None
+        self.scaler_: StandardScaler | None = None
+        self.cv_predictions_: NDArray[Any] | None = None
+        self.learner_performance_: dict[str, float] = {}
+        self.ensemble_performance_: dict[str, float] = {}
+        self.feature_importance_: NDArray[Any] | None = None
+
+    def _get_predefined_learners(
+        self, learner_names: list[str]
+    ) -> dict[str, BaseEstimator]:
+        """Get predefined learners by name."""
+        learners = {}
+
+        for name in learner_names:
+            if name in self._REGRESSION_LEARNERS:
+                learner = clone(self._REGRESSION_LEARNERS[name])
+                # Update random state if learner supports it
+                if (
+                    hasattr(learner, "random_state")
+                    and self.config.random_state is not None
+                ):
+                    learner.set_params(random_state=self.config.random_state)
+                learners[name] = learner
+            elif name in self._CLASSIFICATION_LEARNERS:
+                learner = clone(self._CLASSIFICATION_LEARNERS[name])
+                # Update random state if learner supports it
+                if (
+                    hasattr(learner, "random_state")
+                    and self.config.random_state is not None
+                ):
+                    learner.set_params(random_state=self.config.random_state)
+                learners[name] = learner
+            else:
+                available = list(self._REGRESSION_LEARNERS.keys()) + list(
+                    self._CLASSIFICATION_LEARNERS.keys()
+                )
+                raise ValueError(f"Unknown learner '{name}'. Available: {available}")
+
+        return learners
+
+    def _detect_task_type(
+        self, y: NDArray[Any]
+    ) -> Literal["regression", "classification"]:
+        """Auto-detect whether this is a regression or classification task."""
+        if self.task_type != "auto":
+            return self.task_type  # type: ignore
+
+        # Check if y contains only 0s and 1s (binary classification)
+        unique_values = np.unique(y)
+        if len(unique_values) == 2 and set(unique_values).issubset({0, 1}):
+            return "classification"
+
+        # Check if y contains only integers with reasonable number of unique values
+        if np.all(y == y.astype(int)) and len(unique_values) <= min(20, len(y) // 10):
+            return "classification"
+
+        return "regression"
+
+    def _filter_learners_by_task(self, task_type: str) -> dict[str, BaseEstimator]:
+        """Filter base learners based on task type."""
+        filtered_learners = {}
+
+        for name, learner in self.base_learners.items():
+            if task_type == "regression":
+                if hasattr(learner, "predict") and not isinstance(
+                    learner, ClassifierMixin
+                ):
+                    filtered_learners[name] = learner
+                elif isinstance(learner, RegressorMixin):
+                    filtered_learners[name] = learner
+            else:  # classification
+                if isinstance(learner, ClassifierMixin):
+                    filtered_learners[name] = learner
+
+        if not filtered_learners:
+            raise ValueError(f"No suitable learners found for {task_type} task")
+
+        return filtered_learners
+
+    def _create_cv_splitter(self, y: NDArray[Any]):
+        """Create appropriate cross-validation splitter."""
+        if self.task_type == "classification" and self.config.use_stratified_cv:
+            return StratifiedKFold(
+                n_splits=self.config.cv_folds,
+                shuffle=True,
+                random_state=self.config.random_state,
+            )
+        else:
+            return KFold(
+                n_splits=self.config.cv_folds,
+                shuffle=True,
+                random_state=self.config.random_state,
+            )
+
+    def _get_cv_predictions(
+        self, X: NDArray[Any], y: NDArray[Any]
+    ) -> dict[str, NDArray[Any]]:
+        """Get cross-validation predictions for each base learner."""
+        cv_splitter = self._create_cv_splitter(y)
+        cv_predictions = {}
+
+        for name, learner in self.fitted_learners_.items():
+            try:
+                if self.config.verbose:
+                    print(f"Getting CV predictions for {name}")
+
+                if self.task_type == "classification":
+                    # For classification, we want probability predictions
+                    if hasattr(learner, "predict_proba"):
+                        preds = cross_val_predict(
+                            learner, X, y, cv=cv_splitter, method="predict_proba"
+                        )
+                        # Take probability of positive class for binary classification
+                        if preds.shape[1] == 2:
+                            preds = preds[:, 1]
+                    else:
+                        preds = cross_val_predict(learner, X, y, cv=cv_splitter)
+                else:
+                    preds = cross_val_predict(learner, X, y, cv=cv_splitter)
+
+                cv_predictions[name] = preds
+
+                # Calculate performance metric
+                if self.task_type == "classification":
+                    if len(np.unique(y)) == 2:  # Binary classification
+                        try:
+                            score = roc_auc_score(y, preds)
+                        except ValueError:
+                            score = accuracy_score(y, (preds > 0.5).astype(int))
+                    else:
+                        score = accuracy_score(y, preds)
+                else:
+                    score = -mean_squared_error(
+                        y, preds
+                    )  # Negative MSE (higher is better)
+
+                self.learner_performance_[name] = score
+
+            except Exception as e:
+                import warnings
+
+                warnings.warn(
+                    f"SuperLearner base learner '{name}' failed during cross-validation: {str(e)}. "
+                    f"This learner will be excluded from ensemble weight calculation.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+
+        return cv_predictions
+
+    def _fit_meta_learner(
+        self, cv_predictions: dict[str, NDArray[Any]], y: NDArray[Any]
+    ) -> None:
+        """Fit the meta-learner on cross-validation predictions."""
+        # Stack CV predictions
+        if not cv_predictions:
+            raise ValueError("No valid cross-validation predictions available")
+
+        stacked_preds = np.column_stack(list(cv_predictions.values()))
+
+        if self.config.ensemble_method == "stacking":
+            # Use linear regression/logistic regression as meta-learner
+            if self.task_type == "classification":
+                meta_learner = LogisticRegression(random_state=self.config.random_state)
+            else:
+                meta_learner = LinearRegression()
+
+        elif self.config.ensemble_method == "nnls":
+            # Non-negative least squares (regression only)
+            from scipy.optimize import nnls
+
+            if self.task_type == "classification":
+                raise ValueError("NNLS ensemble method only supports regression tasks")
+
+            # Solve non-negative least squares problem
+            weights, _ = nnls(stacked_preds, y)
+            weights = weights / np.sum(weights)  # Normalize weights
+
+            # Create a simple weighted average "meta-learner"
+            class NNLSMetaLearner:
+                def __init__(self, weights):
+                    self.weights = weights
+
+                def predict(self, X):
+                    return X @ self.weights
+
+            meta_learner = NNLSMetaLearner(weights)
+
+        elif self.config.ensemble_method == "discrete":
+            # Discrete Super Learner (select best single learner)
+            best_learner_idx = np.argmax(list(self.learner_performance_.values()))
+
+            class DiscreteMetaLearner:
+                def __init__(self, best_idx):
+                    self.best_idx = best_idx
+
+                def predict(self, X):
+                    return X[:, self.best_idx]
+
+            meta_learner = DiscreteMetaLearner(best_learner_idx)
+
+        else:
+            raise ValueError(f"Unknown ensemble method: {self.config.ensemble_method}")
+
+        # Fit meta-learner
+        if hasattr(meta_learner, "fit"):
+            meta_learner.fit(stacked_preds, y)
+
+        self.meta_learner_ = meta_learner
+        self.cv_predictions_ = stacked_preds
+
+    def fit(
+        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
+    ) -> SuperLearner:
+        """Fit the Super Learner ensemble.
+
+        Args:
+            X: Feature matrix
+            y: Target vector
+
+        Returns:
+            self: Fitted SuperLearner instance
+        """
+        # Convert to numpy arrays
+        if isinstance(X, pd.DataFrame):
+            X = X.values  # type: ignore
+        if isinstance(y, pd.Series):
+            y = y.values  # type: ignore
+
+        X = np.array(X)  # type: ignore
+        y = np.array(y)  # type: ignore
+
+        # Detect task type
+        detected_task_type = self._detect_task_type(y)
+
+        # If task type was auto and we have predefined learner names,
+        # recreate learners with appropriate type
+        if self.task_type == "auto" and self._base_learner_names is not None:
+            if detected_task_type == "classification":
+                learner_names = [
+                    "logistic_regression",
+                    "ridge_logistic",
+                    "lasso_logistic",
+                    "random_forest",
+                ]
+            else:
+                learner_names = ["linear_regression", "ridge", "lasso", "random_forest"]
+            self.base_learners = self._get_predefined_learners(learner_names)
+
+        self.task_type = detected_task_type
+
+        # Filter learners by task type
+        self.fitted_learners_ = self._filter_learners_by_task(self.task_type)
+
+        # Scale features if requested
+        if self.config.scale_features:
+            self.scaler_ = StandardScaler()
+            X = self.scaler_.fit_transform(X)
+
+        # Fit all base learners
+        failed_learners = []
+        for name, learner in list(self.fitted_learners_.items()):
+            try:
+                if self.config.verbose:
+                    print(f"Fitting {name}")
+                learner.fit(X, y)
+            except Exception as e:
+                import warnings
+
+                warnings.warn(
+                    f"SuperLearner base learner '{name}' failed to fit: {str(e)}. "
+                    f"This learner will be excluded from the ensemble. "
+                    f"Consider checking data quality or learner hyperparameters.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                failed_learners.append(name)
+                # Remove failed learner
+                del self.fitted_learners_[name]
+
+        if not self.fitted_learners_:
+            raise ValueError("No base learners could be fitted successfully")
+
+        # Get cross-validation predictions
+        cv_predictions = self._get_cv_predictions(X, y)  # type: ignore
+
+        # Fit meta-learner
+        self._fit_meta_learner(cv_predictions, y)
+
+        # Set fitted flag before calculating performance
+        self.is_fitted = True
+
+        # Calculate ensemble performance
+        ensemble_preds = self.predict(X)
+        if self.task_type == "classification":
+            if len(np.unique(y)) == 2:
+                try:
+                    self.ensemble_performance_["auc"] = roc_auc_score(y, ensemble_preds)
+                except ValueError:
+                    self.ensemble_performance_["accuracy"] = accuracy_score(
+                        y, (ensemble_preds > 0.5).astype(int)
+                    )
+            else:
+                self.ensemble_performance_["accuracy"] = accuracy_score(
+                    y, ensemble_preds
+                )
+        else:
+            self.ensemble_performance_["mse"] = mean_squared_error(y, ensemble_preds)
+            self.ensemble_performance_["rmse"] = np.sqrt(
+                self.ensemble_performance_["mse"]
+            )
+
+        if self.config.verbose:
+            print(
+                f"Super Learner fitted with {len(self.fitted_learners_)} base learners"
+            )
+            print(f"Task type: {self.task_type}")
+            print(f"Ensemble method: {self.config.ensemble_method}")
+
+        return self
+
+    def predict(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
+        """Make predictions using the fitted Super Learner.
+
+        Args:
+            X: Feature matrix for prediction
+
+        Returns:
+            Predictions from the ensemble
+        """
+        if not self.is_fitted:
+            raise ValueError("SuperLearner must be fitted before making predictions")
+
+        # Convert to numpy array
+        if isinstance(X, pd.DataFrame):
+            X = X.values
+        X = np.array(X)
+
+        # Scale features if needed
+        if self.scaler_ is not None:
+            X = self.scaler_.transform(X)
+
+        # Get predictions from all base learners
+        base_predictions = []
+        for name, learner in self.fitted_learners_.items():
+            try:
+                if self.task_type == "classification" and hasattr(
+                    learner, "predict_proba"
+                ):
+                    preds = learner.predict_proba(X)
+                    if preds.shape[1] == 2:
+                        preds = preds[:, 1]  # Probability of positive class
+                else:
+                    preds = learner.predict(X)
+                base_predictions.append(preds)
+            except Exception as e:
+                import warnings
+
+                warnings.warn(
+                    f"SuperLearner base learner '{name}' failed during prediction: {str(e)}. "
+                    f"This learner will be excluded from ensemble prediction.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+
+        if not base_predictions:
+            raise ValueError("No base learners could make predictions")
+
+        # Stack predictions and use meta-learner
+        stacked_preds = np.column_stack(base_predictions)
+        ensemble_preds = self.meta_learner_.predict(stacked_preds)  # type: ignore
+
+        return ensemble_preds
+
+    def predict_proba(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
+        """Make probability predictions for classification tasks.
+
+        Args:
+            X: Feature matrix for prediction
+
+        Returns:
+            Probability predictions
+        """
+        if self.task_type != "classification":
+            raise ValueError("predict_proba only available for classification tasks")
+
+        predictions = self.predict(X)
+
+        # Convert to probability matrix format
+        if len(predictions.shape) == 1:
+            # Binary classification
+            prob_positive = np.clip(predictions, 0, 1)
+            prob_negative = 1 - prob_positive
+            return np.column_stack([prob_negative, prob_positive])
+
+        return predictions
+
+    def get_learner_performance(self) -> dict[str, float]:
+        """Get cross-validation performance of individual learners."""
+        if not self.is_fitted:
+            raise ValueError("SuperLearner must be fitted first")
+        return self.learner_performance_.copy()
+
+    def get_ensemble_performance(self) -> dict[str, float]:
+        """Get performance of the ensemble."""
+        if not self.is_fitted:
+            raise ValueError("SuperLearner must be fitted first")
+        return self.ensemble_performance_.copy()
+
+    def get_learner_weights(self) -> dict[str, float] | None:
+        """Get weights assigned to each base learner by the meta-learner."""
+        if not self.is_fitted:
+            raise ValueError("SuperLearner must be fitted first")
+
+        if self.config.ensemble_method == "stacking" and hasattr(
+            self.meta_learner_, "coef_"
+        ):
+            weights = self.meta_learner_.coef_  # type: ignore
+            if len(weights.shape) > 1:
+                weights = weights[0]  # Binary classification case
+
+            learner_names = list(self.fitted_learners_.keys())
+            return dict(zip(learner_names, weights))
+
+        elif self.config.ensemble_method == "nnls" and hasattr(
+            self.meta_learner_, "weights"
+        ):
+            learner_names = list(self.fitted_learners_.keys())
+            return dict(zip(learner_names, self.meta_learner_.weights))  # type: ignore
+
+        return None
+
+    def get_variable_importance(
+        self, X: NDArray[Any] | pd.DataFrame | None = None
+    ) -> pd.DataFrame | None:
+        """Get feature importance from ensemble of base learners.
+
+        Args:
+            X: Feature matrix (required for permutation importance)
+
+        Returns:
+            DataFrame with variable importance scores
+        """
+        if not self.is_fitted:
+            raise ValueError("SuperLearner must be fitted first")
+
+        importance_scores = []
+        learner_names = []
+
+        for name, learner in self.fitted_learners_.items():
+            if hasattr(learner, "feature_importances_"):
+                importance_scores.append(learner.feature_importances_)
+                learner_names.append(name)
+            elif hasattr(learner, "coef_"):
+                coef = learner.coef_
+                if len(coef.shape) > 1:
+                    coef = coef[0]  # Binary classification case
+                importance_scores.append(np.abs(coef))
+                learner_names.append(name)
+
+        if not importance_scores:
+            return None
+
+        # Average importance across learners
+        importance_matrix = np.array(importance_scores)
+        avg_importance = np.mean(importance_matrix, axis=0)
+
+        # Create DataFrame
+        n_features = len(avg_importance)
+        feature_names = [f"feature_{i}" for i in range(n_features)]
+
+        importance_df = pd.DataFrame(
+            {"feature": feature_names, "importance": avg_importance}
+        ).sort_values("importance", ascending=False)
+
+        return importance_df
+
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Get parameters for this estimator (scikit-learn compatibility)."""
+        params = {
+            "base_learners": self._original_base_learners,
+            "config": self.config,
+            "task_type": self.task_type,
+        }
+        return params
+
+    def set_params(self, **parameters: Any) -> SuperLearner:
+        """Set parameters for this estimator (scikit-learn compatibility)."""
+        for parameter, value in parameters.items():
+            setattr(self, parameter, value)
+        return self

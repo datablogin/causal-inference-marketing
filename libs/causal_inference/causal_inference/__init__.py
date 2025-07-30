@@ -9,7 +9,15 @@ __author__ = "Robert Welborn"
 
 from .core import *
 from .data import *
-from .estimators import AIPWEstimator, GComputationEstimator, IPWEstimator, IVEstimator
+from .estimators import (
+    AIPWEstimator,
+    DoublyRobustMLEstimator,
+    GComputationEstimator,
+    IPWEstimator,
+    IVEstimator,
+    TMLEEstimator,
+)
+from .ml import SuperLearner
 from .target_trial import TargetTrialEmulator, TargetTrialProtocol, TargetTrialResults
 from .utils import *
 
@@ -17,10 +25,13 @@ __all__ = [
     "__version__",
     "__author__",
     "AIPWEstimator",
+    "DoublyRobustMLEstimator",
     "GComputationEstimator",
     "IPWEstimator",
     "IVEstimator",
+    "SuperLearner",
     "TargetTrialEmulator",
     "TargetTrialProtocol",
     "TargetTrialResults",
+    "TMLEEstimator",
 ]

@@ -20,12 +20,14 @@ class TestDiagnosticsIntegration:
         """Set up test data for diagnostics integration tests."""
         # Generate synthetic data
         self.treatment_data, self.outcome_data, self.covariate_data = (
-            generate_simple_rct(n_samples=500, treatment_effect=2.0, random_state=42)
+            generate_simple_rct(
+                n_samples=100, treatment_effect=2.0, random_state=42
+            )  # Reduced for CI speed
         )
 
         # Create some additional test data
         self.pre_treatment_outcome = OutcomeData(
-            values=np.random.normal(0, 1, 500),
+            values=np.random.normal(0, 1, 100),  # Reduced for CI speed
             name="pre_treatment_outcome",
             outcome_type="continuous",
         )
