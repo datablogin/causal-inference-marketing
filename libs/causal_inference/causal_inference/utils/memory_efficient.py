@@ -260,6 +260,24 @@ def sparse_safe_operation(
     if sparse.issparse(data):
         # Cast to sparse matrix to avoid type issues
         sparse_data = data
+        # Type check to ensure we have a sparse matrix with multiply method
+        if not hasattr(sparse_data, 'multiply'):
+            # Fallback to dense computation if sparse matrix doesn't have multiply
+            if hasattr(sparse_data, 'toarray'):
+                data_array = sparse_data.toarray()
+            else:
+                data_array = np.asarray(sparse_data)
+            # Use dense operations
+            if operation == "mean":
+                return np.asarray(np.mean(data_array, axis=axis, **kwargs))
+            elif operation == "std":
+                return np.asarray(np.std(data_array, axis=axis, **kwargs))
+            elif operation == "sum":
+                return np.asarray(np.sum(data_array, axis=axis, **kwargs))
+            elif operation == "var":
+                return np.asarray(np.var(data_array, axis=axis, **kwargs))
+            else:
+                raise ValueError(f"Unsupported operation: {operation}")
         if operation == "mean":
             result = sparse_data.mean(axis=axis)
             return np.asarray(np.array(result).flatten())
@@ -419,7 +437,7 @@ class MemoryMonitor:
     def __enter__(self) -> MemoryMonitor:
         import os
 
-        import psutil
+        import psutil  # type: ignore[import-untyped]
 
         self.process = psutil.Process(os.getpid())
         self.start_memory = self.process.memory_info().rss / 1024 / 1024  # MB
