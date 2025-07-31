@@ -263,6 +263,209 @@ class TestInputValidationEnhancements:
             estimator = GComputationEstimator()
             estimator.fit(treatment, outcome)
 
+    def test_categorical_treatment_valid(self):
+        """Test that categorical treatment with valid categories works correctly."""
+        # Test categorical treatment with proper categories specified
+        np.random.seed(123)
+        treatment = TreatmentData(
+            values=np.array([0, 1, 2, 1, 0, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2]),
+            treatment_type="categorical",
+            categories=[0, 1, 2],  # Valid categories
+        )
+        outcome = OutcomeData(
+            values=np.random.normal(0, 1, 15), outcome_type="continuous"
+        )
+        covariates = CovariateData(
+            values=pd.DataFrame(np.random.normal(0, 1, (15, 2)), columns=["X1", "X2"])
+        )
+
+        # Should work without errors
+        estimator = GComputationEstimator()
+        estimator.fit(treatment, outcome, covariates)
+        assert estimator.is_fitted
+
+        # Should be able to estimate effects
+        effect = estimator.estimate_ate()
+        assert np.isfinite(effect.ate)
+
+    def test_reproducible_bootstrap(self):
+        """Test that same seed produces same bootstrap results."""
+        np.random.seed(42)
+
+        # Create consistent test data
+        treatment = TreatmentData(values=np.array([0, 1] * 8), treatment_type="binary")
+        outcome = OutcomeData(
+            values=np.random.normal(0, 1, 16), outcome_type="continuous"
+        )
+        covariates = CovariateData(
+            values=pd.DataFrame(np.random.normal(0, 1, (16, 2)), columns=["X1", "X2"])
+        )
+
+        # Test reproducibility across different estimators
+        estimators = [
+            GComputationEstimator(bootstrap_samples=50, random_state=123),
+            IPWEstimator(bootstrap_samples=50, random_state=123),
+            AIPWEstimator(bootstrap_samples=50, random_state=123),
+        ]
+
+        # Store results for comparison
+        results = []
+
+        for estimator in estimators:
+            # Run estimation twice with same seed
+            estimator.fit(treatment, outcome, covariates)
+            effect1 = estimator.estimate_ate()
+
+            # Reset and run again with same seed
+            estimator_copy = type(estimator)(bootstrap_samples=50, random_state=123)
+            estimator_copy.fit(treatment, outcome, covariates)
+            effect2 = estimator_copy.estimate_ate()
+
+            # Results should be identical with same seed
+            assert np.isclose(effect1.ate, effect2.ate), (
+                f"ATE not reproducible for {type(estimator).__name__}"
+            )
+
+            # Bootstrap estimates should also be reproducible (check sorted values to avoid order issues)
+            if (
+                effect1.bootstrap_estimates is not None
+                and effect2.bootstrap_estimates is not None
+            ):
+                # Sort both arrays to check if they contain the same values (order might vary)
+                sorted_estimates1 = np.sort(effect1.bootstrap_estimates)
+                sorted_estimates2 = np.sort(effect2.bootstrap_estimates)
+                assert np.allclose(sorted_estimates1, sorted_estimates2), (
+                    f"Bootstrap estimates not reproducible for {type(estimator).__name__}"
+                )
+
+            # Confidence intervals should be reproducible
+            if effect1.ate_ci_lower is not None and effect2.ate_ci_lower is not None:
+                assert np.isclose(effect1.ate_ci_lower, effect2.ate_ci_lower), (
+                    f"CI lower bound not reproducible for {type(estimator).__name__}"
+                )
+                assert np.isclose(effect1.ate_ci_upper, effect2.ate_ci_upper), (
+                    f"CI upper bound not reproducible for {type(estimator).__name__}"
+                )
+
+            results.append(effect1)
+
+        # Verify that all estimators produced valid results
+        for result in results:
+            assert np.isfinite(result.ate)
+            assert result.n_observations == 16
+
+    def test_bootstrap_convergence(self):
+        """Test bootstrap convergence with challenging cases."""
+        np.random.seed(789)
+
+        # Create a challenging case with potential separation issues
+        n_samples = 30
+        X = np.random.normal(0, 1, (n_samples, 2))
+
+        # Create near-perfect separation case
+        # This makes the logistic regression model struggle
+        treatment_prob = 1 / (1 + np.exp(-(3 * X[:, 0] + 2 * X[:, 1])))
+        treatment = np.random.binomial(1, treatment_prob)
+
+        # Ensure we have some variation
+        if np.sum(treatment) == 0:
+            treatment[0] = 1
+        if np.sum(treatment) == len(treatment):
+            treatment[0] = 0
+
+        # Create outcome with strong treatment effect
+        outcome = (
+            2 * treatment + X[:, 0] + X[:, 1] + np.random.normal(0, 0.1, n_samples)
+        )
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(values=pd.DataFrame(X, columns=["X1", "X2"]))
+
+        # Test with smaller bootstrap samples for faster execution
+        estimators = [
+            GComputationEstimator(bootstrap_samples=25, random_state=42),
+            # IPW might fail with separation, so we handle that gracefully
+            IPWEstimator(
+                bootstrap_samples=25,
+                random_state=42,
+                propensity_model_params={
+                    "C": 0.1,
+                    "max_iter": 1000,
+                },  # Regularized for stability
+            ),
+            AIPWEstimator(
+                bootstrap_samples=25,
+                random_state=42,
+                propensity_model_params={"C": 0.1, "max_iter": 1000},
+            ),
+        ]
+
+        for estimator in estimators:
+            try:
+                estimator.fit(treatment_data, outcome_data, covariate_data)
+                effect = estimator.estimate_ate()
+
+                # If bootstrap succeeded, check convergence indicators
+                if (
+                    hasattr(effect, "bootstrap_converged")
+                    and effect.bootstrap_converged is not None
+                ):
+                    # Bootstrap should either converge or provide meaningful diagnostics
+                    if not effect.bootstrap_converged:
+                        # If not converged, we should still get reasonable estimates
+                        assert np.isfinite(effect.ate), (
+                            f"ATE should be finite even with convergence issues for {type(estimator).__name__}"
+                        )
+                        # Standard error might be None if bootstrap failed completely
+                        if effect.ate_se is not None:
+                            assert effect.ate_se > 0, (
+                                f"Standard error should be positive for {type(estimator).__name__}"
+                            )
+                    else:
+                        # If converged, all bootstrap statistics should be available
+                        assert np.isfinite(effect.ate), (
+                            f"ATE should be finite when converged for {type(estimator).__name__}"
+                        )
+                        if effect.ate_se is not None:
+                            assert effect.ate_se > 0, (
+                                f"Standard error should be positive when converged for {type(estimator).__name__}"
+                            )
+
+                        # Check that confidence intervals are reasonable
+                        if (
+                            effect.ate_ci_lower is not None
+                            and effect.ate_ci_upper is not None
+                        ):
+                            assert effect.ate_ci_lower < effect.ate_ci_upper, (
+                                f"CI bounds should be ordered correctly for {type(estimator).__name__}"
+                            )
+
+                # Basic sanity checks regardless of convergence
+                assert np.isfinite(effect.ate), (
+                    f"Point estimate should always be finite for {type(estimator).__name__}"
+                )
+                assert effect.n_observations == n_samples, (
+                    f"Sample size should be correct for {type(estimator).__name__}"
+                )
+
+            except EstimationError as e:
+                # For challenging cases, some estimators may fail
+                # This is acceptable as long as the error is informative
+                error_msg = str(e).lower()
+                assert any(
+                    keyword in error_msg
+                    for keyword in [
+                        "convergence",
+                        "separation",
+                        "numerical",
+                        "instability",
+                        "failed",
+                    ]
+                ), (
+                    f"Error message should be informative for {type(estimator).__name__}: {error_msg}"
+                )
+
     def test_robust_error_recovery(self):
         """Test that estimators can recover from errors gracefully."""
         # Create valid data
