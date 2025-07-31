@@ -216,7 +216,8 @@ def memory_efficient_matmul(
     """
     if sparse.issparse(a) or sparse.issparse(b):
         # Use sparse matrix operations
-        return (a @ b).toarray() if sparse.issparse(a @ b) else a @ b
+        result = a @ b
+        return np.asarray(result.toarray() if sparse.issparse(result) else result)
 
     m, k = a.shape
     k2, n = b.shape
@@ -260,39 +261,41 @@ def sparse_safe_operation(
         # Cast to sparse matrix to avoid type issues
         sparse_data = data
         if operation == "mean":
-            return np.array(sparse_data.mean(axis=axis)).flatten()  # type: ignore[union-attr]
+            result = sparse_data.mean(axis=axis)
+            return np.asarray(np.array(result).flatten())
         elif operation == "std":
             # For sparse matrices, compute std manually
-            mean_val = sparse_data.mean(axis=axis)  # type: ignore[union-attr]
-            var_base = sparse_data.multiply(sparse_data).mean(axis=axis)  # type: ignore[union-attr]
+            mean_val = sparse_data.mean(axis=axis)
+            var_base = sparse_data.multiply(sparse_data).mean(axis=axis)
             if axis is None:
                 variance = var_base - mean_val * mean_val
             else:
                 # Handle both scalar and matrix mean values
-                variance = var_base - mean_val * mean_val  # type: ignore[operator]
-            return np.sqrt(np.array(variance)).flatten()
+                variance = var_base - mean_val * mean_val
+            return np.asarray(np.sqrt(np.array(variance)).flatten())
         elif operation == "sum":
-            return np.array(sparse_data.sum(axis=axis)).flatten()  # type: ignore[union-attr]
+            result = sparse_data.sum(axis=axis)
+            return np.asarray(np.array(result).flatten())
         elif operation == "var":
-            mean_val = sparse_data.mean(axis=axis)  # type: ignore[union-attr]
-            var_base = sparse_data.multiply(sparse_data).mean(axis=axis)  # type: ignore[union-attr]
+            mean_val = sparse_data.mean(axis=axis)
+            var_base = sparse_data.multiply(sparse_data).mean(axis=axis)
             if axis is None:
-                return var_base - mean_val * mean_val
+                return float(var_base - mean_val * mean_val)
             else:
-                variance = var_base - mean_val * mean_val  # type: ignore[operator]
-                return np.array(variance).flatten()
+                variance = var_base - mean_val * mean_val
+                return np.asarray(np.array(variance).flatten())
         else:
             raise ValueError(f"Unsupported operation for sparse data: {operation}")
     else:
         # Dense data - use standard numpy operations
         if operation == "mean":
-            return np.mean(data, axis=axis, **kwargs)
+            return np.asarray(np.mean(data, axis=axis, **kwargs))
         elif operation == "std":
-            return np.std(data, axis=axis, **kwargs)
+            return np.asarray(np.std(data, axis=axis, **kwargs))
         elif operation == "sum":
-            return np.sum(data, axis=axis, **kwargs)
+            return np.asarray(np.sum(data, axis=axis, **kwargs))
         elif operation == "var":
-            return np.var(data, axis=axis, **kwargs)
+            return np.asarray(np.var(data, axis=axis, **kwargs))
         else:
             raise ValueError(f"Unsupported operation: {operation}")
 
@@ -416,7 +419,7 @@ class MemoryMonitor:
     def __enter__(self) -> MemoryMonitor:
         import os
 
-        import psutil  # type: ignore[import-untyped]
+        import psutil
 
         self.process = psutil.Process(os.getpid())
         self.start_memory = self.process.memory_info().rss / 1024 / 1024  # MB

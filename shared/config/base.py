@@ -90,7 +90,7 @@ class BaseConfiguration(BaseSettings):
 class ConfigurationManager:
     """Central configuration manager for all application configurations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._configurations: dict[str, BaseConfiguration] = {}
 
     def register_configuration(self, name: str, config: BaseConfiguration) -> None:

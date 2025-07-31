@@ -3,9 +3,9 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from shared.config import CausalInferenceConfig
 
@@ -15,13 +15,13 @@ class DatabaseManager:
 
     def __init__(self, config: CausalInferenceConfig):
         self.config = config
-        self._engine = None
-        self._async_engine = None
-        self._session_factory = None
-        self._async_session_factory = None
+        self._engine: Engine | None = None
+        self._async_engine: AsyncEngine | None = None
+        self._session_factory: sessionmaker[Session] | None = None
+        self._async_session_factory: async_sessionmaker[AsyncSession] | None = None
 
     @property
-    def engine(self):
+    def engine(self) -> Engine:
         """Get synchronous database engine."""
         if self._engine is None:
             # Convert async URL to sync URL if needed
@@ -39,7 +39,7 @@ class DatabaseManager:
         return self._engine
 
     @property
-    def async_engine(self):
+    def async_engine(self) -> AsyncEngine:
         """Get asynchronous database engine."""
         if self._async_engine is None:
             # Ensure async URL format
@@ -57,7 +57,7 @@ class DatabaseManager:
         return self._async_engine
 
     @property
-    def session_factory(self):
+    def session_factory(self) -> sessionmaker[Session]:
         """Get synchronous session factory."""
         if self._session_factory is None:
             self._session_factory = sessionmaker(
@@ -68,7 +68,7 @@ class DatabaseManager:
         return self._session_factory
 
     @property
-    def async_session_factory(self):
+    def async_session_factory(self) -> async_sessionmaker[AsyncSession]:
         """Get asynchronous session factory."""
         if self._async_session_factory is None:
             self._async_session_factory = async_sessionmaker(
@@ -92,11 +92,11 @@ class DatabaseManager:
             finally:
                 await session.close()
 
-    def get_session(self):
+    def get_session(self) -> Session:
         """Get synchronous database session context manager."""
         return self.session_factory()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connections."""
         if self._async_engine:
             await self._async_engine.dispose()

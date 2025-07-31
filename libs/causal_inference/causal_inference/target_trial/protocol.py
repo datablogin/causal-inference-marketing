@@ -105,7 +105,7 @@ class TreatmentStrategy(BaseModel):
         """
         if treatment_col in self.treatment_assignment:
             target_value = self.treatment_assignment[treatment_col]
-            return data[treatment_col] == target_value
+            return pd.Series(data[treatment_col] == target_value)
         return pd.Series(False, index=data.index)
 
     def get_assigned_treatment_value(self, treatment_col: str) -> Any:
