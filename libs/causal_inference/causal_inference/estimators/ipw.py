@@ -396,7 +396,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             # Convert to probabilities using sigmoid
             propensity_scores = 1 / (1 + np.exp(-propensity_scores))
 
-        return propensity_scores
+        return np.asarray(propensity_scores)
 
     def _check_overlap(self, propensity_scores: NDArray[Any]) -> dict[str, Any]:
         """Check overlap assumption by examining propensity score distribution.
@@ -844,24 +844,24 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             X = X[self._propensity_features]
 
         if hasattr(self.propensity_model, "predict_proba"):
-            return self.propensity_model.predict_proba(X)[:, 1]
+            return np.asarray(self.propensity_model.predict_proba(X)[:, 1])
         else:
             # Fallback for models without predict_proba
             scores = self.propensity_model.decision_function(X)
-            return 1 / (1 + np.exp(-scores))
+            return np.asarray(1 / (1 + np.exp(-scores)))
 
     @property
     def bootstrap_samples(self) -> int:
         """Number of bootstrap samples for backward compatibility."""
         if self.bootstrap_config:
-            return self.bootstrap_config.n_samples
+            return int(self.bootstrap_config.n_samples)
         return 0
 
     @property
     def confidence_level(self) -> float:
         """Confidence level for backward compatibility."""
         if self.bootstrap_config:
-            return self.bootstrap_config.confidence_level
+            return float(self.bootstrap_config.confidence_level)
         return 0.95
 
     def _bootstrap_confidence_interval(

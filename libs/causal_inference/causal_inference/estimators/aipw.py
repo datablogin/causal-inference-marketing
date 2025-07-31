@@ -813,7 +813,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         # AIPW estimate
         aipw_estimate = np.mean(g_comp_component + ipw_correction)
 
-        return aipw_estimate
+        return float(aipw_estimate)
 
     def _compute_influence_function_se(
         self,
@@ -859,7 +859,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         influence_variance = np.var(influence_functions, ddof=1)
         standard_error = np.sqrt(influence_variance / n_samples)
 
-        return standard_error
+        return float(standard_error)
 
     def _fit_implementation(
         self,
