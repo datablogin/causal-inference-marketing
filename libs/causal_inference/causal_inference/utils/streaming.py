@@ -17,7 +17,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 try:
-    import pyarrow.parquet as pq  # type: ignore[import-not-found]
+    import pyarrow.parquet as pq  # type: ignore
 except ImportError:
     pq = None
 
