@@ -316,9 +316,9 @@ def create_cross_fit_data(
     if isinstance(X, pd.DataFrame):
         X = X.values
     if isinstance(y, pd.Series):
-        y = y.values
+        y = np.asarray(y.values)
     if isinstance(treatment, pd.Series):
-        treatment = treatment.values
+        treatment = np.asarray(treatment.values)
 
     X = np.array(X)
     y = np.array(y)

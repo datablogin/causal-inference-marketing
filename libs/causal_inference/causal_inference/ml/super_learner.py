@@ -253,9 +253,18 @@ class SuperLearner:
             )
 
     def _get_cv_predictions(
-        self, X: NDArray[Any], y: NDArray[Any]
+        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
     ) -> dict[str, NDArray[Any]]:
         """Get cross-validation predictions for each base learner."""
+        # Ensure X and y are numpy arrays
+        if isinstance(X, pd.DataFrame):
+            X = np.asarray(X.values)
+        else:
+            X = np.asarray(X)
+        if isinstance(y, pd.Series):
+            y = np.asarray(y.values)
+        else:
+            y = np.asarray(y)
         cv_splitter = self._create_cv_splitter(y)
         cv_predictions = {}
 
@@ -384,13 +393,19 @@ class SuperLearner:
             self: Fitted SuperLearner instance
         """
         # Convert to numpy arrays
+        X_array: NDArray[Any]
+        y_array: NDArray[Any]
         if isinstance(X, pd.DataFrame):
-            X = X.values
+            X_array = np.asarray(X.values)
+        else:
+            X_array = np.asarray(X)
         if isinstance(y, pd.Series):
-            y = y.values
+            y_array = np.asarray(y.values)
+        else:
+            y_array = np.asarray(y)
 
-        X = np.array(X)
-        y = np.array(y)
+        X = X_array
+        y = y_array
 
         # Detect task type
         detected_task_type = self._detect_task_type(y)
@@ -531,10 +546,11 @@ class SuperLearner:
 
         # Stack predictions and use meta-learner
         stacked_preds = np.column_stack(base_predictions)
-        ensemble_preds = self.meta_learner_.predict(stacked_preds)
-        return np.asarray(ensemble_preds)
-
-        return ensemble_preds
+        if self.meta_learner_ is not None:
+            ensemble_preds = self.meta_learner_.predict(stacked_preds)
+            return np.asarray(ensemble_preds)
+        else:
+            raise ValueError("Meta learner not fitted")
 
     def predict_proba(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
         """Make probability predictions for classification tasks.
@@ -576,8 +592,10 @@ class SuperLearner:
         if not self.is_fitted:
             raise ValueError("SuperLearner must be fitted first")
 
-        if self.config.ensemble_method == "stacking" and hasattr(
-            self.meta_learner_, "coef_"
+        if (
+            self.config.ensemble_method == "stacking"
+            and self.meta_learner_ is not None
+            and hasattr(self.meta_learner_, "coef_")
         ):
             weights = self.meta_learner_.coef_
             if len(weights.shape) > 1:
@@ -586,8 +604,10 @@ class SuperLearner:
             learner_names = list(self.fitted_learners_.keys())
             return dict(zip(learner_names, weights))
 
-        elif self.config.ensemble_method == "nnls" and hasattr(
-            self.meta_learner_, "weights"
+        elif (
+            self.config.ensemble_method == "nnls"
+            and self.meta_learner_ is not None
+            and hasattr(self.meta_learner_, "weights")
         ):
             learner_names = list(self.fitted_learners_.keys())
             return dict(zip(learner_names, self.meta_learner_.weights))

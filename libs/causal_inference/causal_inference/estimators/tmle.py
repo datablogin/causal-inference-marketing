@@ -242,6 +242,9 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self, X: NDArray[Any], Y: NDArray[Any], A: NDArray[Any]
     ) -> None:
         """Perform the targeting step of TMLE."""
+        if self.propensity_scores_ is None:
+            raise EstimationError("Propensity scores not estimated")
+
         # Get initial estimates
         Q1W = self.nuisance_estimates_["Q1W"]
         Q0W = self.nuisance_estimates_["Q0W"]
@@ -266,6 +269,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         H_AW: NDArray[Any],
     ) -> None:
         """Perform one-step targeting."""
+        assert self.propensity_scores_ is not None
         # Create targeted outcome based on observed treatment
         Q_AW = A * Q1W + (1 - A) * Q0W
 
@@ -319,6 +323,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         H_AW: NDArray[Any],
     ) -> None:
         """Perform iterative targeting until convergence."""
+        assert self.propensity_scores_ is not None
         Q1W_current = Q1W.copy()
         Q0W_current = Q0W.copy()
 
@@ -424,6 +429,9 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted before estimation")
 
+        if self.treatment_data is None or self.outcome_data is None:
+            raise EstimationError("Treatment and outcome data must be available")
+
         # Get data
         A = np.array(self.treatment_data.values)
         Y = np.array(self.outcome_data.values)
@@ -435,6 +443,8 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self._calculate_efficient_influence_function(A, Y)
 
         # Estimate variance using efficient influence function
+        if self.efficient_influence_function_ is None:
+            raise EstimationError("Efficient influence function not calculated")
         ate_var = np.var(self.efficient_influence_function_) / len(A)
         ate_se = np.sqrt(ate_var)
 
@@ -477,6 +487,9 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self, A: NDArray[Any], Y: NDArray[Any]
     ) -> None:
         """Calculate the efficient influence function for variance estimation."""
+        if self.propensity_scores_ is None:
+            raise EstimationError("Propensity scores not estimated")
+
         # Get nuisance estimates
         Q1W = self.nuisance_estimates_["Q1W_targeted"]
         Q0W = self.nuisance_estimates_["Q0W_targeted"]

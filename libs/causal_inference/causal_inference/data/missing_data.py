@@ -6,6 +6,8 @@ datasets, including listwise deletion, imputation methods, and missing data diag
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 from sklearn.experimental import enable_iterative_imputer  # noqa
@@ -353,9 +355,9 @@ def diagnose_missing_data(
 
     # Calculate percentages
     diagnostics["complete_case_rate"] = complete_cases / total_obs
-    missing_by_var = diagnostics["missing_by_variable"]
+    missing_by_var_dict = cast(dict[str, int], diagnostics["missing_by_variable"])
     diagnostics["missing_rate_by_variable"] = {
-        var: count / total_obs for var, count in missing_by_var.items()
+        var: count / total_obs for var, count in missing_by_var_dict.items()
     }
 
     return diagnostics
