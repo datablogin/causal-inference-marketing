@@ -55,9 +55,14 @@ jobs:
         uv run mypy libs/causal_inference/ shared/
     
     - name: Run tests
-      timeout-minutes: 12  # Allow extra time for Python 3.13 post-processing
+      timeout-minutes: 8  # Reduced timeout since Python 3.13 skips slow tests
       run: |
-        uv run pytest libs/causal_inference/tests/ --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term
+        if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
+          # Skip slow/benchmark tests and optimize for Python 3.13
+          uv run pytest libs/causal_inference/tests/ -m "not slow and not benchmark" --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --tb=short --disable-warnings --cov-branch
+        else
+          uv run pytest libs/causal_inference/tests/ --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term
+        fi
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
