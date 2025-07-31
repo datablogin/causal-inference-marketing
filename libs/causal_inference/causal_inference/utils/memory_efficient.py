@@ -261,9 +261,9 @@ def sparse_safe_operation(
         # Cast to sparse matrix to avoid type issues
         sparse_data = data
         # Type check to ensure we have a sparse matrix with multiply method
-        if not hasattr(sparse_data, 'multiply'):
+        if not hasattr(sparse_data, "multiply"):
             # Fallback to dense computation if sparse matrix doesn't have multiply
-            if hasattr(sparse_data, 'toarray'):
+            if hasattr(sparse_data, "toarray"):
                 data_array = sparse_data.toarray()
             else:
                 data_array = np.asarray(sparse_data)
