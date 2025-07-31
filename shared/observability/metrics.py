@@ -64,7 +64,7 @@ class CausalInferenceMetrics:
 
     def record_computation(
         self, method: str, duration: float, status: str, sample_size: int
-    ):
+    ) -> None:
         """Record a causal inference computation."""
         self.computation_duration.labels(method=method, outcome=status).observe(
             duration
@@ -74,12 +74,12 @@ class CausalInferenceMetrics:
 
     def record_api_request(
         self, endpoint: str, method: str, status: str, duration: float
-    ):
+    ) -> None:
         """Record an API request."""
         self.api_requests.labels(endpoint=endpoint, method=method, status=status).inc()
         self.api_duration.labels(endpoint=endpoint, method=method).observe(duration)
 
-    def record_error(self, error_type: str, component: str):
+    def record_error(self, error_type: str, component: str) -> None:
         """Record an error."""
         self.errors.labels(error_type=error_type, component=component).inc()
 

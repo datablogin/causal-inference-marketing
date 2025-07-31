@@ -5,7 +5,6 @@ machine learning algorithms using cross-validation to achieve the best
 possible prediction performance.
 """
 # ruff: noqa: N803
-# type: ignore
 
 from __future__ import annotations
 
@@ -204,7 +203,7 @@ class SuperLearner:
     ) -> Literal["regression", "classification"]:
         """Auto-detect whether this is a regression or classification task."""
         if self.task_type != "auto":
-            return self.task_type  # type: ignore
+            return self.task_type
 
         # Check if y contains only 0s and 1s (binary classification)
         unique_values = np.unique(y)
@@ -238,7 +237,7 @@ class SuperLearner:
 
         return filtered_learners
 
-    def _create_cv_splitter(self, y: NDArray[Any]):
+    def _create_cv_splitter(self, y: NDArray[Any]) -> Any:
         """Create appropriate cross-validation splitter."""
         if self.task_type == "classification" and self.config.use_stratified_cv:
             return StratifiedKFold(
@@ -254,9 +253,18 @@ class SuperLearner:
             )
 
     def _get_cv_predictions(
-        self, X: NDArray[Any], y: NDArray[Any]
+        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
     ) -> dict[str, NDArray[Any]]:
         """Get cross-validation predictions for each base learner."""
+        # Ensure X and y are numpy arrays
+        if isinstance(X, pd.DataFrame):
+            X = np.asarray(X.values)
+        else:
+            X = np.asarray(X)
+        if isinstance(y, pd.Series):
+            y = np.asarray(y.values)
+        else:
+            y = np.asarray(y)
         cv_splitter = self._create_cv_splitter(y)
         cv_predictions = {}
 
@@ -340,23 +348,24 @@ class SuperLearner:
 
             # Create a simple weighted average "meta-learner"
             class NNLSMetaLearner:
-                def __init__(self, weights):
+                def __init__(self, weights: NDArray[Any]) -> None:
                     self.weights = weights
 
-                def predict(self, X):
-                    return X @ self.weights
+                def predict(self, X: NDArray[Any]) -> NDArray[Any]:
+                    result = X @ self.weights
+                    return np.asarray(result)
 
             meta_learner = NNLSMetaLearner(weights)
 
         elif self.config.ensemble_method == "discrete":
             # Discrete Super Learner (select best single learner)
-            best_learner_idx = np.argmax(list(self.learner_performance_.values()))
+            best_learner_idx = int(np.argmax(list(self.learner_performance_.values())))
 
             class DiscreteMetaLearner:
-                def __init__(self, best_idx):
+                def __init__(self, best_idx: int) -> None:
                     self.best_idx = best_idx
 
-                def predict(self, X):
+                def predict(self, X: NDArray[Any]) -> NDArray[Any]:
                     return X[:, self.best_idx]
 
             meta_learner = DiscreteMetaLearner(best_learner_idx)
@@ -384,13 +393,19 @@ class SuperLearner:
             self: Fitted SuperLearner instance
         """
         # Convert to numpy arrays
+        X_array: NDArray[Any]
+        y_array: NDArray[Any]
         if isinstance(X, pd.DataFrame):
-            X = X.values  # type: ignore
+            X_array = np.asarray(X.values)
+        else:
+            X_array = np.asarray(X)
         if isinstance(y, pd.Series):
-            y = y.values  # type: ignore
+            y_array = np.asarray(y.values)
+        else:
+            y_array = np.asarray(y)
 
-        X = np.array(X)  # type: ignore
-        y = np.array(y)  # type: ignore
+        X = X_array
+        y = y_array
 
         # Detect task type
         detected_task_type = self._detect_task_type(y)
@@ -444,7 +459,7 @@ class SuperLearner:
             raise ValueError("No base learners could be fitted successfully")
 
         # Get cross-validation predictions
-        cv_predictions = self._get_cv_predictions(X, y)  # type: ignore
+        cv_predictions = self._get_cv_predictions(X, y)
 
         # Fit meta-learner
         self._fit_meta_learner(cv_predictions, y)
@@ -531,9 +546,11 @@ class SuperLearner:
 
         # Stack predictions and use meta-learner
         stacked_preds = np.column_stack(base_predictions)
-        ensemble_preds = self.meta_learner_.predict(stacked_preds)  # type: ignore
-
-        return ensemble_preds
+        if self.meta_learner_ is not None:
+            ensemble_preds = self.meta_learner_.predict(stacked_preds)
+            return np.asarray(ensemble_preds)
+        else:
+            raise ValueError("Meta learner not fitted")
 
     def predict_proba(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
         """Make probability predictions for classification tasks.
@@ -575,21 +592,25 @@ class SuperLearner:
         if not self.is_fitted:
             raise ValueError("SuperLearner must be fitted first")
 
-        if self.config.ensemble_method == "stacking" and hasattr(
-            self.meta_learner_, "coef_"
+        if (
+            self.config.ensemble_method == "stacking"
+            and self.meta_learner_ is not None
+            and hasattr(self.meta_learner_, "coef_")
         ):
-            weights = self.meta_learner_.coef_  # type: ignore
+            weights = self.meta_learner_.coef_
             if len(weights.shape) > 1:
                 weights = weights[0]  # Binary classification case
 
             learner_names = list(self.fitted_learners_.keys())
             return dict(zip(learner_names, weights))
 
-        elif self.config.ensemble_method == "nnls" and hasattr(
-            self.meta_learner_, "weights"
+        elif (
+            self.config.ensemble_method == "nnls"
+            and self.meta_learner_ is not None
+            and hasattr(self.meta_learner_, "weights")
         ):
             learner_names = list(self.fitted_learners_.keys())
-            return dict(zip(learner_names, self.meta_learner_.weights))  # type: ignore
+            return dict(zip(learner_names, self.meta_learner_.weights))
 
         return None
 

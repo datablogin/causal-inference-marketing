@@ -589,7 +589,7 @@ class IVEstimator(BaseEstimator):
 
         # For continuous treatment, use standard R-squared
         if self.treatment_data.treatment_type == "continuous":
-            return r2_score(y_true, self._first_stage_predictions)
+            return float(r2_score(y_true, self._first_stage_predictions))
         else:
             # For binary/categorical, use pseudo R-squared (simplified)
             # For binary/categorical, compute McFadden's pseudo R-squared
@@ -617,7 +617,7 @@ class IVEstimator(BaseEstimator):
                     + (1 - p_null) * np.log(1 - p_null + 1e-15)
                 )
                 # McFadden's pseudo R-squared
-                return 1 - (log_likelihood / log_likelihood_null)
+                return float(1 - (log_likelihood / log_likelihood_null))
             else:
                 return 0.3  # Default for non-probabilistic models
 
@@ -662,10 +662,10 @@ class IVEstimator(BaseEstimator):
         try:
             X_2nd_inv = np.linalg.inv(X_2nd.T @ X_2nd)
             var_coef = residual_var * X_2nd_inv[0, 0]  # Variance of first coefficient
-            return np.sqrt(var_coef)
+            return float(np.sqrt(var_coef))
         except np.linalg.LinAlgError:
             # Fallback if matrix is singular
-            return residual_var / np.sqrt(n)
+            return float(residual_var / np.sqrt(n))
 
     def _estimate_ate_nonlinear(self) -> float:
         """Estimate ATE for non-linear second stage models using marginal effects."""
@@ -697,7 +697,7 @@ class IVEstimator(BaseEstimator):
 
         # Average marginal effect
         marginal_effect = np.mean((y_plus - y_minus) / (2 * delta))
-        return marginal_effect
+        return float(marginal_effect)
 
     def _compute_nonlinear_se(self) -> float:
         """Compute standard error for non-linear models (simplified)."""
@@ -706,7 +706,7 @@ class IVEstimator(BaseEstimator):
 
         n = len(self.treatment_data.values)
         # Conservative estimate based on sample size
-        return 0.5 / np.sqrt(n)
+        return float(0.5 / np.sqrt(n))
 
     def fit(
         self,

@@ -416,7 +416,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         # Predict counterfactual outcomes
         if self.outcome_model is None:
             raise EstimationError("Outcome model must be fitted before prediction")
-        return self.outcome_model.predict(counterfactual_features)
+        return np.asarray(self.outcome_model.predict(counterfactual_features))
 
     def _predict_counterfactuals_chunked(
         self,
@@ -467,7 +467,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
             if self.outcome_model is None:
                 raise EstimationError("Outcome model must be fitted before prediction")
-            return self.outcome_model.predict(chunk_features)
+            return np.asarray(self.outcome_model.predict(chunk_features))
 
         # Use chunked operation to predict
         def chunk_operation(chunk_start: int) -> NDArray[Any]:
@@ -682,14 +682,14 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
     def bootstrap_samples(self) -> int:
         """Number of bootstrap samples for backward compatibility."""
         if self.bootstrap_config:
-            return self.bootstrap_config.n_samples
+            return int(self.bootstrap_config.n_samples)
         return 0
 
     @property
     def confidence_level(self) -> float:
         """Confidence level for backward compatibility."""
         if self.bootstrap_config:
-            return self.bootstrap_config.confidence_level
+            return float(self.bootstrap_config.confidence_level)
         return 0.95
 
     def _bootstrap_confidence_interval(

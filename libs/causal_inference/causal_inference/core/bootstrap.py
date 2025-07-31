@@ -532,7 +532,7 @@ class BootstrapMixin(abc.ABC):
         try:
             boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)
             boot_effect = boot_estimator.estimate_ate()
-            return boot_effect.ate
+            return float(boot_effect.ate)
         except (ValueError, np.linalg.LinAlgError) as e:
             # Common statistical/numerical errors
             raise RuntimeError(
@@ -802,7 +802,7 @@ class BootstrapMixin(abc.ABC):
 
             boot_estimator.fit(boot_treatment, boot_outcome, boot_covariates)
             boot_effect = boot_estimator.estimate_ate()
-            return boot_effect.ate
+            return float(boot_effect.ate)
 
         except Exception as e:
             raise RuntimeError(f"Bootstrap sample {sample_idx} failed: {str(e)}") from e
@@ -873,7 +873,7 @@ class BootstrapMixin(abc.ABC):
         older_se = np.std(older_estimates)
 
         if older_se == 0:
-            return recent_se == 0
+            return bool(recent_se == 0)
 
         relative_change = abs(recent_se - older_se) / older_se
         return bool(relative_change < self.bootstrap_config.convergence_tolerance)

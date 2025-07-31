@@ -5,7 +5,6 @@ machine learning for nuisance parameter estimation with cross-fitting to
 achieve √n-consistency and efficient inference.
 """
 # ruff: noqa: N803
-# type: ignore
 
 from __future__ import annotations
 

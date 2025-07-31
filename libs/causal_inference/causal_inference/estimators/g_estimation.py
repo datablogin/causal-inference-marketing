@@ -305,7 +305,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
                                 parameters[param_name] * treatment * cov_df[cov_name]
                             )
 
-            return outcome - adjustment
+            return np.asarray(outcome - adjustment)
 
         elif self.structural_model == "multiplicative":
             # Multiplicative SNMM: H = Y / (1 + psi * A)
@@ -319,7 +319,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
                     np.abs(multiplier), 1e-10
                 ),  # Negative case (use absolute value)
             )
-            return outcome / multiplier
+            return np.asarray(outcome / multiplier)
 
         elif self.structural_model == "general":
             # General form - could be extended for more complex models
@@ -416,7 +416,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         # Test statistic is the difference in means
         test_statistic = treated_mean - control_mean
 
-        return test_statistic**2
+        return float(test_statistic**2)
 
     def _grid_search_optimization(
         self,
@@ -489,7 +489,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             # The objective function already returns squared difference,
             # so for root finding we want the difference itself (not square root)
             # Take square root to get the actual difference for root finding
-            return np.sqrt(obj_val) if obj_val >= 0 else -np.sqrt(-obj_val)
+            return float(np.sqrt(obj_val) if obj_val >= 0 else -np.sqrt(-obj_val))
 
         try:
             min_param, max_param = self.parameter_range
@@ -1011,12 +1011,12 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
     def bootstrap_samples(self) -> int:
         """Number of bootstrap samples for backward compatibility."""
         if self.bootstrap_config:
-            return self.bootstrap_config.n_samples
+            return int(self.bootstrap_config.n_samples)
         return 0
 
     @property
     def confidence_level(self) -> float:
         """Confidence level for backward compatibility."""
         if self.bootstrap_config:
-            return self.bootstrap_config.confidence_level
+            return float(self.bootstrap_config.confidence_level)
         return 0.95

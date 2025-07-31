@@ -343,7 +343,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             propensity_scores = self.propensity_model.decision_function(X)
             propensity_scores = 1 / (1 + np.exp(-propensity_scores))
 
-        return propensity_scores
+        return np.asarray(propensity_scores)
 
     def _check_common_support(self, propensity_scores: NDArray[Any]) -> dict[str, Any]:
         """Check common support assumption by examining propensity score distribution.
@@ -963,7 +963,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         stratum_effects_array = np.array(stratum_effects)
 
         ate = np.average(stratum_effects_array, weights=stratum_weights_array)
-        return ate
+        return float(ate)
 
     def _estimate_ate_matching(
         self, treatment_values: NDArray[Any], outcome_values: NDArray[Any]
@@ -997,7 +997,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
 
         # Average treatment effect across matched pairs
         ate = np.mean(pair_effects)
-        return ate
+        return float(ate)
 
     # Public diagnostic methods
     def get_propensity_scores(self) -> NDArray[Any] | None:

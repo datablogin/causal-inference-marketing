@@ -148,8 +148,8 @@ known-first-party = ["causal_inference", "shared"]
 # MyPy type checking
 [tool.mypy]
 python_version = "3.11"
-strict = false
-warn_return_any = false
+strict = true
+warn_return_any = true
 warn_unused_configs = true
 explicit_package_bases = true
 exclude = [
