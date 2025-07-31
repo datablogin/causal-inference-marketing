@@ -353,10 +353,10 @@ def diagnose_missing_data(
 
     # Calculate percentages
     diagnostics["complete_case_rate"] = complete_cases / total_obs
-    missing_by_var = diagnostics["missing_by_variable"]  # type: ignore
+    missing_by_var = diagnostics["missing_by_variable"]
     diagnostics["missing_rate_by_variable"] = {
         var: count / total_obs
-        for var, count in missing_by_var.items()  # type: ignore
+        for var, count in missing_by_var.items()
     }
 
     return diagnostics

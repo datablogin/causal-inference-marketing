@@ -110,7 +110,7 @@ class TreatmentStrategy(BaseModel):
             if isinstance(comparison_result, pd.Series):
                 return comparison_result
             else:
-                return pd.Series(comparison_result)
+                return pd.Series(comparison_result, dtype=bool)
         return pd.Series(False, index=data.index)
 
     def get_assigned_treatment_value(self, treatment_col: str) -> Any:

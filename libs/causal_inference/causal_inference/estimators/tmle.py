@@ -5,7 +5,6 @@ machine learning for nuisance parameter estimation with targeting to
 reduce bias for the parameter of interest.
 """
 # ruff: noqa: N803
-# type: ignore
 
 from __future__ import annotations
 
@@ -249,11 +248,11 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         g1W = self.propensity_scores_
 
         # Create clever covariate H(A,W)
-        H_AW = A / g1W - (1 - A) / (1 - g1W)  # type: ignore
+        H_AW = A / g1W - (1 - A) / (1 - g1W)
 
         if self.iterative:
             # Iterative TMLE
-            self._iterative_targeting(Y, A, Q1W, Q0W, g1W, H_AW)  # type: ignore
+            self._iterative_targeting(Y, A, Q1W, Q0W, g1W, H_AW)
         else:
             # One-step TMLE
             self._one_step_targeting(Y, A, Q1W, Q0W, H_AW)
@@ -285,7 +284,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             )
             Q0W_targeted = expit(
                 logit(np.clip(Q0W, 0.01, 0.99))
-                - epsilon / (1 - self.propensity_scores_)  # type: ignore
+                - epsilon / (1 - self.propensity_scores_)
             )
 
         else:
@@ -301,8 +300,8 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             epsilon = targeting_model.coef_[0]
 
             # Update Q functions
-            Q1W_targeted = Q1W + epsilon / self.propensity_scores_  # type: ignore
-            Q0W_targeted = Q0W - epsilon / (1 - self.propensity_scores_)  # type: ignore
+            Q1W_targeted = Q1W + epsilon / self.propensity_scores_
+            Q0W_targeted = Q0W - epsilon / (1 - self.propensity_scores_)
 
         # Store targeting model and updated estimates
         self.targeting_models_ = [targeting_model]
@@ -426,8 +425,8 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
             raise EstimationError("Estimator must be fitted before estimation")
 
         # Get data
-        A = np.array(self.treatment_data.values)  # type: ignore
-        Y = np.array(self.outcome_data.values)  # type: ignore
+        A = np.array(self.treatment_data.values)
+        Y = np.array(self.outcome_data.values)
 
         # Estimate ATE
         ate = self._estimate_target_parameter(self.nuisance_estimates_, A, Y)
@@ -436,7 +435,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self._calculate_efficient_influence_function(A, Y)
 
         # Estimate variance using efficient influence function
-        ate_var = np.var(self.efficient_influence_function_) / len(A)  # type: ignore
+        ate_var = np.var(self.efficient_influence_function_) / len(A)
         ate_se = np.sqrt(ate_var)
 
         # Calculate confidence interval
@@ -486,10 +485,10 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         # Calculate efficient influence function components
         # IF = (A/g1W - (1-A)/(1-g1W)) * (Y - Q(A,W)) + Q(1,W) - Q(0,W) - ψ
         Q_AW = A * Q1W + (1 - A) * Q0W
-        clever_covariate = A / g1W - (1 - A) / (1 - g1W)  # type: ignore
+        clever_covariate = A / g1W - (1 - A) / (1 - g1W)
         ate_estimate = np.mean(Q1W - Q0W)
 
-        influence_function = clever_covariate * (Y - Q_AW) + (Q1W - Q0W) - ate_estimate  # type: ignore
+        influence_function = clever_covariate * (Y - Q_AW) + (Q1W - Q0W) - ate_estimate
 
         self.efficient_influence_function_ = influence_function
 

@@ -87,7 +87,7 @@ def calculate_propensity_scores(
         else:
             propensity_scores = probas[:, 0]
 
-    return propensity_scores
+    return np.asarray(propensity_scores)
 
 
 def check_common_support(
