@@ -55,7 +55,7 @@ jobs:
         uv run mypy libs/causal_inference/ shared/
     
     - name: Run tests
-      timeout-minutes: 8  # Reduced timeout since Python 3.13 skips slow tests
+      timeout-minutes: 15  # Increased timeout to handle all test cases
       run: |
         if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
           # Skip slow/benchmark tests and optimize for Python 3.13 performance

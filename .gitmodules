@@ -1,0 +1,3 @@
+[submodule "libs/causal_inference_python_code"]
+	path = libs/causal_inference_python_code
+	url = https://github.com/jrfiedler/causal_inference_python_code.git
