@@ -35,7 +35,7 @@ class TimeVaryingTreatmentData(BaseModel):
     treatment_names: list[str] = Field(
         default_factory=list, description="Names of treatment variables"
     )
-    time_periods: list[int | str] = Field(
+    time_periods: list[Union[int, str]] = Field(
         default_factory=list, description="Time period labels"
     )
     treatment_type: str = Field(
@@ -68,7 +68,7 @@ class TimeVaryingOutcomeData(BaseModel):
     outcome_names: list[str] = Field(
         default_factory=list, description="Names of outcome variables"
     )
-    time_periods: list[int | str] = Field(
+    time_periods: list[Union[int, str]] = Field(
         default_factory=list, description="Time period labels"
     )
     outcome_type: str = Field(
@@ -101,7 +101,7 @@ class TimeVaryingCovariateData(BaseModel):
     covariate_names: list[str] = Field(
         default_factory=list, description="Names of covariate variables"
     )
-    time_periods: list[int | str] = Field(
+    time_periods: list[Union[int, str]] = Field(
         default_factory=list, description="Time period labels"
     )
 
@@ -190,12 +190,12 @@ class LongitudinalData(BaseModel):
         return int(self.data[self.time_col].nunique())
 
     @property
-    def time_periods(self) -> list[int | str]:
+    def time_periods(self) -> list[Union[int, str]]:
         """List of unique time periods."""
         return sorted(self.data[self.time_col].unique())
 
     @property
-    def individuals(self) -> list[int | str]:
+    def individuals(self) -> list[Union[int, str]]:
         """List of unique individual IDs."""
         return sorted(self.data[self.id_col].unique())
 
@@ -207,7 +207,7 @@ class LongitudinalData(BaseModel):
         return expected_obs == actual_obs
 
     def get_treatment_data_at_time(
-        self, time_period: int | str, treatment_col: str | None = None
+        self, time_period: Union[int, str], treatment_col: Union[str, None] = None
     ) -> pd.Series:
         """Get treatment data for a specific time period.
 
@@ -225,7 +225,7 @@ class LongitudinalData(BaseModel):
         return subset[treatment_col]
 
     def get_outcome_data_at_time(
-        self, time_period: int | str, outcome_col: str | None = None
+        self, time_period: Union[int, str], outcome_col: Union[str, None] = None
     ) -> pd.Series:
         """Get outcome data for a specific time period.
 
@@ -242,7 +242,7 @@ class LongitudinalData(BaseModel):
         subset = self.data[self.data[self.time_col] == time_period]
         return subset[outcome_col]
 
-    def get_confounder_data_at_time(self, time_period: int | str) -> pd.DataFrame:
+    def get_confounder_data_at_time(self, time_period: Union[int, str]) -> pd.DataFrame:
         """Get confounder data for a specific time period.
 
         Args:
@@ -255,7 +255,7 @@ class LongitudinalData(BaseModel):
         all_confounders = self.confounder_cols + self.baseline_cols
         return subset[all_confounders]
 
-    def get_individual_trajectory(self, individual_id: int | str) -> pd.DataFrame:
+    def get_individual_trajectory(self, individual_id: Union[int, str]) -> pd.DataFrame:
         """Get complete trajectory for a specific individual.
 
         Args:
@@ -290,7 +290,7 @@ class LongitudinalData(BaseModel):
         return result_data
 
     def check_sequential_exchangeability(
-        self, treatment_col: str | None = None
+        self, treatment_col: Union[str, None] = None
     ) -> dict[str, Any]:
         """Check indicators of sequential exchangeability assumption.
 
@@ -352,7 +352,7 @@ class LongitudinalData(BaseModel):
         return results
 
     def test_treatment_confounder_feedback(
-        self, treatment_col: str | None = None
+        self, treatment_col: Union[str, None] = None
     ) -> dict[str, Any]:
         """Test for treatment-confounder feedback.
 
