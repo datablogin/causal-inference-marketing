@@ -257,10 +257,11 @@ class BaseMetaLearner(BaseEstimator):
             X = np.ones((len(T), 1))
 
         # Validate dimensions
-        validate_input_dimensions(T, Y, X)
+        validate_input_dimensions(T, Y)  # type: ignore[arg-type]
+        validate_input_dimensions(T, X)  # type: ignore[arg-type]
 
         # Ensure binary treatment for meta-learners
-        unique_treatments = np.unique(T)
+        unique_treatments = np.unique(T)  # type: ignore[arg-type]
         if len(unique_treatments) != 2:
             raise ValueError(
                 f"Meta-learners require binary treatment. "
@@ -273,11 +274,11 @@ class BaseMetaLearner(BaseEstimator):
             T = (T == unique_treatments[1]).astype(int)
 
         # Store training data for bootstrap
-        self._training_treatment = T
-        self._training_outcome = Y
+        self._training_treatment = T  # type: ignore[assignment]
+        self._training_outcome = Y  # type: ignore[assignment]
         self._training_covariates = X
 
-        return T, Y, X
+        return T, Y, X  # type: ignore[return-value]
 
     def _bootstrap_confidence_interval(
         self,
@@ -334,9 +335,9 @@ class BaseMetaLearner(BaseEstimator):
         upper = np.percentile(bootstrap_ates, (1 - alpha / 2) * 100)
 
         # Store bootstrap samples for potential analysis
-        self._bootstrap_samples = bootstrap_ates
+        self._bootstrap_samples = bootstrap_ates  # type: ignore[assignment]
 
-        return lower, upper
+        return float(lower), float(upper)
 
 
 class SLearner(BaseMetaLearner):
@@ -408,8 +409,8 @@ class SLearner(BaseMetaLearner):
         if self.bootstrap_ci and self._training_treatment is not None:
             ci_lower, ci_upper = self._bootstrap_confidence_interval(
                 self._training_treatment,
-                self._training_outcome,
-                self._training_covariates,
+                self._training_outcome,  # type: ignore[arg-type]
+                self._training_covariates,  # type: ignore[arg-type]
             )
             confidence_interval = (ci_lower, ci_upper)
         else:
@@ -515,8 +516,8 @@ class TLearner(BaseMetaLearner):
         if self.bootstrap_ci and self._training_treatment is not None:
             ci_lower, ci_upper = self._bootstrap_confidence_interval(
                 self._training_treatment,
-                self._training_outcome,
-                self._training_covariates,
+                self._training_outcome,  # type: ignore[arg-type]
+                self._training_covariates,  # type: ignore[arg-type]
             )
             confidence_interval = (ci_lower, ci_upper)
         else:
@@ -646,8 +647,8 @@ class XLearner(BaseMetaLearner):
         if self.bootstrap_ci and self._training_treatment is not None:
             ci_lower, ci_upper = self._bootstrap_confidence_interval(
                 self._training_treatment,
-                self._training_outcome,
-                self._training_covariates,
+                self._training_outcome,  # type: ignore[arg-type]
+                self._training_covariates,  # type: ignore[arg-type]
             )
             confidence_interval = (ci_lower, ci_upper)
         else:
@@ -847,8 +848,8 @@ class RLearner(BaseMetaLearner):
         if self.bootstrap_ci and self._training_treatment is not None:
             ci_lower, ci_upper = self._bootstrap_confidence_interval(
                 self._training_treatment,
-                self._training_outcome,
-                self._training_covariates,
+                self._training_outcome,  # type: ignore[arg-type]
+                self._training_covariates,  # type: ignore[arg-type]
             )
             confidence_interval = (ci_lower, ci_upper)
         else:

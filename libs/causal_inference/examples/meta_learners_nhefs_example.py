@@ -15,8 +15,12 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 
-from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
-from causal_inference.estimators.meta_learners import (
+from causal_inference.core.base import (  # type: ignore[import-not-found]
+    CovariateData,
+    OutcomeData,
+    TreatmentData,
+)
+from causal_inference.estimators.meta_learners import (  # type: ignore[import-not-found]
     RLearner,
     SLearner,
     TLearner,
