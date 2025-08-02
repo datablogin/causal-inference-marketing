@@ -383,6 +383,7 @@ class TestCATEResult:
             pass
 
 
+@pytest.mark.slow
 class TestMetaLearnersIntegration:
     """Integration tests comparing meta-learners."""
 
