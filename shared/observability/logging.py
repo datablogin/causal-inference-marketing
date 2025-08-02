@@ -1,5 +1,7 @@
 """Logging setup compatible with analytics-backend-monorepo."""
 
+from __future__ import annotations
+
 import logging
 import sys
 

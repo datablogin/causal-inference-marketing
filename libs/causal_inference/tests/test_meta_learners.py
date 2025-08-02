@@ -1,5 +1,7 @@
 """Tests for meta-learners (T/S/X/R-learner) for CATE estimation."""
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest

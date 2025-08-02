@@ -1,5 +1,7 @@
 """Database management compatible with analytics-backend-monorepo patterns."""
 
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 

@@ -1,5 +1,7 @@
 """Base database models compatible with analytics-backend-monorepo."""
 
+from __future__ import annotations
+
 from datetime import datetime
 
 from sqlalchemy import DateTime, func

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Causal inference tools for marketing applications - monorepo compatible structure"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 authors = [
     {name = "Robert Welborn"},
 ]
@@ -24,6 +24,8 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -73,7 +75,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-xdist>=3.6.0",
     "mypy>=1.7.0",
-    "pandas-stubs>=2.3.0.250703",
+    "pandas-stubs>=2.3.0.250703; python_version>='3.10'",
     "pre-commit>=3.5.0",
     "safety>=2.3.0",
 ]
@@ -108,7 +110,7 @@ exclude = [
 # Black formatting
 [tool.black]
 line-length = 88
-target-version = ['py310']
+target-version = ['py39']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -126,7 +128,7 @@ extend-exclude = '''
 
 # Ruff linting
 [tool.ruff]
-target-version = "py311"
+target-version = "py39"
 line-length = 88
 extend-exclude = ["libs/causal_inference_python_code/**"]
 
@@ -147,7 +149,7 @@ known-first-party = ["causal_inference", "shared"]
 
 # MyPy type checking
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.9"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -221,7 +223,7 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
-    "pandas-stubs>=2.3.0.250703",
+    "pandas-stubs>=2.3.0.250703; python_version>='3.10'",
 ]
 test = [
     "hypothesis>=6.136.4",

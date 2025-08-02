@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15  # Prevent runaway tests
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -38,6 +38,9 @@ jobs:
         if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
           # Skip ML dependencies for Python 3.13 due to compilation issues with blis/spacy
           uv sync --extra dev --extra test
+        elif [[ "${{ matrix.python-version }}" == "3.9" ]]; then
+          # Python 3.9 support - pandas-stubs conditionally excluded
+          uv sync --extra dev --extra test --extra ml
         else
           uv sync --extra dev --extra test --extra ml
         fi
