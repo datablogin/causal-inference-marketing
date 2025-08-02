@@ -92,7 +92,7 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -138,21 +138,21 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         outcome_model_type: str = "auto",
-        outcome_model_params: dict[str, Any] | None = None,
+        outcome_model_params: Union[dict[str, Any], None] = None,
         propensity_model_type: str = "logistic",
-        propensity_model_params: dict[str, Any] | None = None,
+        propensity_model_params: Union[dict[str, Any], None] = None,
         cross_fitting: bool = True,
         n_folds: int = 5,
         stratify_folds: bool = True,
         influence_function_se: bool = True,
-        weight_truncation: str | None = "percentile",
+        weight_truncation: Union[str, None] = "percentile",
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = True,
-        bootstrap_config: Any | None = None,
+        bootstrap_config: Union[Any, None] = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the AIPW estimator.
@@ -204,8 +204,8 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self.confidence_level = confidence_level
 
         # Component estimators
-        self.outcome_estimator: GComputationEstimator | None = None
-        self.propensity_estimator: IPWEstimator | None = None
+        self.outcome_estimator: Union[GComputationEstimator, None] = None
+        self.propensity_estimator: Union[IPWEstimator, None] = None
 
         # Cross-fitting storage
         self._fold_models: list[dict[str, Any]] = []
@@ -213,7 +213,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
         # AIPW results
         self._aipw_components: dict[str, NDArray[Any]] = {}
-        self._influence_functions: NDArray[Any] | None = None
+        self._influence_functions: Union[NDArray[Any], None] = None
         self._component_diagnostics: dict[str, Any] = {}
 
     def _create_component_estimators(
@@ -249,7 +249,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         return outcome_estimator, propensity_estimator
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Union[int, None] = None
     ) -> AIPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -373,7 +373,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit models using cross-fitting to reduce overfitting bias.
 
@@ -669,7 +669,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit models without cross-fitting (standard approach).
 
@@ -819,7 +819,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-    ) -> float | None:
+    ) -> Union[float, None]:
         """Compute standard error using influence functions.
 
         Args:
@@ -865,7 +865,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit the AIPW estimator.
 
@@ -963,7 +963,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    ) -> tuple[Union[float, None], Union[float, None], Union[NDArray[Any], None]]:
         """Calculate bootstrap confidence intervals for AIPW estimate.
 
         Returns:
@@ -1145,7 +1145,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         """
         return self._cross_fit_predictions
 
-    def get_influence_functions(self) -> NDArray[Any] | None:
+    def get_influence_functions(self) -> Union[NDArray[Any], None]:
         """Get influence function values for each observation.
 
         Returns:
@@ -1155,8 +1155,8 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes using the fitted AIPW model.
 

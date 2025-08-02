@@ -9,7 +9,7 @@ from __future__ import annotations
 import gc
 import warnings
 from collections.abc import Callable, Iterator
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -60,11 +60,11 @@ def optimize_pandas_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def chunked_operation(
-    data: pd.DataFrame | NDArray[Any],
-    operation: Callable[[pd.DataFrame | NDArray[Any]], Any],
+    data: Union[pd.DataFrame, NDArray[Any]],
+    operation: Callable[[Union[pd.DataFrame, NDArray[Any]]], Any],
     chunk_size: int = 10000,
     axis: int = 0,
-    combine_fn: Callable[[list[Any]], Any] | None = None,
+    combine_fn: Union[Callable[[list[Any]], Any], None] = None,
 ) -> Any:
     """Apply operation to data in chunks to manage memory usage.
 
@@ -94,7 +94,7 @@ def chunked_operation(
     for start_idx in range(0, n_chunks, chunk_size):
         end_idx = min(start_idx + chunk_size, n_chunks)
 
-        chunk: pd.DataFrame | NDArray[Any]
+        chunk: Union[pd.DataFrame, NDArray[Any]]
         if isinstance(data, pd.DataFrame):
             if axis == 0:
                 chunk = data.iloc[start_idx:end_idx]
@@ -122,9 +122,9 @@ def chunked_operation(
 def efficient_bootstrap_indices(
     n_samples: int,
     n_bootstrap: int,
-    stratify_by: NDArray[Any] | None = None,
+    stratify_by: Union[NDArray[Any], None] = None,
     chunk_size: int = 1000,
-    random_state: int | None = None,
+    random_state: Union[int, None] = None,
 ) -> Iterator[NDArray[np.int64]]:
     """Generate bootstrap indices efficiently for large datasets.
 
@@ -195,8 +195,8 @@ def efficient_bootstrap_indices(
 
 
 def memory_efficient_matmul(
-    a: NDArray[Any] | sparse.spmatrix,
-    b: NDArray[Any] | sparse.spmatrix,
+    a: Union[NDArray[Any], sparse.spmatrix],
+    b: Union[NDArray[Any], sparse.spmatrix],
     chunk_size: int = 10000,
 ) -> NDArray[Any]:
     """Perform matrix multiplication in chunks for memory efficiency.
@@ -241,11 +241,11 @@ def memory_efficient_matmul(
 
 
 def sparse_safe_operation(
-    data: NDArray[Any] | sparse.spmatrix,
+    data: Union[NDArray[Any], sparse.spmatrix],
     operation: str,
-    axis: int | None = None,
+    axis: Union[int, None] = None,
     **kwargs: Any,
-) -> NDArray[Any] | float:
+) -> Union[NDArray[Any], float]:
     """Perform operations safely on potentially sparse data.
 
     Args:
@@ -371,7 +371,7 @@ def estimate_memory_usage(
 
 def create_sparse_features(
     df: pd.DataFrame,
-    categorical_columns: list[str] | None = None,
+    categorical_columns: Union[list[str], None] = None,
     threshold: float = 0.95,
 ) -> tuple[sparse.spmatrix, list[str]]:
     """Create sparse feature matrix from DataFrame.
@@ -459,8 +459,8 @@ class MemoryMonitor:
 def efficient_cross_validation_indices(
     n_samples: int,
     n_folds: int = 5,
-    stratify_by: NDArray[Any] | None = None,
-    random_state: int | None = None,
+    stratify_by: Union[NDArray[Any], None] = None,
+    random_state: Union[int, None] = None,
 ) -> list[tuple[NDArray[np.int64], NDArray[np.int64]]]:
     """Generate cross-validation indices efficiently for large datasets.
 

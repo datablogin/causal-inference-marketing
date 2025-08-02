@@ -8,7 +8,7 @@ achieve √n-consistency and efficient inference.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -50,14 +50,14 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
     def __init__(
         self,
-        outcome_learner: SuperLearner | Any = None,
-        propensity_learner: SuperLearner | Any = None,
+        outcome_learner: Union[SuperLearner, Any] = None,
+        propensity_learner: Union[SuperLearner, Any] = None,
         cross_fitting: bool = True,
         cv_folds: int = 5,
         moment_function: str = "aipw",
         regularization: bool = True,
         stratified: bool = True,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the Doubly Robust ML estimator.
@@ -125,15 +125,15 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         # Storage for fitted models and estimates
         self.outcome_models_: list[Any] = []
         self.propensity_models_: list[Any] = []
-        self.propensity_scores_: NDArray[Any] | None = None
+        self.propensity_scores_: Union[NDArray[Any], None] = None
         self.outcome_predictions_: dict[str, NDArray[Any]] = {}
-        self.influence_function_: NDArray[Any] | None = None
+        self.influence_function_: Union[NDArray[Any], None] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit the Doubly Robust ML estimator to data."""
         if covariates is None:
@@ -161,7 +161,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         X_train: NDArray[Any],
         y_train: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
+        treatment_train: Union[NDArray[Any], None] = None,
     ) -> dict[str, Any]:
         """Fit nuisance parameter models on training data."""
         if treatment_train is None:
@@ -248,7 +248,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         models: dict[str, Any],
         X_val: NDArray[Any],
-        treatment_val: NDArray[Any] | None = None,
+        treatment_val: Union[NDArray[Any], None] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters on validation data."""
         if treatment_val is None:
@@ -437,8 +437,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs."""
         if not self.is_fitted:
@@ -501,7 +501,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         return results
 
-    def get_variable_importance(self) -> pd.DataFrame | None:
+    def get_variable_importance(self) -> Union[pd.DataFrame, None]:
         """Get variable importance from ensemble of learners."""
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted first")
@@ -538,7 +538,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         return avg_importance
 
-    def get_influence_function(self) -> NDArray[Any] | None:
+    def get_influence_function(self) -> Union[NDArray[Any], None]:
         """Get the influence function for statistical inference."""
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted first")

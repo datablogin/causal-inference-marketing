@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, Union
 
 if TYPE_CHECKING:
     from ..diagnostics.reporting import DiagnosticReport
@@ -41,7 +41,7 @@ class TreatmentData(BaseModel):
     Supports binary, categorical, and continuous treatments.
     """
 
-    values: pd.Series | NDArray[Any] = Field(
+    values: Union[pd.Series, NDArray[Any]] = Field(
         ..., description="Treatment assignment values"
     )
     name: str = Field(default="treatment", description="Name of the treatment variable")
@@ -49,7 +49,7 @@ class TreatmentData(BaseModel):
         default="binary",
         description="Type of treatment: 'binary', 'categorical', or 'continuous'",
     )
-    categories: list[str | int | float] | None = Field(
+    categories: Union[list[Union[str, int, float]], None] = Field(
         default=None, description="For categorical treatments, the possible categories"
     )
 
@@ -66,7 +66,7 @@ class TreatmentData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate treatment values are not empty."""
         if len(v) == 0:
             raise ValueError("Treatment values cannot be empty")
@@ -79,7 +79,7 @@ class OutcomeData(BaseModel):
     Represents the outcome variable(s) in a causal inference analysis.
     """
 
-    values: pd.Series | NDArray[Any] = Field(..., description="Outcome values")
+    values: Union[pd.Series, NDArray[Any]] = Field(..., description="Outcome values")
     name: str = Field(default="outcome", description="Name of the outcome variable")
     outcome_type: str = Field(
         default="continuous",
@@ -99,7 +99,7 @@ class OutcomeData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate outcome values are not empty."""
         if len(v) == 0:
             raise ValueError("Outcome values cannot be empty")
@@ -113,8 +113,8 @@ class SurvivalOutcomeData(BaseModel):
     for causal survival analysis.
     """
 
-    times: pd.Series | NDArray[Any] = Field(..., description="Event/censoring times")
-    events: pd.Series | NDArray[Any] = Field(
+    times: Union[pd.Series, NDArray[Any]] = Field(..., description="Event/censoring times")
+    events: Union[pd.Series, NDArray[Any]] = Field(
         ..., description="Event indicators (1=event, 0=censored)"
     )
     name: str = Field(default="survival", description="Name of the survival outcome")
@@ -122,7 +122,7 @@ class SurvivalOutcomeData(BaseModel):
         default="time_to_event",
         description="Type of survival outcome: 'time_to_event', 'competing_risks', or 'recurrent_events'",
     )
-    event_types: pd.Series | NDArray[Any] | None = Field(
+    event_types: Union[pd.Series, NDArray[Any], None] = Field(
         default=None,
         description="Event type indicators for competing risks (0=censored, 1=event of interest, 2=competing)",
     )
@@ -141,7 +141,7 @@ class SurvivalOutcomeData(BaseModel):
 
     @field_validator("times")
     @classmethod
-    def validate_times(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_times(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate survival times are positive and not empty."""
         if len(v) == 0:
             raise ValueError("Survival times cannot be empty")
@@ -157,7 +157,7 @@ class SurvivalOutcomeData(BaseModel):
 
     @field_validator("events")
     @classmethod
-    def validate_events(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_events(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate event indicators are binary and not empty."""
         if len(v) == 0:
             raise ValueError("Event indicators cannot be empty")
@@ -231,7 +231,7 @@ class CovariateData(BaseModel):
     Represents the covariates used for adjustment in causal inference.
     """
 
-    values: pd.DataFrame | NDArray[Any] = Field(..., description="Covariate values")
+    values: Union[pd.DataFrame, NDArray[Any]] = Field(..., description="Covariate values")
     names: list[str] = Field(
         default_factory=list, description="Names of the covariate variables"
     )
@@ -241,8 +241,8 @@ class CovariateData(BaseModel):
     @field_validator("values")
     @classmethod
     def validate_values(
-        cls, v: pd.DataFrame | NDArray[Any]
-    ) -> pd.DataFrame | NDArray[Any]:
+        cls, v: Union[pd.DataFrame, NDArray[Any]]
+    ) -> Union[pd.DataFrame, NDArray[Any]]:
         """Validate covariate values are not empty."""
         if len(v) == 0:
             raise ValueError("Covariate values cannot be empty")
@@ -256,7 +256,7 @@ class InstrumentData(BaseModel):
     for addressing unmeasured confounding.
     """
 
-    values: pd.Series | NDArray[Any] = Field(..., description="Instrument values")
+    values: Union[pd.Series, NDArray[Any]] = Field(..., description="Instrument values")
     name: str = Field(
         default="instrument", description="Name of the instrument variable"
     )
@@ -264,7 +264,7 @@ class InstrumentData(BaseModel):
         default="continuous",
         description="Type of instrument: 'binary', 'categorical', or 'continuous'",
     )
-    categories: list[str | int | float] | None = Field(
+    categories: Union[list[Union[str, int, float]], None] = Field(
         default=None, description="For categorical instruments, the possible categories"
     )
 
@@ -281,7 +281,7 @@ class InstrumentData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate instrument values are not empty."""
         if len(v) == 0:
             raise ValueError("Instrument values cannot be empty")
@@ -299,65 +299,65 @@ class CausalEffect:
 
     # Core estimates
     ate: float  # Average Treatment Effect
-    ate_se: float | None = None  # Standard error of ATE
-    ate_ci_lower: float | None = None  # Lower confidence interval
-    ate_ci_upper: float | None = None  # Upper confidence interval
+    ate_se: Union[float, None] = None  # Standard error of ATE
+    ate_ci_lower: Union[float, None] = None  # Lower confidence interval
+    ate_ci_upper: Union[float, None] = None  # Upper confidence interval
     confidence_level: float = 0.95  # Confidence level for intervals
 
     # Additional estimates for specific contexts
-    att: float | None = None  # Average Treatment Effect on the Treated
-    atc: float | None = None  # Average Treatment Effect on the Controls
+    att: Union[float, None] = None  # Average Treatment Effect on the Treated
+    atc: Union[float, None] = None  # Average Treatment Effect on the Controls
 
     # Potential outcomes means
-    potential_outcome_treated: float | None = None  # E[Y(1)]
-    potential_outcome_control: float | None = None  # E[Y(0)]
+    potential_outcome_treated: Union[float, None] = None  # E[Y(1)]
+    potential_outcome_control: Union[float, None] = None  # E[Y(0)]
 
     # Survival-specific estimates
-    hazard_ratio: float | None = None  # Hazard ratio for survival outcomes
-    hazard_ratio_se: float | None = None  # Standard error of hazard ratio
-    hazard_ratio_ci_lower: float | None = None  # Lower CI for hazard ratio
-    hazard_ratio_ci_upper: float | None = None  # Upper CI for hazard ratio
+    hazard_ratio: Union[float, None] = None  # Hazard ratio for survival outcomes
+    hazard_ratio_se: Union[float, None] = None  # Standard error of hazard ratio
+    hazard_ratio_ci_lower: Union[float, None] = None  # Lower CI for hazard ratio
+    hazard_ratio_ci_upper: Union[float, None] = None  # Upper CI for hazard ratio
 
-    rmst_treated: float | None = None  # Restricted mean survival time - treated
-    rmst_control: float | None = None  # Restricted mean survival time - control
-    rmst_difference: float | None = None  # RMST difference (treated - control)
-    rmst_ci_lower: float | None = None  # Lower CI for RMST difference
-    rmst_ci_upper: float | None = None  # Upper CI for RMST difference
+    rmst_treated: Union[float, None] = None  # Restricted mean survival time - treated
+    rmst_control: Union[float, None] = None  # Restricted mean survival time - control
+    rmst_difference: Union[float, None] = None  # RMST difference (treated - control)
+    rmst_ci_lower: Union[float, None] = None  # Lower CI for RMST difference
+    rmst_ci_upper: Union[float, None] = None  # Upper CI for RMST difference
 
-    median_survival_treated: float | None = None  # Median survival time - treated
-    median_survival_control: float | None = None  # Median survival time - control
+    median_survival_treated: Union[float, None] = None  # Median survival time - treated
+    median_survival_control: Union[float, None] = None  # Median survival time - control
 
-    log_rank_test_pvalue: float | None = None  # Log-rank test p-value
+    log_rank_test_pvalue: Union[float, None] = None  # Log-rank test p-value
 
-    survival_curves: dict[str, Any] | None = None  # Estimated survival curves
+    survival_curves: Union[dict[str, Any], None] = None  # Estimated survival curves
 
     # Method-specific information
     method: str = "unknown"  # Name of the estimation method used
-    n_observations: int | None = None  # Number of observations used
-    n_treated: int | None = None  # Number of treated units
-    n_control: int | None = None  # Number of control units
+    n_observations: Union[int, None] = None  # Number of observations used
+    n_treated: Union[int, None] = None  # Number of treated units
+    n_control: Union[int, None] = None  # Number of control units
 
     # Model diagnostics and assumptions
-    diagnostics: dict[str, Any] | None = None  # Method-specific diagnostics
-    assumptions_checked: dict[str, bool] | None = None  # Assumption violations
+    diagnostics: Union[dict[str, Any], None] = None  # Method-specific diagnostics
+    assumptions_checked: Union[dict[str, bool], None] = None  # Assumption violations
 
     # Bootstrap/simulation details
-    bootstrap_samples: int | None = None  # Number of bootstrap samples
-    bootstrap_estimates: NDArray[Any] | None = None  # Bootstrap ATE estimates
+    bootstrap_samples: Union[int, None] = None  # Number of bootstrap samples
+    bootstrap_estimates: Union[NDArray[Any], None] = None  # Bootstrap ATE estimates
 
     # Enhanced bootstrap confidence intervals
-    ate_ci_lower_bca: float | None = None  # BCa lower confidence interval
-    ate_ci_upper_bca: float | None = None  # BCa upper confidence interval
-    ate_ci_lower_bias_corrected: float | None = None  # Bias-corrected lower CI
-    ate_ci_upper_bias_corrected: float | None = None  # Bias-corrected upper CI
-    ate_ci_lower_studentized: float | None = None  # Studentized lower CI
-    ate_ci_upper_studentized: float | None = None  # Studentized upper CI
+    ate_ci_lower_bca: Union[float, None] = None  # BCa lower confidence interval
+    ate_ci_upper_bca: Union[float, None] = None  # BCa upper confidence interval
+    ate_ci_lower_bias_corrected: Union[float, None] = None  # Bias-corrected lower CI
+    ate_ci_upper_bias_corrected: Union[float, None] = None  # Bias-corrected upper CI
+    ate_ci_lower_studentized: Union[float, None] = None  # Studentized lower CI
+    ate_ci_upper_studentized: Union[float, None] = None  # Studentized upper CI
 
     # Bootstrap diagnostics
-    bootstrap_method: str | None = None  # Bootstrap method used
-    bootstrap_converged: bool | None = None  # Whether bootstrap converged
-    bootstrap_bias: float | None = None  # Estimated bias from bootstrap
-    bootstrap_acceleration: float | None = None  # BCa acceleration parameter
+    bootstrap_method: Union[str, None] = None  # Bootstrap method used
+    bootstrap_converged: Union[bool, None] = None  # Whether bootstrap converged
+    bootstrap_bias: Union[float, None] = None  # Estimated bias from bootstrap
+    bootstrap_acceleration: Union[float, None] = None  # BCa acceleration parameter
 
     def __post_init__(self) -> None:
         """Validate the causal effect estimates after initialization."""
@@ -380,7 +380,7 @@ class CausalEffect:
         return self.ate_ci_lower > 0 or self.ate_ci_upper < 0
 
     @property
-    def confidence_interval(self) -> tuple[float, float] | None:
+    def confidence_interval(self) -> Union[tuple[float, float], None]:
         """Get confidence interval as a tuple.
 
         Returns:
@@ -436,7 +436,7 @@ class EstimatorProtocol(Protocol):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> BaseEstimator:
         """Fit the causal inference estimator to data."""
         ...
@@ -447,8 +447,8 @@ class EstimatorProtocol(Protocol):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1)."""
         ...
@@ -471,9 +471,9 @@ class BaseEstimator(abc.ABC):
 
     def __init__(
         self,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
-        bootstrap_config: Any | None = None,
+        bootstrap_config: Union[Any, None] = None,
     ) -> None:
         """Initialize the base estimator.
 
@@ -490,12 +490,12 @@ class BaseEstimator(abc.ABC):
         self.bootstrap_config = bootstrap_config
 
         # Data containers
-        self.treatment_data: TreatmentData | None = None
-        self.outcome_data: OutcomeData | None = None
-        self.covariate_data: CovariateData | None = None
+        self.treatment_data: Union[TreatmentData, None] = None
+        self.outcome_data: Union[OutcomeData, None] = None
+        self.covariate_data: Union[CovariateData, None] = None
 
         # Results cache
-        self._causal_effect: CausalEffect | None = None
+        self._causal_effect: Union[CausalEffect, None] = None
 
         # Set random state
         if random_state is not None:
@@ -506,7 +506,7 @@ class BaseEstimator(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Implement the specific fitting logic for this estimator.
 
@@ -533,7 +533,7 @@ class BaseEstimator(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> BaseEstimator:
         """Fit the causal inference estimator to data.
 
@@ -613,8 +613,8 @@ class BaseEstimator(abc.ABC):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs.
 
@@ -643,7 +643,7 @@ class BaseEstimator(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Validate input data for causal inference.
 
