@@ -52,7 +52,7 @@ import abc
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -146,7 +146,7 @@ class BootstrapConfig(BaseModel):
         default=-1, ge=-1, description="Number of parallel jobs (-1 for all cores)"
     )
 
-    random_state: int | None = Field(
+    random_state: Union[int, None] = Field(
         default=None, description="Random seed for reproducibility"
     )
 
@@ -258,27 +258,27 @@ class BootstrapResult(BaseModel):
     point_estimate: float = Field(description="Original point estimate")
 
     # Percentile method
-    ci_lower_percentile: float | None = Field(description="Percentile CI lower bound")
-    ci_upper_percentile: float | None = Field(description="Percentile CI upper bound")
+    ci_lower_percentile: Union[float, None] = Field(description="Percentile CI lower bound")
+    ci_upper_percentile: Union[float, None] = Field(description="Percentile CI upper bound")
 
     # Bias-corrected method
-    ci_lower_bias_corrected: float | None = Field(
+    ci_lower_bias_corrected: Union[float, None] = Field(
         description="Bias-corrected CI lower bound"
     )
-    ci_upper_bias_corrected: float | None = Field(
+    ci_upper_bias_corrected: Union[float, None] = Field(
         description="Bias-corrected CI upper bound"
     )
 
     # BCa method
-    ci_lower_bca: float | None = Field(description="BCa CI lower bound")
-    ci_upper_bca: float | None = Field(description="BCa CI upper bound")
+    ci_lower_bca: Union[float, None] = Field(description="BCa CI lower bound")
+    ci_upper_bca: Union[float, None] = Field(description="BCa CI upper bound")
 
     # Studentized method
-    ci_lower_studentized: float | None = Field(description="Studentized CI lower bound")
-    ci_upper_studentized: float | None = Field(description="Studentized CI upper bound")
+    ci_lower_studentized: Union[float, None] = Field(description="Studentized CI lower bound")
+    ci_upper_studentized: Union[float, None] = Field(description="Studentized CI upper bound")
 
     # Bootstrap estimates
-    bootstrap_estimates: NDArray[Any] | None = Field(
+    bootstrap_estimates: Union[NDArray[Any], None] = Field(
         description="Array of bootstrap estimates", default=None
     )
 
@@ -286,13 +286,13 @@ class BootstrapResult(BaseModel):
     n_successful_samples: int = Field(
         description="Number of successful bootstrap samples"
     )
-    bootstrap_se: float | None = Field(description="Bootstrap standard error")
-    bias_estimate: float | None = Field(description="Estimated bias")
-    acceleration_estimate: float | None = Field(
+    bootstrap_se: Union[float, None] = Field(description="Bootstrap standard error")
+    bias_estimate: Union[float, None] = Field(description="Estimated bias")
+    acceleration_estimate: Union[float, None] = Field(
         description="BCa acceleration parameter"
     )
     converged: bool = Field(description="Whether bootstrap converged")
-    convergence_iteration: int | None = Field(
+    convergence_iteration: Union[int, None] = Field(
         description="Iteration where convergence occurred"
     )
 
@@ -323,7 +323,7 @@ class BootstrapMixin(abc.ABC):
     """
 
     # Class-level thread pool for efficient worker reuse
-    _thread_pool: ThreadPoolExecutor | None = None
+    _thread_pool: Union[ThreadPoolExecutor, None] = None
     _thread_pool_workers: int = 4
 
     @classmethod
@@ -344,7 +344,7 @@ class BootstrapMixin(abc.ABC):
             cls._thread_pool = None
 
     def __init__(
-        self, *args: Any, bootstrap_config: Any | None = None, **kwargs: Any
+        self, *args: Any, bootstrap_config: Union[Any, None] = None, **kwargs: Any
     ) -> None:
         """Initialize bootstrap mixin with configuration."""
         # Handle bootstrap config parameter for super() call
@@ -359,7 +359,7 @@ class BootstrapMixin(abc.ABC):
         elif not isinstance(self.bootstrap_config, BootstrapConfig):
             # Convert if it's not already a BootstrapConfig
             self.bootstrap_config = BootstrapConfig()
-        self._bootstrap_result: BootstrapResult | None = None
+        self._bootstrap_result: Union[BootstrapResult, None] = None
 
         # Enable telemetry if configured
         if self.bootstrap_config.enable_telemetry:
@@ -367,7 +367,7 @@ class BootstrapMixin(abc.ABC):
 
     @abc.abstractmethod
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Union[int, None] = None
     ) -> EstimatorProtocol:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -456,7 +456,7 @@ class BootstrapMixin(abc.ABC):
         return bootstrap_indices_array
 
     def _single_bootstrap_sample(
-        self, sample_idx: int, base_random_state: int | None = None
+        self, sample_idx: int, base_random_state: Union[int, None] = None
     ) -> float:
         """Generate a single bootstrap sample estimate.
 
@@ -635,7 +635,7 @@ class BootstrapMixin(abc.ABC):
             print(f"Using chunked bootstrap for {n_obs:,} observations")
 
         # Determine stratification array
-        stratify_by: NDArray[Any] | None = None
+        stratify_by: Union[NDArray[Any], None] = None
         if self.bootstrap_config.stratified and hasattr(
             treatment_data, "treatment_type"
         ):
@@ -688,7 +688,7 @@ class BootstrapMixin(abc.ABC):
         batch_indices: NDArray[Any],
         treatment_data: Any,
         outcome_data: Any,
-        covariate_data: Any | None,
+        covariate_data: Union[Any, None],
     ) -> list[float]:
         """Process a batch of bootstrap indices efficiently.
 
@@ -737,7 +737,7 @@ class BootstrapMixin(abc.ABC):
         bootstrap_indices: NDArray[Any],
         treatment_data: Any,
         outcome_data: Any,
-        covariate_data: Any | None,
+        covariate_data: Union[Any, None],
         sample_idx: int,
     ) -> float:
         """Generate bootstrap estimate from pre-computed indices.
