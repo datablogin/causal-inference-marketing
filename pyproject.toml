@@ -133,8 +133,8 @@ line-length = 88
 extend-exclude = ["libs/causal_inference_python_code/**"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501", "UP017", "N806", "UP007", "UP038"]
+select = ["E4", "E7", "E9", "F", "I", "N", "W"]
+ignore = ["E501", "N806"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -143,7 +143,6 @@ indent-style = "space"
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "F403"]
 "shared/config/causal_config.py" = ["N805"]  # Pydantic validators use cls, not self
-"**/*.py" = ["UP007", "UP038"]  # For Python 3.9 compatibility, ignore modern syntax suggestions
 
 [tool.ruff.lint.isort]
 known-first-party = ["causal_inference", "shared"]
