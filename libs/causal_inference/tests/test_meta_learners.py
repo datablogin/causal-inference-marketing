@@ -130,6 +130,7 @@ class TestMetaLearnersCommon:
 class TestSLearner:
     """Tests specific to S-learner."""
 
+    @pytest.mark.slow
     def test_slearner_basic(self, prepared_data, synthetic_data):
         """Test basic S-learner functionality."""
         treatment, outcome, covariates = prepared_data
@@ -144,6 +145,27 @@ class TestSLearner:
         cate_estimates = slearner.estimate_cate(synthetic_data["X"])
 
         # Check shape
+        assert cate_estimates.shape == (len(synthetic_data["X"]),)
+
+        # Check ATE
+        result = slearner.estimate_ate()
+        assert isinstance(result, CATEResult)
+        assert hasattr(result, "ate")
+        assert hasattr(result, "confidence_interval")
+
+    def test_slearner_fast(self, prepared_data, synthetic_data):
+        """Fast S-learner test without bootstrap for CI."""
+        treatment, outcome, covariates = prepared_data
+
+        # Fit S-learner without bootstrap
+        slearner = SLearner(
+            base_learner=RandomForestRegressor(n_estimators=10, random_state=42),
+            bootstrap_ci=False,
+        )
+        slearner.fit(treatment, outcome, covariates)
+
+        # Estimate CATE
+        cate_estimates = slearner.estimate_cate(synthetic_data["X"])
         assert cate_estimates.shape == (len(synthetic_data["X"]),)
 
         # Check ATE
@@ -189,6 +211,7 @@ class TestSLearner:
 class TestTLearner:
     """Tests specific to T-learner."""
 
+    @pytest.mark.slow
     def test_tlearner_basic(self, prepared_data, synthetic_data):
         """Test basic T-learner functionality."""
         treatment, outcome, covariates = prepared_data
@@ -196,6 +219,29 @@ class TestTLearner:
         # Fit T-learner
         tlearner = TLearner(
             base_learner=RandomForestRegressor(n_estimators=50, random_state=42)
+        )
+        tlearner.fit(treatment, outcome, covariates)
+
+        # Check that two models were fitted
+        assert tlearner._model_treated is not None
+        assert tlearner._model_control is not None
+
+        # Estimate CATE
+        cate_estimates = tlearner.estimate_cate(synthetic_data["X"])
+        assert cate_estimates.shape == (len(synthetic_data["X"]),)
+
+        # Check ATE
+        result = tlearner.estimate_ate()
+        assert isinstance(result, CATEResult)
+
+    def test_tlearner_fast(self, prepared_data, synthetic_data):
+        """Fast T-learner test without bootstrap for CI."""
+        treatment, outcome, covariates = prepared_data
+
+        # Fit T-learner without bootstrap
+        tlearner = TLearner(
+            base_learner=RandomForestRegressor(n_estimators=10, random_state=42),
+            bootstrap_ci=False,
         )
         tlearner.fit(treatment, outcome, covariates)
 
@@ -233,6 +279,7 @@ class TestTLearner:
 class TestXLearner:
     """Tests specific to X-learner."""
 
+    @pytest.mark.slow
     def test_xlearner_basic(self, prepared_data, synthetic_data):
         """Test basic X-learner functionality."""
         treatment, outcome, covariates = prepared_data
@@ -241,6 +288,33 @@ class TestXLearner:
         xlearner = XLearner(
             base_learner=RandomForestRegressor(n_estimators=50, random_state=42),
             propensity_learner=LogisticRegression(random_state=42),
+        )
+        xlearner.fit(treatment, outcome, covariates)
+
+        # Check that all models were fitted
+        assert xlearner._model_treated is not None
+        assert xlearner._model_control is not None
+        assert xlearner._tau_treated is not None
+        assert xlearner._tau_control is not None
+        assert xlearner._propensity_model is not None
+
+        # Estimate CATE
+        cate_estimates = xlearner.estimate_cate(synthetic_data["X"])
+        assert cate_estimates.shape == (len(synthetic_data["X"]),)
+
+        # Check ATE
+        result = xlearner.estimate_ate()
+        assert isinstance(result, CATEResult)
+
+    def test_xlearner_fast(self, prepared_data, synthetic_data):
+        """Fast X-learner test without bootstrap for CI."""
+        treatment, outcome, covariates = prepared_data
+
+        # Fit X-learner without bootstrap
+        xlearner = XLearner(
+            base_learner=RandomForestRegressor(n_estimators=10, random_state=42),
+            propensity_learner=LogisticRegression(random_state=42),
+            bootstrap_ci=False,
         )
         xlearner.fit(treatment, outcome, covariates)
 
@@ -662,6 +736,7 @@ class TestBootstrapCIAndPropensityValidation:
             "Bootstrap CI not reproducible with same random state"
         )
 
+    @pytest.mark.slow
     def test_configurable_rlearner_threshold(self, bootstrap_data):
         """Test that R-learner regularization is configurable."""
         treatment = TreatmentData(values=bootstrap_data["T"])
