@@ -281,6 +281,7 @@ class TestXLearner:
 class TestRLearner:
     """Tests specific to R-learner."""
 
+    @pytest.mark.slow
     def test_rlearner_basic(self, prepared_data, synthetic_data):
         """Test basic R-learner functionality."""
         treatment, outcome, covariates = prepared_data
