@@ -539,16 +539,14 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         treated_pre_values = Y[treated_pre_mask]
 
         # Remove any potential NaN or infinite values
-        control_pre_values = control_pre_values[
-            np.isfinite(control_pre_values)
-        ]
-        treated_pre_values = treated_pre_values[
-            np.isfinite(treated_pre_values)
-        ]
+        control_pre_values = control_pre_values[np.isfinite(control_pre_values)]
+        treated_pre_values = treated_pre_values[np.isfinite(treated_pre_values)]
 
         if len(control_pre_values) < 3 or len(treated_pre_values) < 3:
             if self.verbose:
-                print("Warning: Insufficient valid pre-treatment observations after filtering")
+                print(
+                    "Warning: Insufficient valid pre-treatment observations after filtering"
+                )
             return 0.5
 
         # Perform Welch's t-test (unequal variances assumed)
@@ -558,7 +556,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
             t_stat, p_value = stats.ttest_ind(
                 treated_pre_values,
                 control_pre_values,
-                equal_var=False  # Welch's t-test
+                equal_var=False,  # Welch's t-test
             )
 
             # Additional check: ensure groups have reasonable variance
@@ -569,7 +567,9 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
             min_reasonable_var = 1e-8
             if control_var < min_reasonable_var or treated_var < min_reasonable_var:
                 if self.verbose:
-                    print("Warning: One or both groups have very low variance in pre-treatment period")
+                    print(
+                        "Warning: One or both groups have very low variance in pre-treatment period"
+                    )
                 return 0.5
 
             return float(p_value)
@@ -628,7 +628,9 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
                 return (None, None)
 
             # Standard error for DID coefficient
-            se_did = np.sqrt(covariance_matrix[did_coefficient_index, did_coefficient_index])
+            se_did = np.sqrt(
+                covariance_matrix[did_coefficient_index, did_coefficient_index]
+            )
 
             # Calculate confidence interval
             alpha = 1 - confidence_level

@@ -251,18 +251,18 @@ class TestDIDEstimator:
 
         # Treatment groups and time periods
         groups = np.repeat([0, 1], n_per_group * 2)  # 0=control, 1=treated
-        times = np.tile([0, 1], n_per_group * 2)     # 0=pre, 1=post
+        times = np.tile([0, 1], n_per_group * 2)  # 0=pre, 1=post
 
         # True DID effect
         true_did_effect = 3.0
 
         # Generate outcomes with lower noise for more stable CI test
         outcomes = (
-            10 +  # Baseline
-            2 * times +  # Time effect
-            1 * groups +  # Group effect
-            true_did_effect * (times * groups) +  # DID effect
-            np.random.normal(0, 0.5, len(groups))  # Lower noise
+            10  # Baseline
+            + 2 * times  # Time effect
+            + 1 * groups  # Group effect
+            + true_did_effect * (times * groups)  # DID effect
+            + np.random.normal(0, 0.5, len(groups))  # Lower noise
         )
 
         # Create data objects
@@ -275,7 +275,7 @@ class TestDIDEstimator:
             treatment=treatment_data,
             outcome=outcome_data,
             time_data=times,
-            group_data=groups
+            group_data=groups,
         )
 
         # Estimate DID effect
@@ -286,7 +286,9 @@ class TestDIDEstimator:
         assert result.ate_ci_upper is not None, "Upper CI should not be None"
 
         # Check that CI bounds are reasonable
-        assert result.ate_ci_lower < result.ate < result.ate_ci_upper, "ATE should be within CI"
+        assert result.ate_ci_lower < result.ate < result.ate_ci_upper, (
+            "ATE should be within CI"
+        )
 
         # Check that CI width is reasonable (should be > 0)
         ci_width = result.ate_ci_upper - result.ate_ci_lower
@@ -305,13 +307,15 @@ class TestDIDEstimator:
 
         # Similar baseline characteristics
         outcomes_balanced = (
-            10 +  # Same baseline for both groups
-            2 * times_balanced +  # Same time trend
-            3 * (times_balanced * groups_balanced) +  # DID effect
-            np.random.normal(0, 1, len(groups_balanced))
+            10  # Same baseline for both groups
+            + 2 * times_balanced  # Same time trend
+            + 3 * (times_balanced * groups_balanced)  # DID effect
+            + np.random.normal(0, 1, len(groups_balanced))
         )
 
-        estimator = DifferenceInDifferencesEstimator(parallel_trends_test=True, verbose=False)
+        estimator = DifferenceInDifferencesEstimator(
+            parallel_trends_test=True, verbose=False
+        )
         treatment_data = TreatmentData(values=groups_balanced)
         outcome_data = OutcomeData(values=outcomes_balanced)
 
@@ -319,7 +323,7 @@ class TestDIDEstimator:
             treatment=treatment_data,
             outcome=outcome_data,
             time_data=times_balanced,
-            group_data=groups_balanced
+            group_data=groups_balanced,
         )
 
         result_balanced = estimator.estimate_ate()
@@ -327,7 +331,9 @@ class TestDIDEstimator:
         # Should have reasonable p-value (not 0.5 which indicates error)
         assert result_balanced.parallel_trends_test_p_value is not None
         assert 0.0 <= result_balanced.parallel_trends_test_p_value <= 1.0
-        assert result_balanced.parallel_trends_test_p_value != 0.5  # Not an error condition
+        assert (
+            result_balanced.parallel_trends_test_p_value != 0.5
+        )  # Not an error condition
 
     def test_robust_coefficient_indexing(self):
         """Test that coefficient indexing works correctly with covariates."""
@@ -350,12 +356,14 @@ class TestDIDEstimator:
 
         # Generate outcomes with covariate effects
         outcomes = (
-            5 +  # Baseline
-            1.5 * times +  # Time effect
-            0.8 * groups +  # Group effect
-            true_did_effect * (times * groups) +  # DID effect
-            0.1 * age + 0.0001 * income + 0.2 * education +  # Covariate effects
-            np.random.normal(0, 1, len(groups))
+            5  # Baseline
+            + 1.5 * times  # Time effect
+            + 0.8 * groups  # Group effect
+            + true_did_effect * (times * groups)  # DID effect
+            + 0.1 * age
+            + 0.0001 * income
+            + 0.2 * education  # Covariate effects
+            + np.random.normal(0, 1, len(groups))
         )
 
         # Test with different numbers of covariates
@@ -370,13 +378,15 @@ class TestDIDEstimator:
                 outcome=outcome_data,
                 covariates=covariate_data,
                 time_data=times,
-                group_data=groups
+                group_data=groups,
             )
 
             result = estimator.estimate_ate()
 
             # Should get reasonable estimate regardless of number of covariates
-            assert abs(result.ate - true_did_effect) < 1.0, f"Estimate with {n_covs} covariates too far from truth"
+            assert abs(result.ate - true_did_effect) < 1.0, (
+                f"Estimate with {n_covs} covariates too far from truth"
+            )
 
             # Should have confidence intervals
             assert result.ate_ci_lower is not None

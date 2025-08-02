@@ -121,7 +121,9 @@ def create_nhefs_panel_data(n_units: int = 500) -> pd.DataFrame:
     return df
 
 
-def estimate_did_effect(data: pd.DataFrame, include_covariates: bool = True) -> DIDResult:
+def estimate_did_effect(
+    data: pd.DataFrame, include_covariates: bool = True
+) -> DIDResult:
     """Estimate DID treatment effect.
 
     Args:
