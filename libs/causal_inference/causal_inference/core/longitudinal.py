@@ -182,12 +182,12 @@ class LongitudinalData(BaseModel):
     @property
     def n_individuals(self) -> int:
         """Number of unique individuals in the data."""
-        return self.data[self.id_col].nunique()
+        return int(self.data[self.id_col].nunique())
 
     @property
     def n_time_periods(self) -> int:
         """Number of unique time periods in the data."""
-        return self.data[self.time_col].nunique()
+        return int(self.data[self.time_col].nunique())
 
     @property
     def time_periods(self) -> list[int | str]:

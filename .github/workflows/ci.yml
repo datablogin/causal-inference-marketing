@@ -55,7 +55,7 @@ jobs:
     
     - name: Run type checking
       run: |
-        uv run mypy libs/causal_inference/ shared/
+        uv run mypy libs/causal_inference/causal_inference/ shared/
     
     - name: Run tests
       timeout-minutes: 15  # Increased timeout to handle all test cases

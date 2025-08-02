@@ -8,11 +8,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+import sys
+from pathlib import Path
 
-# from causal_inference.core.bootstrap import BootstrapConfig
-from causal_inference.data.nhefs import load_nhefs_data
-from causal_inference.estimators.difference_in_differences import (
+# Add the causal_inference package to the path
+sys.path.insert(0, str(Path(__file__).parent.parent / "causal_inference"))
+
+from core.base import CovariateData, OutcomeData, TreatmentData  # type: ignore[import-untyped]
+
+# from core.bootstrap import BootstrapConfig
+from data.nhefs import load_nhefs_data  # type: ignore[import-untyped]
+from estimators.difference_in_differences import (  # type: ignore[import-untyped]
     DIDResult,
     DifferenceInDifferencesEstimator,
 )
