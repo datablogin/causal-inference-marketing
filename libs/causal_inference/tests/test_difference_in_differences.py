@@ -241,6 +241,146 @@ class TestDIDEstimator:
         # Skip for now - bootstrap functionality removed for simplicity
         pytest.skip("Bootstrap functionality temporarily removed")
 
+    def test_confidence_intervals(self):
+        """Test standard error-based confidence intervals."""
+        # Create synthetic data with known DID effect
+        np.random.seed(42)
+        n_per_group = 50
+
+        # Treatment groups and time periods
+        groups = np.repeat([0, 1], n_per_group * 2)  # 0=control, 1=treated
+        times = np.tile([0, 1], n_per_group * 2)     # 0=pre, 1=post
+
+        # True DID effect
+        true_did_effect = 3.0
+
+        # Generate outcomes with lower noise for more stable CI test
+        outcomes = (
+            10 +  # Baseline
+            2 * times +  # Time effect
+            1 * groups +  # Group effect
+            true_did_effect * (times * groups) +  # DID effect
+            np.random.normal(0, 0.5, len(groups))  # Lower noise
+        )
+
+        # Create data objects
+        treatment_data = TreatmentData(values=groups)
+        outcome_data = OutcomeData(values=outcomes)
+
+        # Fit DID estimator
+        estimator = DifferenceInDifferencesEstimator(random_state=42)
+        estimator.fit(
+            treatment=treatment_data,
+            outcome=outcome_data,
+            time_data=times,
+            group_data=groups
+        )
+
+        # Estimate DID effect
+        result = estimator.estimate_ate()
+
+        # Check that confidence intervals are calculated
+        assert result.ate_ci_lower is not None, "Lower CI should not be None"
+        assert result.ate_ci_upper is not None, "Upper CI should not be None"
+
+        # Check that CI bounds are reasonable
+        assert result.ate_ci_lower < result.ate < result.ate_ci_upper, "ATE should be within CI"
+
+        # Check that CI width is reasonable (should be > 0)
+        ci_width = result.ate_ci_upper - result.ate_ci_lower
+        assert ci_width > 0, "CI width should be positive"
+        assert ci_width < 10, "CI width should be reasonable for this simulation"
+
+    def test_enhanced_parallel_trends_test(self):
+        """Test enhanced parallel trends test functionality."""
+        # Create data with different pre-treatment group characteristics
+        np.random.seed(123)
+
+        # Scenario 1: Groups should be similar (parallel trends likely satisfied)
+        n = 100
+        groups_balanced = np.repeat([0, 1], n)
+        times_balanced = np.tile([0, 1], n)
+
+        # Similar baseline characteristics
+        outcomes_balanced = (
+            10 +  # Same baseline for both groups
+            2 * times_balanced +  # Same time trend
+            3 * (times_balanced * groups_balanced) +  # DID effect
+            np.random.normal(0, 1, len(groups_balanced))
+        )
+
+        estimator = DifferenceInDifferencesEstimator(parallel_trends_test=True, verbose=False)
+        treatment_data = TreatmentData(values=groups_balanced)
+        outcome_data = OutcomeData(values=outcomes_balanced)
+
+        estimator.fit(
+            treatment=treatment_data,
+            outcome=outcome_data,
+            time_data=times_balanced,
+            group_data=groups_balanced
+        )
+
+        result_balanced = estimator.estimate_ate()
+
+        # Should have reasonable p-value (not 0.5 which indicates error)
+        assert result_balanced.parallel_trends_test_p_value is not None
+        assert 0.0 <= result_balanced.parallel_trends_test_p_value <= 1.0
+        assert result_balanced.parallel_trends_test_p_value != 0.5  # Not an error condition
+
+    def test_robust_coefficient_indexing(self):
+        """Test that coefficient indexing works correctly with covariates."""
+        np.random.seed(456)
+        n_per_group = 30
+
+        # Create data with covariates
+        groups = np.repeat([0, 1], n_per_group * 2)
+        times = np.tile([0, 1], n_per_group * 2)
+
+        # Add multiple covariates
+        age = np.random.normal(40, 10, len(groups))
+        income = np.random.normal(50000, 15000, len(groups))
+        education = np.random.normal(12, 3, len(groups))
+
+        covariates = np.column_stack([age, income, education])
+
+        # True DID effect
+        true_did_effect = 2.5
+
+        # Generate outcomes with covariate effects
+        outcomes = (
+            5 +  # Baseline
+            1.5 * times +  # Time effect
+            0.8 * groups +  # Group effect
+            true_did_effect * (times * groups) +  # DID effect
+            0.1 * age + 0.0001 * income + 0.2 * education +  # Covariate effects
+            np.random.normal(0, 1, len(groups))
+        )
+
+        # Test with different numbers of covariates
+        for n_covs in [1, 2, 3]:
+            treatment_data = TreatmentData(values=groups)
+            outcome_data = OutcomeData(values=outcomes)
+            covariate_data = CovariateData(values=covariates[:, :n_covs])
+
+            estimator = DifferenceInDifferencesEstimator()
+            estimator.fit(
+                treatment=treatment_data,
+                outcome=outcome_data,
+                covariates=covariate_data,
+                time_data=times,
+                group_data=groups
+            )
+
+            result = estimator.estimate_ate()
+
+            # Should get reasonable estimate regardless of number of covariates
+            assert abs(result.ate - true_did_effect) < 1.0, f"Estimate with {n_covs} covariates too far from truth"
+
+            # Should have confidence intervals
+            assert result.ate_ci_lower is not None
+            assert result.ate_ci_upper is not None
+            assert result.ate_ci_lower < result.ate < result.ate_ci_upper
+
     def test_get_did_summary(self):
         """Test DID summary functionality."""
         # Create simple data (need 10+ observations)

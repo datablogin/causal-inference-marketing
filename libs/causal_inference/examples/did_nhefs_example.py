@@ -13,6 +13,7 @@ from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
 # from causal_inference.core.bootstrap import BootstrapConfig
 from causal_inference.data.nhefs import load_nhefs_data
 from causal_inference.estimators.difference_in_differences import (
+    DIDResult,
     DifferenceInDifferencesEstimator,
 )
 
@@ -120,7 +121,7 @@ def create_nhefs_panel_data(n_units: int = 500) -> pd.DataFrame:
     return df
 
 
-def estimate_did_effect(data: pd.DataFrame, include_covariates: bool = True):  # type: ignore[no-untyped-def]
+def estimate_did_effect(data: pd.DataFrame, include_covariates: bool = True) -> DIDResult:
     """Estimate DID treatment effect.
 
     Args:
@@ -215,7 +216,7 @@ def estimate_did_effect(data: pd.DataFrame, include_covariates: bool = True):  #
     return result
 
 
-def create_visualizations(data: pd.DataFrame, result) -> None:  # type: ignore[no-untyped-def]
+def create_visualizations(data: pd.DataFrame, result: DIDResult) -> None:
     """Create visualizations for DID analysis.
 
     Args:
@@ -277,7 +278,8 @@ def create_visualizations(data: pd.DataFrame, result) -> None:  # type: ignore[n
             box_data.append(subset["weight_change_from_baseline"])
             labels.append(f"{'T' if group else 'C'}{time}")
 
-    ax3.boxplot(box_data, labels=labels)
+    ax3.boxplot(box_data)
+    ax3.set_xticklabels(labels)
     ax3.set_xlabel("Group-Time")
     ax3.set_ylabel("Weight Change (kg)")
     ax3.set_title("Outcome Distributions\n(C=Control, T=Treated)")

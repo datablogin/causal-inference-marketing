@@ -219,6 +219,8 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         self._time_data: NDArray[Any] | None = None
         self._group_data: NDArray[Any] | None = None
         self._did_result: DIDResult | None = None
+        self._design_matrix: NDArray[Any] | None = None
+        self._fitted_outcome: NDArray[Any] | None = None
 
     def _validate_did_data(
         self,
@@ -372,6 +374,10 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         self.model = LinearRegression(fit_intercept=False)
         self.model.fit(X, Y)
 
+        # Store design matrix and data for confidence interval calculation
+        self._design_matrix = X
+        self._fitted_outcome = np.asarray(Y)
+
         if self.verbose:
             mse = mean_squared_error(Y, self.model.predict(X))
             print(f"DID model fitted. MSE: {mse:.4f}")
@@ -431,9 +437,12 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         else:
             Y = np.asarray(self.outcome_data.values)
 
-        # The DID coefficient is the 4th coefficient (index 3)
-        # Coefficients are: [intercept, time, group, did, ...covariates]
-        did_coefficient = self.model.coef_[3]
+        # Get DID coefficient using robust indexing
+        did_coefficient_index = self._get_did_coefficient_index()
+        if did_coefficient_index is None:
+            raise EstimationError("Could not identify DID coefficient in design matrix")
+
+        did_coefficient = self.model.coef_[did_coefficient_index]
 
         # Calculate group means for diagnostics
         control_pre_mask = (self._time_data == 0) & (self._group_data == 0)
@@ -455,9 +464,8 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         if self.parallel_trends_test:
             parallel_trends_p_value = self._test_parallel_trends(pre_treatment_diff)
 
-        # For now, we'll use simple confidence intervals
-        # Bootstrap can be added later if needed
-        ci_lower, ci_upper = None, None
+        # Calculate confidence intervals using standard errors
+        ci_lower, ci_upper = self._calculate_confidence_intervals()
 
         # Create DID result
         result = DIDResult(
@@ -477,70 +485,193 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         return result
 
     def _test_parallel_trends(self, pre_treatment_diff: float) -> float:
-        """Test the parallel trends assumption.
+        """Test the parallel trends assumption using pre-treatment group balance.
 
-        This is a simplified test using pre-treatment differences.
-        In practice, more sophisticated tests with multiple pre-periods
-        would be preferred.
+        This test examines whether the treatment and control groups have
+        significantly different baseline levels, which could indicate
+        violation of the parallel trends assumption. In practice, tests
+        with multiple pre-periods would be preferred.
 
         Args:
             pre_treatment_diff: Pre-treatment difference between groups
 
         Returns:
-            P-value for parallel trends test
+            P-value for parallel trends test (higher p-values support parallel trends)
         """
         try:
             import scipy.stats as stats
         except ImportError:
-            # If scipy not available, return placeholder
-            return 1.0
+            # If scipy not available, return placeholder indicating uncertainty
+            return 0.5
 
-        # Simple test: Is pre-treatment difference significantly different from 0?
-        # This is a placeholder - in practice you'd want multiple pre-periods
-
-        # Estimate standard error (simplified)
-        if self.outcome_data is None:
-            return 1.0
+        # Enhanced error handling
+        if (
+            self.outcome_data is None
+            or self._time_data is None
+            or self._group_data is None
+        ):
+            return 0.5
 
         if isinstance(self.outcome_data.values, pd.Series):
             Y = self.outcome_data.values.values
         else:
             Y = np.asarray(self.outcome_data.values)
 
+        # Get pre-treatment observations for both groups
         control_pre_mask = (self._time_data == 0) & (self._group_data == 0)
         treated_pre_mask = (self._time_data == 0) & (self._group_data == 1)
 
         n_control_pre = np.sum(control_pre_mask)
         n_treated_pre = np.sum(treated_pre_mask)
 
-        if n_control_pre <= 1 or n_treated_pre <= 1:
-            return 1.0  # Can't test with insufficient data per group
+        # Enhanced validation for group sizes
+        if n_control_pre < 3 or n_treated_pre < 3:
+            # Need at least 3 observations per group for meaningful test
+            if self.verbose:
+                print(
+                    f"Warning: Insufficient pre-treatment observations for parallel trends test "
+                    f"(control: {n_control_pre}, treated: {n_treated_pre}). Need at least 3 each."
+                )
+            return 0.5
 
-        # Calculate variances with error handling
+        # Extract pre-treatment values
         control_pre_values = Y[control_pre_mask]
         treated_pre_values = Y[treated_pre_mask]
 
-        control_pre_var = (
-            np.var(control_pre_values, ddof=1) if len(control_pre_values) > 1 else 0.0
-        )
-        treated_pre_var = (
-            np.var(treated_pre_values, ddof=1) if len(treated_pre_values) > 1 else 0.0
-        )
+        # Remove any potential NaN or infinite values
+        control_pre_values = control_pre_values[
+            np.isfinite(control_pre_values)
+        ]
+        treated_pre_values = treated_pre_values[
+            np.isfinite(treated_pre_values)
+        ]
 
-        # Avoid division by zero
-        se_diff = np.sqrt(
-            max(control_pre_var / n_control_pre, 0.0)
-            + max(treated_pre_var / n_treated_pre, 0.0)
-        )
+        if len(control_pre_values) < 3 or len(treated_pre_values) < 3:
+            if self.verbose:
+                print("Warning: Insufficient valid pre-treatment observations after filtering")
+            return 0.5
 
-        if se_diff > 0:
-            t_stat = pre_treatment_diff / se_diff
-            df = n_control_pre + n_treated_pre - 2
-            p_value = float(2 * (1 - stats.t.cdf(abs(t_stat), df)))
-        else:
-            p_value = 1.0
+        # Perform Welch's t-test (unequal variances assumed)
+        try:
+            # Test null hypothesis: no difference in pre-treatment means
+            # Higher p-values support parallel trends assumption
+            t_stat, p_value = stats.ttest_ind(
+                treated_pre_values,
+                control_pre_values,
+                equal_var=False  # Welch's t-test
+            )
 
-        return p_value
+            # Additional check: ensure groups have reasonable variance
+            control_var = np.var(control_pre_values, ddof=1)
+            treated_var = np.var(treated_pre_values, ddof=1)
+
+            # Flag if one group has zero or extremely small variance
+            min_reasonable_var = 1e-8
+            if control_var < min_reasonable_var or treated_var < min_reasonable_var:
+                if self.verbose:
+                    print("Warning: One or both groups have very low variance in pre-treatment period")
+                return 0.5
+
+            return float(p_value)
+
+        except (ValueError, RuntimeError) as e:
+            if self.verbose:
+                print(f"Warning: Error in parallel trends test: {e}")
+            return 0.5
+
+    def _calculate_confidence_intervals(
+        self, confidence_level: float = 0.95
+    ) -> tuple[float | None, float | None]:
+        """Calculate confidence intervals for the DID coefficient using standard errors.
+
+        Args:
+            confidence_level: Confidence level for the interval (default 0.95)
+
+        Returns:
+            Tuple of (lower_bound, upper_bound) for confidence interval
+        """
+        if (
+            self.model is None
+            or self._design_matrix is None
+            or self._fitted_outcome is None
+        ):
+            return (None, None)
+
+        try:
+            import scipy.stats as stats
+        except ImportError:
+            # If scipy not available, return None
+            return (None, None)
+
+        # Get model predictions and residuals
+        y_pred = self.model.predict(self._design_matrix)
+        residuals = self._fitted_outcome - y_pred
+
+        # Calculate residual variance
+        n = len(self._fitted_outcome)
+        p = self._design_matrix.shape[1]  # Number of parameters
+
+        if n <= p:
+            # Not enough degrees of freedom
+            return (None, None)
+
+        residual_variance = np.sum(residuals**2) / (n - p)
+
+        # Calculate covariance matrix: (X'X)^(-1) * σ²
+        try:
+            xtx_inv = np.linalg.inv(self._design_matrix.T @ self._design_matrix)
+            covariance_matrix = xtx_inv * residual_variance
+
+            # Find DID coefficient index dynamically
+            did_coefficient_index = self._get_did_coefficient_index()
+            if did_coefficient_index is None:
+                return (None, None)
+
+            # Standard error for DID coefficient
+            se_did = np.sqrt(covariance_matrix[did_coefficient_index, did_coefficient_index])
+
+            # Calculate confidence interval
+            alpha = 1 - confidence_level
+            t_critical = stats.t.ppf(1 - alpha / 2, n - p)
+
+            did_coefficient = self.model.coef_[did_coefficient_index]
+            margin_of_error = t_critical * se_did
+
+            ci_lower = did_coefficient - margin_of_error
+            ci_upper = did_coefficient + margin_of_error
+
+            return float(ci_lower), float(ci_upper)
+
+        except np.linalg.LinAlgError:
+            # Singular matrix, can't compute standard errors
+            return (None, None)
+
+    def _get_did_coefficient_index(self) -> int | None:
+        """Get the index of the DID coefficient in the design matrix.
+
+        Returns:
+            Index of the interaction term coefficient, or None if not found
+        """
+        # The DID coefficient is always the interaction term (time * group)
+        # In our design matrix construction, it's the 4th column (index 3):
+        # [intercept, time, group, interaction, ...covariates]
+
+        if self._design_matrix is None or self._design_matrix.shape[1] < 4:
+            return None
+
+        # Verify this is indeed the interaction term by checking
+        # that it equals time_dummy * group_dummy
+        if self._time_data is not None and self._group_data is not None:
+            time_dummy = self._time_data.astype(float)
+            group_dummy = self._group_data.astype(float)
+            expected_interaction = time_dummy * group_dummy
+
+            # Check if column 3 matches the expected interaction
+            if np.allclose(self._design_matrix[:, 3], expected_interaction):
+                return 3
+
+        # Fallback: return None if we can't verify
+        return None
 
     # Bootstrap methods removed for simplicity - can be added later if needed
 
