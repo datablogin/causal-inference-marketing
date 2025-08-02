@@ -17,7 +17,9 @@ class EligibilityCriteria(BaseModel):
 
     age_min: Union[int, None] = Field(None, description="Minimum age for eligibility")
     age_max: Union[int, None] = Field(None, description="Maximum age for eligibility")
-    baseline_smoker: Union[bool, None] = Field(None, description="Smoking status requirement")
+    baseline_smoker: Union[bool, None] = Field(
+        None, description="Smoking status requirement"
+    )
     no_missing_weight: Union[bool, None] = Field(
         None, description="Require complete weight data"
     )
