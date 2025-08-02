@@ -58,9 +58,7 @@ def prepared_data(synthetic_data):
     return (
         TreatmentData(values=synthetic_data["T"], name="treatment"),
         OutcomeData(values=synthetic_data["Y"], name="outcome"),
-        CovariateData(
-            values=synthetic_data["X"], names=[f"X{i}" for i in range(5)]
-        ),
+        CovariateData(values=synthetic_data["X"], names=[f"X{i}" for i in range(5)]),
     )
 
 
