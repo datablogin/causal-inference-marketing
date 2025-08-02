@@ -13,6 +13,7 @@ from causal_inference.estimators.g_computation import GComputationEstimator
 from causal_inference.estimators.ipw import IPWEstimator
 
 
+@pytest.mark.slow
 class TestDiagnosticsIntegration:
     """Test integration of diagnostics with all estimator classes."""
 

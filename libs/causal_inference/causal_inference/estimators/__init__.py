@@ -2,7 +2,7 @@
 
 This module provides implementations of various causal inference estimators
 including G-computation, IPW, propensity score methods, G-estimation, doubly robust methods,
-and survival analysis estimators.
+meta-learners for CATE, and survival analysis estimators.
 """
 
 from .aipw import AIPWEstimator
@@ -11,6 +11,14 @@ from .g_computation import GComputationEstimator
 from .g_estimation import GEstimationEstimator
 from .ipw import IPWEstimator
 from .iv import IVEstimator
+from .meta_learners import (
+    BaseMetaLearner,
+    CATEResult,
+    RLearner,
+    SLearner,
+    TLearner,
+    XLearner,
+)
 from .propensity_score import PropensityScoreEstimator
 from .time_varying import StrategyComparison, StrategyOutcome, TimeVaryingEstimator
 from .tmle import TMLEEstimator
@@ -27,6 +35,13 @@ __all__ = [
     "TMLEEstimator",
     "StrategyComparison",
     "StrategyOutcome",
+    # Meta-learners for CATE
+    "BaseMetaLearner",
+    "SLearner",
+    "TLearner",
+    "XLearner",
+    "RLearner",
+    "CATEResult",
 ]
 
 # Optional survival analysis imports

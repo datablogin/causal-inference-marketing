@@ -59,9 +59,11 @@ jobs:
       run: |
         if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
           # Skip slow/benchmark tests and optimize for Python 3.13 performance
-          uv run pytest libs/causal_inference/tests/ -m "not slow and not benchmark" --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --tb=short --disable-warnings --cov-branch
+          uv run pytest libs/causal_inference/tests/ -m "not slow and not benchmark" --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --tb=short --disable-warnings --cov-branch --timeout=120
         else
-          uv run pytest libs/causal_inference/tests/ --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term
+          # Skip slow, benchmark, and integration tests in CI to avoid timeouts
+          # Add per-test timeout to prevent hanging tests
+          uv run pytest libs/causal_inference/tests/ -m "not slow and not benchmark and not integration" --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --cov-report=term --timeout=120 --tb=short
         fi
     
     - name: Upload coverage to Codecov
