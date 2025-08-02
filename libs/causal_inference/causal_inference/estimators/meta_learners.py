@@ -66,7 +66,7 @@ class CATEResult(CausalEffect):
             ate=ate,
             ate_ci_lower=confidence_interval[0],
             ate_ci_upper=confidence_interval[1],
-            **kwargs
+            **kwargs,
         )
         self.cate_estimates = cate_estimates
         self.cate_std = cate_std
@@ -135,6 +135,8 @@ class BaseMetaLearner(BaseEstimator):
         base_learner: SklearnBaseEstimator | None = None,
         propensity_learner: SklearnBaseEstimator | None = None,
         n_folds: int = 5,
+        n_bootstrap: int = 100,
+        bootstrap_ci: bool = True,
         random_state: int | None = None,
         verbose: bool = False,
         **kwargs: Any,
@@ -145,6 +147,8 @@ class BaseMetaLearner(BaseEstimator):
             base_learner: Base ML model for outcome/effect estimation
             propensity_learner: Model for propensity scores (if needed)
             n_folds: Number of cross-fitting folds
+            n_bootstrap: Number of bootstrap samples for CI estimation
+            bootstrap_ci: Whether to use bootstrap for confidence intervals
             random_state: Random seed
             verbose: Verbosity flag
             **kwargs: Additional arguments for parent class
@@ -164,8 +168,15 @@ class BaseMetaLearner(BaseEstimator):
         )
 
         self.n_folds = n_folds
+        self.n_bootstrap = n_bootstrap
+        self.bootstrap_ci = bootstrap_ci
         self._cate_estimates: NDArray[Any] | None = None
         self._cate_std: NDArray[Any] | None = None
+        self._bootstrap_samples: list[NDArray[Any]] | None = None
+        # Store training data for bootstrap
+        self._training_treatment: NDArray[Any] | None = None
+        self._training_outcome: NDArray[Any] | None = None
+        self._training_covariates: NDArray[Any] | None = None
 
     def _check_is_fitted(self) -> None:
         """Check if the estimator is fitted."""
@@ -217,28 +228,33 @@ class BaseMetaLearner(BaseEstimator):
         Returns:
             Tuple of (treatment_array, outcome_array, covariate_array)
         """
-        # Extract arrays
-        T = (
-            treatment.values
-            if hasattr(treatment.values, "values")
-            else treatment.values
-        )
-        Y = outcome.values if hasattr(outcome.values, "values") else outcome.values
+        # Extract arrays with proper type handling
+        if isinstance(treatment.values, pd.Series):
+            T = treatment.values.values
+        elif isinstance(treatment.values, pd.DataFrame):
+            T = treatment.values.values.flatten()
+        else:
+            T = np.asarray(treatment.values).flatten()
+
+        if isinstance(outcome.values, pd.Series):
+            Y = outcome.values.values
+        elif isinstance(outcome.values, pd.DataFrame):
+            Y = outcome.values.values.flatten()
+        else:
+            Y = np.asarray(outcome.values).flatten()
 
         if covariates is not None:
-            X = (
-                covariates.values
-                if hasattr(covariates.values, "values")
-                else covariates.values
-            )
+            if isinstance(covariates.values, pd.DataFrame):
+                X = covariates.values.values
+            elif isinstance(covariates.values, pd.Series):
+                X = covariates.values.values.reshape(-1, 1)
+            else:
+                X = np.asarray(covariates.values)
+                if X.ndim == 1:
+                    X = X.reshape(-1, 1)
         else:
             # Create dummy covariates if none provided
             X = np.ones((len(T), 1))
-
-        # Ensure arrays
-        T = np.asarray(T).flatten()
-        Y = np.asarray(Y).flatten()
-        X = np.asarray(X)
 
         # Validate dimensions
         validate_input_dimensions(T, Y, X)
@@ -256,7 +272,71 @@ class BaseMetaLearner(BaseEstimator):
             # Map to 0/1
             T = (T == unique_treatments[1]).astype(int)
 
+        # Store training data for bootstrap
+        self._training_treatment = T
+        self._training_outcome = Y
+        self._training_covariates = X
+
         return T, Y, X
+
+    def _bootstrap_confidence_interval(
+        self,
+        treatment: NDArray[Any],
+        outcome: NDArray[Any],
+        covariates: NDArray[Any],
+        alpha: float = 0.05,
+    ) -> tuple[float, float]:
+        """Compute bootstrap confidence interval for ATE.
+
+        Args:
+            treatment: Treatment assignments
+            outcome: Outcomes
+            covariates: Covariate matrix
+            alpha: Significance level (default 0.05 for 95% CI)
+
+        Returns:
+            Tuple of (lower_bound, upper_bound) for confidence interval
+        """
+        n = len(treatment)
+        bootstrap_ates = []
+
+        # Set random state for reproducibility
+        rng = np.random.RandomState(self.random_state)
+
+        for _ in range(self.n_bootstrap):
+            # Bootstrap sample
+            idx = rng.choice(n, size=n, replace=True)
+            T_boot = treatment[idx]
+            Y_boot = outcome[idx]
+            X_boot = covariates[idx]
+
+            # Create data objects
+            treatment_data = TreatmentData(values=T_boot)
+            outcome_data = OutcomeData(values=Y_boot)
+            covariate_data = CovariateData(values=X_boot)
+
+            # Fit model on bootstrap sample
+            learner = self.__class__(
+                base_learner=clone(self.base_learner),
+                propensity_learner=clone(self.propensity_learner),
+                n_folds=self.n_folds,
+                bootstrap_ci=False,  # Avoid recursive bootstrap
+                random_state=rng.randint(0, 2**32 - 1),
+            )
+            learner.fit(treatment_data, outcome_data, covariate_data)
+
+            # Get ATE estimate
+            result = learner.estimate_ate()
+            bootstrap_ates.append(result.ate)
+
+        # Compute percentile confidence interval
+        lower = np.percentile(bootstrap_ates, (alpha / 2) * 100)
+        upper = np.percentile(bootstrap_ates, (1 - alpha / 2) * 100)
+
+        # Store bootstrap samples for potential analysis
+        self._bootstrap_samples = bootstrap_ates
+
+        return lower, upper
 
 
 class SLearner(BaseMetaLearner):
@@ -324,10 +404,29 @@ class SLearner(BaseMetaLearner):
         # This is a simplified implementation
         ate = np.mean(self._cate_estimates) if self._cate_estimates is not None else 0.0
 
+        # Compute confidence interval
+        if self.bootstrap_ci and self._training_treatment is not None:
+            ci_lower, ci_upper = self._bootstrap_confidence_interval(
+                self._training_treatment,
+                self._training_outcome,
+                self._training_covariates,
+            )
+            confidence_interval = (ci_lower, ci_upper)
+        else:
+            # Fallback to simple standard error
+            se = (
+                np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
+                if self._cate_estimates is not None
+                else 0.1
+            )
+            confidence_interval = (ate - 1.96 * se, ate + 1.96 * se)
+
         return CATEResult(
             ate=ate,
-            confidence_interval=(ate - 1.96 * 0.1, ate + 1.96 * 0.1),  # Placeholder CI
-            cate_estimates=self._cate_estimates if self._cate_estimates is not None else np.array([]),
+            confidence_interval=confidence_interval,
+            cate_estimates=self._cate_estimates
+            if self._cate_estimates is not None
+            else np.array([]),
             cate_std=self._cate_std,
             method="S-Learner",
         )
@@ -412,13 +511,22 @@ class TLearner(BaseMetaLearner):
 
         ate = np.mean(self._cate_estimates)
 
-        # Simple bootstrap CI (placeholder - should use proper bootstrap)
-        se = np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
-        ci = (ate - 1.96 * se, ate + 1.96 * se)
+        # Compute confidence interval
+        if self.bootstrap_ci and self._training_treatment is not None:
+            ci_lower, ci_upper = self._bootstrap_confidence_interval(
+                self._training_treatment,
+                self._training_outcome,
+                self._training_covariates,
+            )
+            confidence_interval = (ci_lower, ci_upper)
+        else:
+            # Fallback to simple standard error
+            se = np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
+            confidence_interval = (ate - 1.96 * se, ate + 1.96 * se)
 
         return CATEResult(
             ate=ate,
-            confidence_interval=ci,
+            confidence_interval=confidence_interval,
             cate_estimates=self._cate_estimates,
             method="T-Learner",
         )
@@ -511,6 +619,19 @@ class XLearner(BaseMetaLearner):
         self._propensity_model = clone(self.propensity_learner)
         self._propensity_model.fit(X, T)
 
+        # Check for common support
+        from ..utils.validation import check_common_support
+
+        propensity_train = self._propensity_model.predict_proba(X)[:, 1]
+        if not check_common_support(propensity_train, T):
+            import warnings
+
+            warnings.warn(
+                "Limited common support detected. X-learner results may be unreliable. "
+                "Consider using T-learner instead or restricting analysis to common support region.",
+                UserWarning,
+            )
+
         # Estimate CATE on training data
         self._cate_estimates = self._estimate_cate_implementation(X)
 
@@ -521,13 +642,22 @@ class XLearner(BaseMetaLearner):
 
         ate = np.mean(self._cate_estimates)
 
-        # Bootstrap CI (simplified)
-        se = np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
-        ci = (ate - 1.96 * se, ate + 1.96 * se)
+        # Compute confidence interval
+        if self.bootstrap_ci and self._training_treatment is not None:
+            ci_lower, ci_upper = self._bootstrap_confidence_interval(
+                self._training_treatment,
+                self._training_outcome,
+                self._training_covariates,
+            )
+            confidence_interval = (ci_lower, ci_upper)
+        else:
+            # Fallback to simple standard error
+            se = np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
+            confidence_interval = (ate - 1.96 * se, ate + 1.96 * se)
 
         return CATEResult(
             ate=ate,
-            confidence_interval=ci,
+            confidence_interval=confidence_interval,
             cate_estimates=self._cate_estimates,
             method="X-Learner",
         )
@@ -543,6 +673,11 @@ class XLearner(BaseMetaLearner):
 
         # Get propensity scores
         propensity = self._propensity_model.predict_proba(x)[:, 1]
+
+        # Validate propensity scores
+        from ..utils.validation import validate_propensity_scores
+
+        propensity = validate_propensity_scores(propensity)
 
         # Get CATE estimates from both models
         tau_1 = self._tau_treated.predict(x)
@@ -568,6 +703,7 @@ class RLearner(BaseMetaLearner):
         outcome_learner: SklearnBaseEstimator | None = None,
         propensity_learner: SklearnBaseEstimator | None = None,
         regularization_param: float = 0.01,
+        residual_threshold: float = 1e-6,
         **kwargs: Any,
     ) -> None:
         """Initialize R-learner.
@@ -576,7 +712,13 @@ class RLearner(BaseMetaLearner):
             base_learner: Model for final CATE estimation
             outcome_learner: Model for outcome regression
             propensity_learner: Model for propensity scores
-            regularization_param: Regularization parameter for residuals
+            regularization_param: Regularization parameter for residuals (default 0.01)
+                Higher values provide more stability but may introduce bias.
+                Recommended range: 0.001 to 0.1, depending on sample size and
+                treatment assignment mechanism.
+            residual_threshold: Minimum absolute value of treatment residuals to include (default 1e-6)
+                Points with |T - e(X)| below this threshold are excluded from CATE model fitting.
+                Increase if experiencing numerical instability.
             **kwargs: Additional arguments for parent class
         """
         super().__init__(
@@ -588,6 +730,7 @@ class RLearner(BaseMetaLearner):
             else RandomForestRegressor(n_estimators=100, random_state=self.random_state)
         )
         self.regularization_param = regularization_param
+        self.residual_threshold = residual_threshold
 
         self._outcome_model: SklearnBaseEstimator | None = None
         self._propensity_model: SklearnBaseEstimator | None = None
@@ -626,6 +769,12 @@ class RLearner(BaseMetaLearner):
             prop_model = clone(self.propensity_learner)
             prop_model.fit(X[train_idx], T[train_idx])
             propensity = prop_model.predict_proba(X[test_idx])[:, 1]
+
+            # Validate propensity scores
+            from ..utils.validation import validate_propensity_scores
+
+            propensity = validate_propensity_scores(propensity)
+
             T_residuals[test_idx] = T[test_idx] - propensity
 
         # Fit final models on all data for later predictions
@@ -634,6 +783,19 @@ class RLearner(BaseMetaLearner):
 
         self._propensity_model = clone(self.propensity_learner)
         self._propensity_model.fit(X, T)
+
+        # Check for common support
+        from ..utils.validation import check_common_support
+
+        full_propensity = self._propensity_model.predict_proba(X)[:, 1]
+        if not check_common_support(full_propensity, T):
+            import warnings
+
+            warnings.warn(
+                "Limited common support detected. R-learner results may be unreliable. "
+                "Consider adjusting regularization parameter or restricting to common support region.",
+                UserWarning,
+            )
 
         # Fit CATE model using weighted regression
         # Weight by (T - e(X))^2 to handle heteroskedasticity
@@ -644,10 +806,14 @@ class RLearner(BaseMetaLearner):
         # This is equivalent to regressing Y_res/T_res on X with weights
 
         # Avoid division by zero
-        valid_idx = np.abs(T_residuals) > 1e-6
+        valid_idx = np.abs(T_residuals) > self.residual_threshold
 
         if np.sum(valid_idx) < 10:
-            raise EstimationError("Not enough variation in treatment residuals.")
+            raise EstimationError(
+                f"Not enough variation in treatment residuals. Only {np.sum(valid_idx)} points have "
+                f"|T - e(X)| > {self.residual_threshold}. Consider decreasing residual_threshold or "
+                "checking for deterministic treatment assignment."
+            )
 
         # Target for regression
         target = Y_residuals[valid_idx] / T_residuals[valid_idx]
@@ -677,13 +843,22 @@ class RLearner(BaseMetaLearner):
 
         ate = np.mean(self._cate_estimates)
 
-        # Bootstrap CI (simplified)
-        se = np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
-        ci = (ate - 1.96 * se, ate + 1.96 * se)
+        # Compute confidence interval
+        if self.bootstrap_ci and self._training_treatment is not None:
+            ci_lower, ci_upper = self._bootstrap_confidence_interval(
+                self._training_treatment,
+                self._training_outcome,
+                self._training_covariates,
+            )
+            confidence_interval = (ci_lower, ci_upper)
+        else:
+            # Fallback to simple standard error
+            se = np.std(self._cate_estimates) / np.sqrt(len(self._cate_estimates))
+            confidence_interval = (ate - 1.96 * se, ate + 1.96 * se)
 
         return CATEResult(
             ate=ate,
-            confidence_interval=ci,
+            confidence_interval=confidence_interval,
             cate_estimates=self._cate_estimates,
             method="R-Learner",
         )

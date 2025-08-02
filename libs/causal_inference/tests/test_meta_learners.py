@@ -453,3 +453,222 @@ class TestMetaLearnersIntegration:
             assert cate_positive > cate_negative, (
                 f"{name} failed to capture heterogeneity"
             )
+
+
+class TestBootstrapCIAndPropensityValidation:
+    """Tests for bootstrap confidence intervals and propensity score validation."""
+
+    @pytest.fixture
+    def bootstrap_data(self):
+        """Generate data for bootstrap CI testing."""
+        np.random.seed(42)
+        n = 500
+
+        # Simple DGP with known ATE
+        X = np.random.randn(n, 3)
+        propensity = 0.5  # Constant propensity for simplicity
+        T = np.random.binomial(1, propensity, n)
+
+        # True ATE = 2.0
+        Y = 1 + X[:, 0] + 2.0 * T + np.random.randn(n) * 0.5
+
+        return {
+            "X": X,
+            "T": T,
+            "Y": Y,
+            "true_ate": 2.0,
+        }
+
+    def test_bootstrap_ci_coverage(self, bootstrap_data):
+        """Test that bootstrap CIs achieve proper coverage."""
+        # Run multiple simulations to check coverage
+        n_simulations = 20  # Reduced for test speed
+        coverage_counts = {
+            "S-Learner": 0,
+            "T-Learner": 0,
+            "X-Learner": 0,
+            "R-Learner": 0,
+        }
+
+        true_ate = bootstrap_data["true_ate"]
+
+        for sim in range(n_simulations):
+            # Generate new data with same DGP
+            np.random.seed(42 + sim)
+            n = 500
+            X = np.random.randn(n, 3)
+            T = np.random.binomial(1, 0.5, n)
+            Y = 1 + X[:, 0] + true_ate * T + np.random.randn(n) * 0.5
+
+            treatment = TreatmentData(values=T)
+            outcome = OutcomeData(values=Y)
+            covariates = CovariateData(values=X)
+
+            # Test each learner with bootstrap CI
+            learners = {
+                "S-Learner": SLearner(
+                    bootstrap_ci=True,
+                    n_bootstrap=100,  # Fewer for speed
+                    random_state=sim,
+                ),
+                "T-Learner": TLearner(
+                    bootstrap_ci=True, n_bootstrap=100, random_state=sim
+                ),
+                "X-Learner": XLearner(
+                    bootstrap_ci=True, n_bootstrap=100, random_state=sim
+                ),
+                "R-Learner": RLearner(
+                    bootstrap_ci=True, n_bootstrap=100, n_folds=3, random_state=sim
+                ),
+            }
+
+            for name, learner in learners.items():
+                learner.fit(treatment, outcome, covariates)
+                result = learner.estimate_ate()
+
+                # Check if true ATE is in CI
+                ci_lower, ci_upper = result.confidence_interval
+                if ci_lower <= true_ate <= ci_upper:
+                    coverage_counts[name] += 1
+
+        # Check coverage is reasonable (should be around 95% for alpha=0.05)
+        # With 20 simulations, expect 17-20 to contain true value (allowing for randomness)
+        for name, count in coverage_counts.items():
+            coverage = count / n_simulations
+            assert coverage >= 0.75, (
+                f"{name} bootstrap CI coverage too low: {coverage:.2f}"
+            )
+
+    def test_propensity_validation_extreme_values(self):
+        """Test propensity score validation with extreme values."""
+        np.random.seed(42)
+        n = 1000
+
+        # Create data with extreme propensity scores
+        X = np.random.randn(n, 3)
+        # Make treatment almost deterministic based on X[:, 0]
+        logit_p = 10 * X[:, 0]  # Very strong relationship
+        propensity = 1 / (1 + np.exp(-logit_p))
+        T = (propensity > 0.5).astype(int)  # Almost deterministic
+
+        # Add a few random flips to avoid complete separation
+        n_flips = 20
+        flip_idx = np.random.choice(n, n_flips, replace=False)
+        T[flip_idx] = 1 - T[flip_idx]
+
+        Y = 1 + X[:, 1] + 2 * T + np.random.randn(n) * 0.5
+
+        treatment = TreatmentData(values=T)
+        outcome = OutcomeData(values=Y)
+        covariates = CovariateData(values=X)
+
+        # X-learner should issue warning about limited common support
+        xlearner = XLearner(random_state=42)
+        with pytest.warns(UserWarning, match="Limited common support"):
+            xlearner.fit(treatment, outcome, covariates)
+
+        # R-learner should also handle this case
+        rlearner = RLearner(n_folds=3, random_state=42)
+        # R-learner might raise an error due to insufficient variation
+        try:
+            rlearner.fit(treatment, outcome, covariates)
+        except EstimationError as e:
+            assert "variation in treatment residuals" in str(e)
+
+    def test_propensity_common_support_warning(self):
+        """Test warning when there's limited common support."""
+        np.random.seed(42)
+        n = 1000
+
+        # Create data with limited overlap
+        X = np.random.randn(n, 3)
+        # Treatment depends strongly on X[:, 0]
+        T = (X[:, 0] > 0.5).astype(int)
+        # Add some randomness
+        noise_idx = np.random.choice(n, 50, replace=False)
+        T[noise_idx] = 1 - T[noise_idx]
+
+        Y = 1 + X[:, 1] + 2 * T + np.random.randn(n) * 0.5
+
+        treatment = TreatmentData(values=T)
+        outcome = OutcomeData(values=Y)
+        covariates = CovariateData(values=X)
+
+        # X-learner should warn about limited common support
+        xlearner = XLearner(random_state=42)
+        with pytest.warns(UserWarning, match="Limited common support"):
+            xlearner.fit(treatment, outcome, covariates)
+
+    def test_bootstrap_vs_standard_ci(self, bootstrap_data):
+        """Test that bootstrap CIs differ from placeholder CIs."""
+        treatment = TreatmentData(values=bootstrap_data["T"])
+        outcome = OutcomeData(values=bootstrap_data["Y"])
+        covariates = CovariateData(values=bootstrap_data["X"])
+
+        # Compare with and without bootstrap
+        for LearnerClass in [SLearner, TLearner, XLearner]:
+            # Without bootstrap (uses placeholder)
+            learner_no_boot = LearnerClass(bootstrap_ci=False, random_state=42)
+            learner_no_boot.fit(treatment, outcome, covariates)
+            result_no_boot = learner_no_boot.estimate_ate()
+
+            # With bootstrap
+            learner_boot = LearnerClass(
+                bootstrap_ci=True, n_bootstrap=200, random_state=42
+            )
+            learner_boot.fit(treatment, outcome, covariates)
+            result_boot = learner_boot.estimate_ate()
+
+            # Bootstrap CI should be different from placeholder
+            # (placeholder just uses ±10% of ATE)
+            ci_no_boot = result_no_boot.confidence_interval
+            ci_boot = result_boot.confidence_interval
+
+            # Check that they're different (with some tolerance for randomness)
+            assert not np.allclose(
+                [ci_no_boot[0], ci_no_boot[1]], [ci_boot[0], ci_boot[1]], rtol=0.01
+            ), f"{LearnerClass.__name__} bootstrap CI same as placeholder"
+
+    def test_bootstrap_reproducibility(self, bootstrap_data):
+        """Test that bootstrap CIs are reproducible with same random state."""
+        treatment = TreatmentData(values=bootstrap_data["T"])
+        outcome = OutcomeData(values=bootstrap_data["Y"])
+        covariates = CovariateData(values=bootstrap_data["X"])
+
+        # Run twice with same random state
+        results = []
+        for _ in range(2):
+            learner = TLearner(bootstrap_ci=True, n_bootstrap=100, random_state=42)
+            learner.fit(treatment, outcome, covariates)
+            result = learner.estimate_ate()
+            results.append(result.confidence_interval)
+
+        # Should get identical results
+        assert np.allclose(results[0], results[1]), (
+            "Bootstrap CI not reproducible with same random state"
+        )
+
+    def test_configurable_rlearner_threshold(self, bootstrap_data):
+        """Test that R-learner regularization is configurable."""
+        treatment = TreatmentData(values=bootstrap_data["T"])
+        outcome = OutcomeData(values=bootstrap_data["Y"])
+        covariates = CovariateData(values=bootstrap_data["X"])
+
+        # Test different regularization parameters
+        reg_params = [0.01, 0.001, 0.0001]
+        results = []
+
+        for reg_param in reg_params:
+            rlearner = RLearner(
+                regularization_param=reg_param, n_folds=3, random_state=42
+            )
+            # This should work without errors
+            rlearner.fit(treatment, outcome, covariates)
+            result = rlearner.estimate_ate()
+            results.append(result.ate)
+
+        # Results might differ slightly with different regularization
+        # but all should be reasonable estimates
+        assert all(0 < ate < 4 for ate in results), (
+            f"R-learner ATEs unreasonable: {results}"
+        )

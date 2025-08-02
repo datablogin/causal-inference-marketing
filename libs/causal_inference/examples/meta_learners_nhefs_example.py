@@ -95,7 +95,9 @@ def load_nhefs_data() -> pd.DataFrame:
     return df
 
 
-def prepare_data(df: pd.DataFrame) -> tuple[TreatmentData, OutcomeData, CovariateData, NDArray[Any]]:
+def prepare_data(
+    df: pd.DataFrame,
+) -> tuple[TreatmentData, OutcomeData, CovariateData, NDArray[Any]]:
     """Prepare data for causal inference."""
     # Define treatment, outcome, and covariates
     treatment = TreatmentData(values=df["qsmk"], name="smoking_cessation")

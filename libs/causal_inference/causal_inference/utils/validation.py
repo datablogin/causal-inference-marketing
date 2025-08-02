@@ -175,5 +175,6 @@ def check_common_support(
     control_prop_in_overlap = control_in_overlap / len(control_props)
 
     return bool(
-        (treated_prop_in_overlap >= threshold) and (control_prop_in_overlap >= threshold)
+        (treated_prop_in_overlap >= threshold)
+        and (control_prop_in_overlap >= threshold)
     )
