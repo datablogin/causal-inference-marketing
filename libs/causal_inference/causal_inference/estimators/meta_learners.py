@@ -228,26 +228,26 @@ class BaseMetaLearner(BaseEstimator):
         Returns:
             Tuple of (treatment_array, outcome_array, covariate_array)
         """
-        # Extract arrays with proper type handling
+        # Extract arrays with proper type handling - ensure numpy arrays
         if isinstance(treatment.values, pd.Series):
-            T = treatment.values.values
+            T = np.asarray(treatment.values.values)
         elif isinstance(treatment.values, pd.DataFrame):
-            T = treatment.values.values.flatten()
+            T = np.asarray(treatment.values.values).flatten()
         else:
             T = np.asarray(treatment.values).flatten()
 
         if isinstance(outcome.values, pd.Series):
-            Y = outcome.values.values
+            Y = np.asarray(outcome.values.values)
         elif isinstance(outcome.values, pd.DataFrame):
-            Y = outcome.values.values.flatten()
+            Y = np.asarray(outcome.values.values).flatten()
         else:
             Y = np.asarray(outcome.values).flatten()
 
         if covariates is not None:
             if isinstance(covariates.values, pd.DataFrame):
-                X = covariates.values.values
+                X = np.asarray(covariates.values.values)
             elif isinstance(covariates.values, pd.Series):
-                X = covariates.values.values.reshape(-1, 1)
+                X = np.asarray(covariates.values.values).reshape(-1, 1)
             else:
                 X = np.asarray(covariates.values)
                 if X.ndim == 1:
