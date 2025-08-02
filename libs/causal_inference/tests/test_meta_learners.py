@@ -22,48 +22,72 @@ from causal_inference.estimators.meta_learners import (
 )
 
 
+@pytest.fixture
+def synthetic_data():
+    """Generate synthetic data with heterogeneous treatment effects."""
+    np.random.seed(42)
+    n = 1000
+
+    # Covariates
+    X = np.random.randn(n, 5)
+
+    # Propensity score (depends on X)
+    propensity = 1 / (1 + np.exp(-0.5 * X[:, 0] - 0.3 * X[:, 1]))
+    T = np.random.binomial(1, propensity)
+
+    # Heterogeneous treatment effect (CATE depends on X)
+    tau = 1 + 0.5 * X[:, 0] + 0.3 * X[:, 2] + 0.2 * X[:, 0] * X[:, 2]
+
+    # Outcome
+    Y0 = 2 + X[:, 0] + 0.5 * X[:, 1] + np.random.randn(n) * 0.5
+    Y1 = Y0 + tau
+    Y = T * Y1 + (1 - T) * Y0
+
+    return {
+        "X": X,
+        "T": T,
+        "Y": Y,
+        "tau": tau,
+        "propensity": propensity,
+    }
+
+
+@pytest.fixture
+def prepared_data(synthetic_data):
+    """Prepare data in the format expected by estimators."""
+    return (
+        TreatmentData(values=synthetic_data["T"], name="treatment"),
+        OutcomeData(values=synthetic_data["Y"], name="outcome"),
+        CovariateData(
+            values=synthetic_data["X"], names=[f"X{i}" for i in range(5)]
+        ),
+    )
+
+
+@pytest.fixture
+def bootstrap_data():
+    """Generate data for bootstrap CI testing."""
+    np.random.seed(42)
+    n = 500
+
+    # Simple DGP with known ATE
+    X = np.random.randn(n, 3)
+    propensity = 0.5  # Constant propensity for simplicity
+    T = np.random.binomial(1, propensity, n)
+
+    # True ATE = 2.0
+    Y = 1 + X[:, 0] + 2.0 * T + np.random.randn(n) * 0.5
+
+    return {
+        "X": X,
+        "T": T,
+        "Y": Y,
+        "true_ate": 2.0,
+    }
+
+
 class TestMetaLearnersCommon:
     """Common tests for all meta-learners."""
-
-    @pytest.fixture
-    def synthetic_data(self):
-        """Generate synthetic data with heterogeneous treatment effects."""
-        np.random.seed(42)
-        n = 1000
-
-        # Covariates
-        X = np.random.randn(n, 5)
-
-        # Propensity score (depends on X)
-        propensity = 1 / (1 + np.exp(-0.5 * X[:, 0] - 0.3 * X[:, 1]))
-        T = np.random.binomial(1, propensity)
-
-        # Heterogeneous treatment effect (CATE depends on X)
-        tau = 1 + 0.5 * X[:, 0] + 0.3 * X[:, 2] + 0.2 * X[:, 0] * X[:, 2]
-
-        # Outcome
-        Y0 = 2 + X[:, 0] + 0.5 * X[:, 1] + np.random.randn(n) * 0.5
-        Y1 = Y0 + tau
-        Y = T * Y1 + (1 - T) * Y0
-
-        return {
-            "X": X,
-            "T": T,
-            "Y": Y,
-            "tau": tau,
-            "propensity": propensity,
-        }
-
-    @pytest.fixture
-    def prepared_data(self, synthetic_data):
-        """Prepare data in the format expected by estimators."""
-        return (
-            TreatmentData(values=synthetic_data["T"], name="treatment"),
-            OutcomeData(values=synthetic_data["Y"], name="outcome"),
-            CovariateData(
-                values=synthetic_data["X"], names=[f"X{i}" for i in range(5)]
-            ),
-        )
 
     def test_binary_treatment_validation(self, prepared_data):
         """Test that meta-learners require binary treatment."""
@@ -73,12 +97,14 @@ class TestMetaLearnersCommon:
         treatment_multi = TreatmentData(
             values=np.random.randint(0, 3, size=len(treatment.values)),
             name="treatment",
+            treatment_type="categorical",
+            categories=[0, 1, 2],
         )
 
         # All meta-learners should raise error
         for LearnerClass in [SLearner, TLearner, XLearner, RLearner]:
             learner = LearnerClass()
-            with pytest.raises(ValueError, match="binary treatment"):
+            with pytest.raises(EstimationError, match="binary treatment"):
                 learner.fit(treatment_multi, outcome, covariates)
 
     def test_data_validation(self, prepared_data):
@@ -457,27 +483,6 @@ class TestMetaLearnersIntegration:
 
 class TestBootstrapCIAndPropensityValidation:
     """Tests for bootstrap confidence intervals and propensity score validation."""
-
-    @pytest.fixture
-    def bootstrap_data(self):
-        """Generate data for bootstrap CI testing."""
-        np.random.seed(42)
-        n = 500
-
-        # Simple DGP with known ATE
-        X = np.random.randn(n, 3)
-        propensity = 0.5  # Constant propensity for simplicity
-        T = np.random.binomial(1, propensity, n)
-
-        # True ATE = 2.0
-        Y = 1 + X[:, 0] + 2.0 * T + np.random.randn(n) * 0.5
-
-        return {
-            "X": X,
-            "T": T,
-            "Y": Y,
-            "true_ate": 2.0,
-        }
 
     def test_bootstrap_ci_coverage(self, bootstrap_data):
         """Test that bootstrap CIs achieve proper coverage."""
