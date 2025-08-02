@@ -258,8 +258,12 @@ class BootstrapResult(BaseModel):
     point_estimate: float = Field(description="Original point estimate")
 
     # Percentile method
-    ci_lower_percentile: Union[float, None] = Field(description="Percentile CI lower bound")
-    ci_upper_percentile: Union[float, None] = Field(description="Percentile CI upper bound")
+    ci_lower_percentile: Union[float, None] = Field(
+        description="Percentile CI lower bound"
+    )
+    ci_upper_percentile: Union[float, None] = Field(
+        description="Percentile CI upper bound"
+    )
 
     # Bias-corrected method
     ci_lower_bias_corrected: Union[float, None] = Field(
@@ -274,8 +278,12 @@ class BootstrapResult(BaseModel):
     ci_upper_bca: Union[float, None] = Field(description="BCa CI upper bound")
 
     # Studentized method
-    ci_lower_studentized: Union[float, None] = Field(description="Studentized CI lower bound")
-    ci_upper_studentized: Union[float, None] = Field(description="Studentized CI upper bound")
+    ci_lower_studentized: Union[float, None] = Field(
+        description="Studentized CI lower bound"
+    )
+    ci_upper_studentized: Union[float, None] = Field(
+        description="Studentized CI upper bound"
+    )
 
     # Bootstrap estimates
     bootstrap_estimates: Union[NDArray[Any], None] = Field(
