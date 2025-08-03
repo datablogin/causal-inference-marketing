@@ -421,11 +421,11 @@ class SyntheticControlEstimator(BaseEstimator):
         def objective(weights: NDArray[Any]) -> float:
             """Objective function to minimize: squared prediction error."""
             synthetic_pre = np.dot(weights, control_pre)
-            mse = float(np.mean((treated_pre - synthetic_pre) ** 2))
+            mse = np.mean((treated_pre - synthetic_pre) ** 2)
 
             # Add L2 penalty on weights if specified
             if self.weight_penalty > 0:
-                mse += float(self.weight_penalty * np.sum(weights**2))
+                mse += self.weight_penalty * np.sum(weights**2)
 
             return mse
 
@@ -475,7 +475,7 @@ class SyntheticControlEstimator(BaseEstimator):
         Returns:
             Synthetic control trajectory
         """
-        return np.asarray(np.dot(weights, control_trajectories))
+        return np.dot(weights, control_trajectories)
 
     def _calculate_rmspe(
         self,
@@ -491,7 +491,7 @@ class SyntheticControlEstimator(BaseEstimator):
         Returns:
             RMSPE value
         """
-        return float(np.sqrt(mean_squared_error(treated, synthetic)))
+        return np.sqrt(mean_squared_error(treated, synthetic))
 
     def _permutation_inference(
         self,
@@ -525,9 +525,7 @@ class SyntheticControlEstimator(BaseEstimator):
 
         # Store original data
         outcome_df = outcome.values
-        if not isinstance(outcome_df, pd.DataFrame):
-            raise ValueError("Outcome data must be a DataFrame for permutation inference")
-        permutation_effects: list[float] = []
+        permutation_effects = []
 
         for perm in range(self.n_permutations):
             # Randomly select a control unit to be "treated"
@@ -557,9 +555,7 @@ class SyntheticControlEstimator(BaseEstimator):
 
             try:
                 # Optimize weights for this permutation
-                if (self.normalize_features and 
-                    self._feature_means is not None and 
-                    self._feature_stds is not None):
+                if self.normalize_features and self._feature_means is not None:
                     fake_control_pre_norm = (
                         fake_control_pre - self._feature_means
                     ) / self._feature_stds
@@ -597,15 +593,15 @@ class SyntheticControlEstimator(BaseEstimator):
             return None, None
 
         # Calculate p-value and confidence interval
-        permutation_effects_array = np.array(permutation_effects)
+        permutation_effects = np.array(permutation_effects)
 
         # Two-sided confidence interval
         alpha = 0.05  # For 95% CI
         lower_percentile = (alpha / 2) * 100
         upper_percentile = (1 - alpha / 2) * 100
 
-        ci_lower = float(np.percentile(permutation_effects_array, lower_percentile))
-        ci_upper = float(np.percentile(permutation_effects_array, upper_percentile))
+        ci_lower = np.percentile(permutation_effects, lower_percentile)
+        ci_upper = np.percentile(permutation_effects, upper_percentile)
 
         return ci_lower, ci_upper
 
@@ -652,10 +648,7 @@ class SyntheticControlEstimator(BaseEstimator):
         weights = self._optimize_weights(treated_pre_norm, control_pre_norm)
 
         # Calculate synthetic trajectory
-        outcome_df = outcome.values
-        if not isinstance(outcome_df, pd.DataFrame):
-            raise DataValidationError("Outcome must be a DataFrame for panel data")
-        control_trajectories = outcome_df.iloc[
+        control_trajectories = outcome.values.iloc[
             np.where(treatment.values == 0)[0]
         ].values
         synthetic_trajectory = self._calculate_synthetic_trajectory(
@@ -685,9 +678,7 @@ class SyntheticControlEstimator(BaseEstimator):
         Returns:
             SyntheticControlResult with causal effect estimates
         """
-        if (self.weights_ is None or 
-            self.treated_trajectory_ is None or 
-            self.synthetic_trajectory_ is None):
+        if self.weights_ is None or self.treated_trajectory_ is None:
             raise EstimationError("Model must be fitted before estimation")
 
         # Calculate post-intervention effects
