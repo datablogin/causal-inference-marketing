@@ -8,7 +8,7 @@ reduce bias for the parameter of interest.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -507,7 +507,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
+        treatment_values: Union[pd.Series, NDArray[Any]],
         covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs."""
