@@ -475,7 +475,7 @@ class BaseEstimator(abc.ABC):
 
     def __init__(
         self,
-        random_state: Union[int, None] = None,
+        random_state: int | None = None,
         verbose: bool = False,
         bootstrap_config: Union[Any, None] = None,
     ) -> None:
