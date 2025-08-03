@@ -22,7 +22,7 @@ __all__ = [
 ]
 
 
-# Type alias for treatment strategy functions  
+# Type alias for treatment strategy functions
 TreatmentStrategy = Callable[[pd.DataFrame, Union[int, str]], NDArray[Any]]
 
 
