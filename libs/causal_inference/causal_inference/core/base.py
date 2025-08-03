@@ -243,7 +243,9 @@ class CovariateData(BaseModel):
     Represents the covariates used for adjustment in causal inference.
     """
 
-    values: Union[pd.DataFrame, NDArray[Any]] = Field(..., description="Covariate values")
+    values: Union[pd.DataFrame, NDArray[Any]] = Field(
+        ..., description="Covariate values"
+    )
     names: list[str] = Field(
         default_factory=list, description="Names of the covariate variables"
     )
