@@ -258,12 +258,8 @@ class BootstrapResult(BaseModel):
     point_estimate: float = Field(description="Original point estimate")
 
     # Percentile method
-    ci_lower_percentile: Union[float, None] = Field(
-        description="Percentile CI lower bound"
-    )
-    ci_upper_percentile: Union[float, None] = Field(
-        description="Percentile CI upper bound"
-    )
+    ci_lower_percentile: Union[float, None] = Field(description="Percentile CI lower bound")
+    ci_upper_percentile: Union[float, None] = Field(description="Percentile CI upper bound")
 
     # Bias-corrected method
     ci_lower_bias_corrected: Union[float, None] = Field(
@@ -278,15 +274,11 @@ class BootstrapResult(BaseModel):
     ci_upper_bca: Union[float, None] = Field(description="BCa CI upper bound")
 
     # Studentized method
-    ci_lower_studentized: Union[float, None] = Field(
-        description="Studentized CI lower bound"
-    )
-    ci_upper_studentized: Union[float, None] = Field(
-        description="Studentized CI upper bound"
-    )
+    ci_lower_studentized: Union[float, None] = Field(description="Studentized CI lower bound")
+    ci_upper_studentized: Union[float, None] = Field(description="Studentized CI upper bound")
 
     # Bootstrap estimates
-    bootstrap_estimates: Union[NDArray[Any], None] = Field(
+    bootstrap_estimates: NDArray[Any] | None = Field(
         description="Array of bootstrap estimates", default=None
     )
 
@@ -331,7 +323,7 @@ class BootstrapMixin(abc.ABC):
     """
 
     # Class-level thread pool for efficient worker reuse
-    _thread_pool: Union[ThreadPoolExecutor, None] = None
+    _thread_pool: ThreadPoolExecutor | None = None
     _thread_pool_workers: int = 4
 
     @classmethod
@@ -352,7 +344,7 @@ class BootstrapMixin(abc.ABC):
             cls._thread_pool = None
 
     def __init__(
-        self, *args: Any, bootstrap_config: Union[Any, None] = None, **kwargs: Any
+        self, *args: Any, bootstrap_config: Any | None = None, **kwargs: Any
     ) -> None:
         """Initialize bootstrap mixin with configuration."""
         # Handle bootstrap config parameter for super() call
@@ -367,7 +359,7 @@ class BootstrapMixin(abc.ABC):
         elif not isinstance(self.bootstrap_config, BootstrapConfig):
             # Convert if it's not already a BootstrapConfig
             self.bootstrap_config = BootstrapConfig()
-        self._bootstrap_result: Union[BootstrapResult, None] = None
+        self._bootstrap_result: BootstrapResult | None = None
 
         # Enable telemetry if configured
         if self.bootstrap_config.enable_telemetry:
@@ -643,7 +635,7 @@ class BootstrapMixin(abc.ABC):
             print(f"Using chunked bootstrap for {n_obs:,} observations")
 
         # Determine stratification array
-        stratify_by: Union[NDArray[Any], None] = None
+        stratify_by: NDArray[Any] | None = None
         if self.bootstrap_config.stratified and hasattr(
             treatment_data, "treatment_type"
         ):
@@ -696,7 +688,7 @@ class BootstrapMixin(abc.ABC):
         batch_indices: NDArray[Any],
         treatment_data: Any,
         outcome_data: Any,
-        covariate_data: Union[Any, None],
+        covariate_data: Any | None,
     ) -> list[float]:
         """Process a batch of bootstrap indices efficiently.
 
@@ -745,7 +737,7 @@ class BootstrapMixin(abc.ABC):
         bootstrap_indices: NDArray[Any],
         treatment_data: Any,
         outcome_data: Any,
-        covariate_data: Union[Any, None],
+        covariate_data: Any | None,
         sample_idx: int,
     ) -> float:
         """Generate bootstrap estimate from pre-computed indices.
