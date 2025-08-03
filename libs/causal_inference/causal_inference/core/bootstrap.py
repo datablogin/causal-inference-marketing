@@ -45,6 +45,7 @@ References:
     - DiCiccio, T. J. & Efron, B. (1996). "Bootstrap confidence intervals"
     - Davison, A. C. & Hinkley, D. V. (1997). "Bootstrap Methods and their Applications"
 """
+# ruff: noqa: UP007
 
 from __future__ import annotations
 
@@ -52,7 +53,7 @@ import abc
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -146,7 +147,7 @@ class BootstrapConfig(BaseModel):
         default=-1, ge=-1, description="Number of parallel jobs (-1 for all cores)"
     )
 
-    random_state: int | None = Field(
+    random_state: Union[int, None] = Field(
         default=None, description="Random seed for reproducibility"
     )
 
@@ -258,24 +259,24 @@ class BootstrapResult(BaseModel):
     point_estimate: float = Field(description="Original point estimate")
 
     # Percentile method
-    ci_lower_percentile: float | None = Field(description="Percentile CI lower bound")
-    ci_upper_percentile: float | None = Field(description="Percentile CI upper bound")
+    ci_lower_percentile: Union[float, None] = Field(description="Percentile CI lower bound")
+    ci_upper_percentile: Union[float, None] = Field(description="Percentile CI upper bound")
 
     # Bias-corrected method
-    ci_lower_bias_corrected: float | None = Field(
+    ci_lower_bias_corrected: Union[float, None] = Field(
         description="Bias-corrected CI lower bound"
     )
-    ci_upper_bias_corrected: float | None = Field(
+    ci_upper_bias_corrected: Union[float, None] = Field(
         description="Bias-corrected CI upper bound"
     )
 
     # BCa method
-    ci_lower_bca: float | None = Field(description="BCa CI lower bound")
-    ci_upper_bca: float | None = Field(description="BCa CI upper bound")
+    ci_lower_bca: Union[float, None] = Field(description="BCa CI lower bound")
+    ci_upper_bca: Union[float, None] = Field(description="BCa CI upper bound")
 
     # Studentized method
-    ci_lower_studentized: float | None = Field(description="Studentized CI lower bound")
-    ci_upper_studentized: float | None = Field(description="Studentized CI upper bound")
+    ci_lower_studentized: Union[float, None] = Field(description="Studentized CI lower bound")
+    ci_upper_studentized: Union[float, None] = Field(description="Studentized CI upper bound")
 
     # Bootstrap estimates
     bootstrap_estimates: NDArray[Any] | None = Field(
@@ -286,13 +287,13 @@ class BootstrapResult(BaseModel):
     n_successful_samples: int = Field(
         description="Number of successful bootstrap samples"
     )
-    bootstrap_se: float | None = Field(description="Bootstrap standard error")
-    bias_estimate: float | None = Field(description="Estimated bias")
-    acceleration_estimate: float | None = Field(
+    bootstrap_se: Union[float, None] = Field(description="Bootstrap standard error")
+    bias_estimate: Union[float, None] = Field(description="Estimated bias")
+    acceleration_estimate: Union[float, None] = Field(
         description="BCa acceleration parameter"
     )
     converged: bool = Field(description="Whether bootstrap converged")
-    convergence_iteration: int | None = Field(
+    convergence_iteration: Union[int, None] = Field(
         description="Iteration where convergence occurred"
     )
 
@@ -367,7 +368,7 @@ class BootstrapMixin(abc.ABC):
 
     @abc.abstractmethod
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Union[int, None] = None
     ) -> EstimatorProtocol:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -456,7 +457,7 @@ class BootstrapMixin(abc.ABC):
         return bootstrap_indices_array
 
     def _single_bootstrap_sample(
-        self, sample_idx: int, base_random_state: int | None = None
+        self, sample_idx: int, base_random_state: Union[int, None] = None
     ) -> float:
         """Generate a single bootstrap sample estimate.
 
