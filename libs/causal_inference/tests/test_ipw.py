@@ -1,5 +1,7 @@
 """Tests for IPW estimator."""
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -507,7 +509,7 @@ class TestIPWEstimator:
 
         for key in expected_keys:
             assert key in weight_diag
-            assert isinstance(weight_diag[key], int | float)
+            assert isinstance(weight_diag[key], (int, float))
 
         # Check that effective sample size makes sense
         assert (

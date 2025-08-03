@@ -6,6 +6,7 @@ meta-learners for CATE, and survival analysis estimators.
 """
 
 from .aipw import AIPWEstimator
+from .difference_in_differences import DIDResult, DifferenceInDifferencesEstimator
 from .doubly_robust_ml import DoublyRobustMLEstimator
 from .g_computation import GComputationEstimator
 from .g_estimation import GEstimationEstimator
@@ -25,6 +26,8 @@ from .tmle import TMLEEstimator
 
 __all__ = [
     "AIPWEstimator",
+    "DifferenceInDifferencesEstimator",
+    "DIDResult",
     "DoublyRobustMLEstimator",
     "GComputationEstimator",
     "GEstimationEstimator",

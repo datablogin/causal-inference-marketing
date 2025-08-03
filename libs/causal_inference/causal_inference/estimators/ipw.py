@@ -90,7 +90,7 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -136,17 +136,17 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         propensity_model_type: str = "logistic",
-        propensity_model_params: dict[str, Any] | None = None,
-        weight_truncation: str | None = None,
+        propensity_model_params: Union[dict[str, Any], None] = None,
+        weight_truncation: Union[str, None] = None,
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = False,
-        bootstrap_config: Any | None = None,
+        bootstrap_config: Union[Any, None] = None,
         check_overlap: bool = True,
         overlap_threshold: float = 0.1,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the IPW estimator.
@@ -188,17 +188,17 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         self.overlap_threshold = overlap_threshold
 
         # Model storage
-        self.propensity_model: SklearnBaseEstimator | None = None
-        self.propensity_scores: NDArray[Any] | None = None
-        self.weights: NDArray[Any] | None = None
-        self._propensity_features: list[str] | None = None
+        self.propensity_model: Union[SklearnBaseEstimator, None] = None
+        self.propensity_scores: Union[NDArray[Any], None] = None
+        self.weights: Union[NDArray[Any], None] = None
+        self._propensity_features: Union[list[str], None] = None
 
         # Diagnostics
-        self._overlap_diagnostics: dict[str, Any] | None = None
-        self._weight_diagnostics: dict[str, Any] | None = None
+        self._overlap_diagnostics: Union[dict[str, Any], None] = None
+        self._weight_diagnostics: Union[dict[str, Any], None] = None
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Union[int, None] = None
     ) -> IPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -248,7 +248,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             )
 
     def _prepare_propensity_features(
-        self, covariates: CovariateData | None = None
+        self, covariates: Union[CovariateData, None] = None
     ) -> pd.DataFrame:
         """Prepare feature matrix for propensity score estimation.
 
@@ -280,7 +280,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
     def _fit_propensity_model(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit the propensity score model.
 
@@ -589,7 +589,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit the IPW estimator.
 
@@ -774,7 +774,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             diagnostics=diagnostics,
         )
 
-    def get_propensity_scores(self) -> NDArray[Any] | None:
+    def get_propensity_scores(self) -> Union[NDArray[Any], None]:
         """Get the estimated propensity scores.
 
         Returns:
@@ -782,7 +782,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         """
         return self.propensity_scores
 
-    def get_weights(self) -> NDArray[Any] | None:
+    def get_weights(self) -> Union[NDArray[Any], None]:
         """Get the computed IPW weights.
 
         Returns:
@@ -790,7 +790,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         """
         return self.weights
 
-    def get_overlap_diagnostics(self) -> dict[str, Any] | None:
+    def get_overlap_diagnostics(self) -> Union[dict[str, Any], None]:
         """Get overlap assumption diagnostics.
 
         Returns:
@@ -798,7 +798,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         """
         return self._overlap_diagnostics
 
-    def get_weight_diagnostics(self) -> dict[str, Any] | None:
+    def get_weight_diagnostics(self) -> Union[dict[str, Any], None]:
         """Get weight distribution diagnostics.
 
         Returns:
@@ -807,7 +807,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         return self._weight_diagnostics
 
     def predict_propensity_scores(
-        self, covariates: pd.DataFrame | NDArray[Any]
+        self, covariates: Union[pd.DataFrame, NDArray[Any]]
     ) -> NDArray[Any]:
         """Predict propensity scores for new covariate data.
 
@@ -866,7 +866,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    ) -> tuple[Union[float, None], Union[float, None], Union[NDArray[Any], None]]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:

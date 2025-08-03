@@ -1,5 +1,7 @@
 """Tests for meta-learners (T/S/X/R-learner) for CATE estimation."""
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -205,7 +207,7 @@ class TestSLearner:
             slearner = SLearner(base_learner=base_learner)
             slearner.fit(treatment, outcome, covariates)
             result = slearner.estimate_ate()
-            assert isinstance(result.ate, int | float)
+            assert isinstance(result.ate, (int, float))
 
 
 class TestTLearner:

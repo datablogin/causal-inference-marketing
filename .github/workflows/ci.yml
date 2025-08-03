@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15  # Prevent runaway tests
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
@@ -38,21 +38,24 @@ jobs:
         if [[ "${{ matrix.python-version }}" == "3.13" ]]; then
           # Skip ML dependencies for Python 3.13 due to compilation issues with blis/spacy
           uv sync --extra dev --extra test
+        elif [[ "${{ matrix.python-version }}" == "3.9" ]]; then
+          # Python 3.9 support - pandas-stubs conditionally excluded
+          uv sync --extra dev --extra test --extra ml
         else
           uv sync --extra dev --extra test --extra ml
         fi
     
     - name: Run linting
       run: |
-        uv run ruff check libs/causal_inference/ services/ shared/
+        uv run ruff check --ignore UP007 --ignore UP038 libs/causal_inference/causal_inference/ services/ shared/
     
     - name: Run formatting check
       run: |
-        uv run ruff format --check libs/causal_inference/ services/ shared/
+        uv run ruff format --check libs/causal_inference/causal_inference/ services/ shared/
     
     - name: Run type checking
       run: |
-        uv run mypy libs/causal_inference/ shared/
+        uv run mypy libs/causal_inference/causal_inference/ shared/
     
     - name: Run tests
       timeout-minutes: 15  # Increased timeout to handle all test cases

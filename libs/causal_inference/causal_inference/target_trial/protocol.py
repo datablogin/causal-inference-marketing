@@ -6,7 +6,7 @@ randomized trial that would answer the causal question of interest.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator
@@ -15,10 +15,12 @@ from pydantic import BaseModel, Field, field_validator
 class EligibilityCriteria(BaseModel):
     """Eligibility criteria for target trial participants."""
 
-    age_min: int | None = Field(None, description="Minimum age for eligibility")
-    age_max: int | None = Field(None, description="Maximum age for eligibility")
-    baseline_smoker: bool | None = Field(None, description="Smoking status requirement")
-    no_missing_weight: bool | None = Field(
+    age_min: Union[int, None] = Field(None, description="Minimum age for eligibility")
+    age_max: Union[int, None] = Field(None, description="Maximum age for eligibility")
+    baseline_smoker: Union[bool, None] = Field(
+        None, description="Smoking status requirement"
+    )
+    no_missing_weight: Union[bool, None] = Field(
         None, description="Require complete weight data"
     )
     custom_criteria: dict[str, Any] = Field(
@@ -27,7 +29,7 @@ class EligibilityCriteria(BaseModel):
 
     @field_validator("age_min", "age_max")
     @classmethod
-    def validate_age(cls, v: int | None) -> int | None:
+    def validate_age(cls, v: Union[int, None]) -> Union[int, None]:
         """Validate age values are reasonable."""
         if v is not None and (v < 0 or v > 120):
             raise ValueError("Age must be between 0 and 120")
@@ -61,7 +63,7 @@ class EligibilityCriteria(BaseModel):
         # Custom criteria
         for column, criteria in self.custom_criteria.items():
             if column in data.columns:
-                if isinstance(criteria, list | tuple):
+                if isinstance(criteria, (list, tuple)):
                     # Range criteria
                     if len(criteria) == 2:
                         eligible &= (data[column] >= criteria[0]) & (
@@ -192,7 +194,7 @@ class TargetTrialProtocol(BaseModel):
     time_zero_definition: str = Field(
         "baseline", description="Definition of time zero for the trial"
     )
-    grace_period: GracePeriod | None = Field(
+    grace_period: Union[GracePeriod, None] = Field(
         None, description="Grace period for treatment initiation"
     )
 

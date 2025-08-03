@@ -8,7 +8,7 @@ reduce bias for the parameter of interest.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -56,8 +56,8 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
     def __init__(
         self,
-        outcome_learner: SuperLearner | Any = None,
-        propensity_learner: SuperLearner | Any = None,
+        outcome_learner: Union[SuperLearner, Any] = None,
+        propensity_learner: Union[SuperLearner, Any] = None,
         cross_fitting: bool = True,
         cv_folds: int = 5,
         iterative: bool = False,
@@ -65,7 +65,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         convergence_threshold: float = 1e-6,
         targeted_regularization: bool = True,
         stratified: bool = True,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the TMLE estimator.
@@ -119,10 +119,10 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self.outcome_models_: list[Any] = []
         self.propensity_models_: list[Any] = []
         self.targeting_models_: list[LogisticRegression] = []
-        self.initial_outcome_estimates_: NDArray[Any] | None = None
-        self.targeted_outcome_estimates_: NDArray[Any] | None = None
-        self.propensity_scores_: NDArray[Any] | None = None
-        self.efficient_influence_function_: NDArray[Any] | None = None
+        self.initial_outcome_estimates_: Union[NDArray[Any], None] = None
+        self.targeted_outcome_estimates_: Union[NDArray[Any], None] = None
+        self.propensity_scores_: Union[NDArray[Any], None] = None
+        self.efficient_influence_function_: Union[NDArray[Any], None] = None
 
         # Convergence tracking for iterative TMLE
         self.convergence_history_: list[dict[str, float]] = []
@@ -133,7 +133,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit the TMLE estimator to data."""
         if covariates is None:
@@ -158,7 +158,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         X_train: NDArray[Any],
         y_train: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
+        treatment_train: Union[NDArray[Any], None] = None,
     ) -> dict[str, Any]:
         """Fit nuisance parameter models on training data."""
         if treatment_train is None:
@@ -184,7 +184,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         models: dict[str, Any],
         X_val: NDArray[Any],
-        treatment_val: NDArray[Any] | None = None,
+        treatment_val: Union[NDArray[Any], None] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters on validation data."""
         if treatment_val is None:
@@ -507,8 +507,8 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs."""
         if not self.is_fitted:
@@ -568,7 +568,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
         return results
 
-    def get_variable_importance(self) -> pd.DataFrame | None:
+    def get_variable_importance(self) -> Union[pd.DataFrame, None]:
         """Get variable importance from ensemble of learners."""
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted first")
@@ -605,7 +605,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
         return avg_importance
 
-    def get_convergence_info(self) -> dict[str, Any] | None:
+    def get_convergence_info(self) -> Union[dict[str, Any], None]:
         """Get convergence information for iterative TMLE.
 
         Returns:
