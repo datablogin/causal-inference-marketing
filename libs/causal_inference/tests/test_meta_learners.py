@@ -207,7 +207,7 @@ class TestSLearner:
             slearner = SLearner(base_learner=base_learner)
             slearner.fit(treatment, outcome, covariates)
             result = slearner.estimate_ate()
-            assert isinstance(result.ate, int | float)
+            assert isinstance(result.ate, (int, float))  # noqa: UP038
 
 
 class TestTLearner:
@@ -396,7 +396,7 @@ class TestRLearner:
             )
             rlearner.fit(treatment, outcome, covariates)
             result = rlearner.estimate_ate()
-            assert isinstance(result.ate, int | float)
+            assert isinstance(result.ate, (int, float))  # noqa: UP038
 
     @pytest.mark.skip(reason="Test failing - R-learner doesn't raise error as expected")
     def test_rlearner_insufficient_variation(self, synthetic_data):
