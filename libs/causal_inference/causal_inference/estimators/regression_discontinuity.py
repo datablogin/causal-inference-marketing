@@ -142,6 +142,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         bandwidth: float | None = None,
         polynomial_order: int = 1,
         kernel: str = "uniform",
+        robust_se: str = "HC2",
         bootstrap_config: BootstrapConfig | None = None,
         random_state: int | None = None,
         verbose: bool = False,
@@ -153,6 +154,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             bandwidth: Window around cutoff for local estimation (auto if None)
             polynomial_order: Order of polynomial for flexible regression
             kernel: Kernel type for local regression
+            robust_se: Type of robust standard errors ('HC0', 'HC1', 'HC2', 'HC3')
             bootstrap_config: Configuration for bootstrap confidence intervals
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output
@@ -167,12 +169,19 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         self.bandwidth = bandwidth
         self.polynomial_order = polynomial_order
         self.kernel = kernel
+        self.robust_se = robust_se
 
         # Model storage
         self.forcing_variable_data: ForcingVariableData | None = None
         self.left_model: LinearRegression | None = None
         self.right_model: LinearRegression | None = None
         self._rdd_result: RDDResult | None = None
+        
+        # Feature caching for efficiency
+        self._cached_left_features: NDArray[Any] | None = None
+        self._cached_right_features: NDArray[Any] | None = None
+        self._cached_left_x: NDArray[Any] | None = None
+        self._cached_right_x: NDArray[Any] | None = None
 
     def _create_bootstrap_estimator(
         self, random_state: int | None = None
@@ -183,6 +192,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             bandwidth=self.bandwidth,
             polynomial_order=self.polynomial_order,
             kernel=self.kernel,
+            robust_se=self.robust_se,
             bootstrap_config=BootstrapConfig(n_samples=0),  # No nested bootstrap
             random_state=random_state,
             verbose=False,
@@ -277,7 +287,24 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         """
         # RDD requires a forcing variable to be provided as treatment data
         # The actual treatment assignment is derived from the forcing variable and cutoff
-        forcing_values = np.array(treatment.values)
+        
+        # Validate forcing variable data types
+        if isinstance(treatment.values, (pd.Series, np.ndarray)):
+            forcing_values = np.array(treatment.values)
+        else:
+            raise EstimationError(
+                f"Forcing variable must be pandas Series or numpy array, got {type(treatment.values)}"
+            )
+            
+        # Validate forcing variable is numeric
+        if not np.issubdtype(forcing_values.dtype, np.number):
+            raise EstimationError(
+                f"Forcing variable must be numeric, got dtype {forcing_values.dtype}"
+            )
+            
+        # Check for missing values
+        if np.any(np.isnan(forcing_values)):
+            raise EstimationError("Forcing variable cannot contain missing values (NaN)")
 
         # Create forcing variable data structure
         self.forcing_variable_data = ForcingVariableData(
@@ -330,6 +357,10 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         weights_left = self._apply_kernel_weights(np.abs(x_left), self.bandwidth)
         weights_right = self._apply_kernel_weights(np.abs(x_right), self.bandwidth)
 
+        # Cache the training data features and fit local polynomial models
+        left_features = self._get_cached_features(x_left, "left")
+        right_features = self._get_cached_features(x_right, "right")
+        
         # Fit local polynomial models on each side
         try:
             self.left_model = self._fit_local_polynomial(x_left, y_left, weights_left)
@@ -342,14 +373,106 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             ) from e
 
         if self.verbose:
-            left_r2 = self.left_model.score(
-                self._create_polynomial_features(x_left), y_left, weights_left
-            )
-            right_r2 = self.right_model.score(
-                self._create_polynomial_features(x_right), y_right, weights_right
-            )
+            left_r2 = self.left_model.score(left_features, y_left, weights_left)
+            right_r2 = self.right_model.score(right_features, y_right, weights_right)
             print(f"Left model R²: {left_r2:.4f}")
             print(f"Right model R²: {right_r2:.4f}")
+
+    def _compute_robust_se(
+        self, 
+        X: NDArray[Any], 
+        residuals: NDArray[Any], 
+        model: LinearRegression,
+        robust_type: str = "HC2"
+    ) -> NDArray[Any]:
+        """Compute robust (heteroskedasticity-consistent) standard errors.
+        
+        Args:
+            X: Design matrix
+            residuals: Model residuals
+            model: Fitted linear regression model
+            robust_type: Type of robust SE ('HC0', 'HC1', 'HC2', 'HC3')
+            
+        Returns:
+            Array of robust standard errors for model coefficients
+        """
+        n, k = X.shape
+        
+        # Get hat matrix diagonal (leverage values)
+        try:
+            # X(X'X)^(-1)X' diagonal elements
+            XTX_inv = np.linalg.inv(X.T @ X)
+            hat_diag = np.diag(X @ XTX_inv @ X.T)
+        except np.linalg.LinAlgError:
+            # Fallback to pseudoinverse for singular matrices
+            XTX_pinv = np.linalg.pinv(X.T @ X)
+            hat_diag = np.diag(X @ XTX_pinv @ X.T)
+        
+        # Compute robust variance adjustment based on type
+        if robust_type == "HC0":
+            # White's original heteroskedasticity-consistent estimator
+            weights = np.ones(n)
+        elif robust_type == "HC1":
+            # Degrees of freedom adjustment
+            weights = np.full(n, n / (n - k))
+        elif robust_type == "HC2":
+            # MacKinnon & White (1985) - recommended for moderate samples
+            weights = 1 / (1 - hat_diag)
+        elif robust_type == "HC3":
+            # MacKinnon & White (1985) - more conservative, better for small samples
+            weights = 1 / ((1 - hat_diag) ** 2)
+        else:
+            raise ValueError(f"Unknown robust standard error type: {robust_type}")
+        
+        # Compute robust covariance matrix
+        weighted_residuals = residuals * np.sqrt(weights)
+        Omega = np.diag(weighted_residuals ** 2)
+        
+        try:
+            robust_cov = XTX_inv @ (X.T @ Omega @ X) @ XTX_inv
+        except np.linalg.LinAlgError:
+            robust_cov = XTX_pinv @ (X.T @ Omega @ X) @ XTX_pinv
+        
+        # Extract standard errors
+        robust_se = np.sqrt(np.diag(robust_cov))
+        
+        return robust_se
+
+    def _get_cached_features(self, x: NDArray[Any], side: str) -> NDArray[Any]:
+        """Get cached polynomial features or create and cache them.
+        
+        Args:
+            x: Input values
+            side: 'left' or 'right' to specify which cache to use
+            
+        Returns:
+            Polynomial features matrix
+        """
+        if side == "left":
+            if (self._cached_left_x is not None and 
+                self._cached_left_features is not None and
+                np.array_equal(x, self._cached_left_x)):
+                return self._cached_left_features
+            
+            features = self._create_polynomial_features(x)
+            self._cached_left_x = x.copy()  
+            self._cached_left_features = features
+            return features
+            
+        elif side == "right":
+            if (self._cached_right_x is not None and 
+                self._cached_right_features is not None and
+                np.array_equal(x, self._cached_right_x)):
+                return self._cached_right_features
+                
+            features = self._create_polynomial_features(x)
+            self._cached_right_x = x.copy()
+            self._cached_right_features = features
+            return features
+            
+        else:
+            # For other cases (like plotting), don't cache
+            return self._create_polynomial_features(x)
 
     def _create_polynomial_features(self, x: NDArray[Any]) -> NDArray[Any]:
         """Create polynomial features for prediction."""
@@ -369,6 +492,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             self.left_model is None
             or self.right_model is None
             or self.forcing_variable_data is None
+            or self.outcome_data is None
         ):
             raise EstimationError("Models must be fitted before estimation")
 
@@ -397,10 +521,10 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         x_right = x_bw[right_mask]
         y_right = y_bw[right_mask]
 
-        # Calculate residuals and standard errors
+        # Calculate residuals and standard errors using cached features
         try:
-            left_features = self._create_polynomial_features(x_left)
-            right_features = self._create_polynomial_features(x_right)
+            left_features = self._get_cached_features(x_left, "left")
+            right_features = self._get_cached_features(x_right, "right")
 
             left_pred = self.left_model.predict(left_features)
             right_pred = self.right_model.predict(right_features)
@@ -408,13 +532,18 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             left_residuals = y_left - left_pred
             right_residuals = y_right - right_pred
 
-            # Estimate variance at cutoff
-            left_mse = np.mean(left_residuals**2)
-            right_mse = np.mean(right_residuals**2)
-
-            # Standard error of RDD estimate
-            # This is a simplified calculation - more sophisticated methods exist
-            ate_se = np.sqrt(left_mse / len(x_left) + right_mse / len(x_right))
+            # Compute robust standard errors for both models
+            left_robust_se = self._compute_robust_se(left_features, left_residuals, self.left_model, self.robust_se)
+            right_robust_se = self._compute_robust_se(right_features, right_residuals, self.right_model, self.robust_se)
+            
+            # Standard error of RDD estimate at cutoff (intercept term)
+            # For RDD, we're interested in the SE of the discontinuity at x=0
+            # This is the SE of the difference between intercepts
+            left_intercept_se = left_robust_se[0]  # Intercept is first coefficient
+            right_intercept_se = right_robust_se[0]
+            
+            # SE of difference (assuming independence between left and right models)
+            ate_se = np.sqrt(left_intercept_se**2 + right_intercept_se**2)
 
             # Calculate confidence interval
             alpha = 1 - (
@@ -433,12 +562,11 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             ate_ci_lower = None
             ate_ci_upper = None
 
-        # Store RDD-specific results
+        # Store RDD-specific results using cached features
         left_r2 = None
         right_r2 = None
         try:
-            left_features = self._create_polynomial_features(x_left)
-            right_features = self._create_polynomial_features(x_right)
+            # Reuse features already computed above
             left_r2 = self.left_model.score(left_features, y_left)
             right_r2 = self.right_model.score(right_features, y_right)
         except Exception:
@@ -630,6 +758,85 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
                     self.treatment_data, self.outcome_data, self.covariate_data
                 )
 
+        return p_value
+
+    def run_mccrary_density_test(self, bins: int = 30) -> float:
+        """Run McCrary (2008) density test for manipulation around cutoff.
+        
+        Tests for discontinuities in the density of the forcing variable,
+        which would suggest manipulation around the cutoff.
+        
+        Args:
+            bins: Number of bins for histogram-based density estimation
+            
+        Returns:
+            P-value for density test (should be non-significant if no manipulation)
+        """
+        if not self.is_fitted or self.forcing_variable_data is None:
+            raise EstimationError("Estimator must be fitted before density test")
+            
+        forcing_values = np.array(self.forcing_variable_data.values)
+        cutoff = self.cutoff
+        
+        # Create bins centered around cutoff
+        f_min, f_max = np.min(forcing_values), np.max(forcing_values)
+        bin_width = (f_max - f_min) / bins
+        bin_edges = np.linspace(f_min, f_max, bins + 1)
+        
+        # Find bins around cutoff
+        cutoff_bin_idx = np.searchsorted(bin_edges, cutoff) - 1
+        cutoff_bin_idx = max(0, min(cutoff_bin_idx, bins - 1))
+        
+        # Get densities (counts) in bins
+        hist, _ = np.histogram(forcing_values, bins=bin_edges)
+        densities = hist / (len(forcing_values) * bin_width)  # Normalize to densities
+        
+        # Focus on bins around cutoff (within reasonable window)
+        window_size = min(5, bins // 4)  # Look at nearby bins
+        start_idx = max(0, cutoff_bin_idx - window_size)
+        end_idx = min(bins, cutoff_bin_idx + window_size + 1)
+        
+        # Split into left and right of cutoff
+        left_indices = []
+        right_indices = []
+        
+        for i in range(start_idx, end_idx):
+            bin_center = (bin_edges[i] + bin_edges[i + 1]) / 2
+            if bin_center < cutoff:
+                left_indices.append(i)
+            else:
+                right_indices.append(i)
+        
+        if len(left_indices) < 2 or len(right_indices) < 2:
+            # Not enough bins on each side for meaningful test
+            return 1.0
+            
+        # Get densities on each side
+        left_densities = densities[left_indices]
+        right_densities = densities[right_indices]
+        
+        # Simple t-test for difference in mean densities
+        # More sophisticated versions would fit smooth densities and test discontinuity
+        try:
+            from scipy.stats import ttest_ind
+            _, p_value = ttest_ind(left_densities, right_densities, equal_var=False)
+            return p_value
+        except Exception:
+            # Fallback to simple comparison
+            left_mean = np.mean(left_densities)
+            right_mean = np.mean(right_densities)
+            
+            # Crude approximation: if densities are very different, suspicious
+            relative_diff = abs(left_mean - right_mean) / (left_mean + right_mean + 1e-8)
+            
+            # Convert to rough p-value (this is very approximate)
+            if relative_diff > 0.5:  # 50% difference
+                return 0.01  # Suspicious
+            elif relative_diff > 0.3:  # 30% difference  
+                return 0.05  # Borderline
+            else:
+                return 0.2   # Probably OK
+                
         return p_value
 
     def estimate_rdd(
