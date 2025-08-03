@@ -7,7 +7,7 @@ This module provides data models and utilities for handling longitudinal
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 import pandas as pd
 from numpy.typing import NDArray
@@ -20,6 +20,10 @@ __all__ = [
     "TimeVaryingOutcomeData",
     "TimeVaryingCovariateData",
 ]
+
+
+# Type alias for treatment strategy functions
+TreatmentStrategy = Callable[[pd.DataFrame, int | str], NDArray[Any]]
 
 
 class TimeVaryingTreatmentData(BaseModel):
@@ -106,10 +110,6 @@ class TimeVaryingCovariateData(BaseModel):
     )
 
     model_config = {"arbitrary_types_allowed": True}
-
-
-# Type alias for treatment strategy functions
-TreatmentStrategy = Callable[[pd.DataFrame, Union[int, str]], NDArray[Any]]
 
 
 class LongitudinalData(BaseModel):
