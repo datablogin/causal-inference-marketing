@@ -234,7 +234,7 @@ class CausalDataValidator:
                         corr_val = corr_matrix.iloc[i, j]
                         if (
                             pd.notna(corr_val)
-                            and isinstance(corr_val, int | float)
+                            and isinstance(corr_val, (int, float))
                             and corr_val > 0.95
                         ):
                             pair = (corr_matrix.columns[i], corr_matrix.columns[j])
