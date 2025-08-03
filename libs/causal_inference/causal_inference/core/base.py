@@ -41,7 +41,7 @@ class TreatmentData(BaseModel):
     Supports binary, categorical, and continuous treatments.
     """
 
-    values: pd.Series | NDArray[Any] = Field(
+    values: Union[pd.Series, NDArray[Any]] = Field(
         ..., description="Treatment assignment values"
     )
     name: str = Field(default="treatment", description="Name of the treatment variable")
@@ -66,7 +66,7 @@ class TreatmentData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate treatment values are not empty."""
         if len(v) == 0:
             raise ValueError("Treatment values cannot be empty")
@@ -79,7 +79,7 @@ class OutcomeData(BaseModel):
     Represents the outcome variable(s) in a causal inference analysis.
     """
 
-    values: pd.Series | pd.DataFrame | NDArray[Any] = Field(
+    values: Union[pd.Series, pd.DataFrame, NDArray[Any]] = Field(
         ..., description="Outcome values"
     )
     name: str = Field(default="outcome", description="Name of the outcome variable")
@@ -102,8 +102,8 @@ class OutcomeData(BaseModel):
     @field_validator("values")
     @classmethod
     def validate_values(
-        cls, v: pd.Series | pd.DataFrame | NDArray[Any]
-    ) -> pd.Series | pd.DataFrame | NDArray[Any]:
+        cls, v: Union[pd.Series, pd.DataFrame, NDArray[Any]]
+    ) -> Union[pd.Series, pd.DataFrame, NDArray[Any]]:
         """Validate outcome values are not empty."""
         if len(v) == 0:
             raise ValueError("Outcome values cannot be empty")
@@ -117,8 +117,8 @@ class SurvivalOutcomeData(BaseModel):
     for causal survival analysis.
     """
 
-    times: pd.Series | NDArray[Any] = Field(..., description="Event/censoring times")
-    events: pd.Series | NDArray[Any] = Field(
+    times: Union[pd.Series, NDArray[Any]] = Field(..., description="Event/censoring times")
+    events: Union[pd.Series, NDArray[Any]] = Field(
         ..., description="Event indicators (1=event, 0=censored)"
     )
     name: str = Field(default="survival", description="Name of the survival outcome")
@@ -126,7 +126,7 @@ class SurvivalOutcomeData(BaseModel):
         default="time_to_event",
         description="Type of survival outcome: 'time_to_event', 'competing_risks', or 'recurrent_events'",
     )
-    event_types: pd.Series | NDArray[Any] | None = Field(
+    event_types: Union[pd.Series, NDArray[Any], None] = Field(
         default=None,
         description="Event type indicators for competing risks (0=censored, 1=event of interest, 2=competing)",
     )
@@ -145,7 +145,7 @@ class SurvivalOutcomeData(BaseModel):
 
     @field_validator("times")
     @classmethod
-    def validate_times(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_times(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate survival times are positive and not empty."""
         if len(v) == 0:
             raise ValueError("Survival times cannot be empty")
@@ -161,7 +161,7 @@ class SurvivalOutcomeData(BaseModel):
 
     @field_validator("events")
     @classmethod
-    def validate_events(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_events(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate event indicators are binary and not empty."""
         if len(v) == 0:
             raise ValueError("Event indicators cannot be empty")
@@ -235,7 +235,7 @@ class CovariateData(BaseModel):
     Represents the covariates used for adjustment in causal inference.
     """
 
-    values: pd.DataFrame | NDArray[Any] = Field(..., description="Covariate values")
+    values: Union[pd.DataFrame, NDArray[Any]] = Field(..., description="Covariate values")
     names: list[str] = Field(
         default_factory=list, description="Names of the covariate variables"
     )
@@ -245,8 +245,8 @@ class CovariateData(BaseModel):
     @field_validator("values")
     @classmethod
     def validate_values(
-        cls, v: pd.DataFrame | NDArray[Any]
-    ) -> pd.DataFrame | NDArray[Any]:
+        cls, v: Union[pd.DataFrame, NDArray[Any]]
+    ) -> Union[pd.DataFrame, NDArray[Any]]:
         """Validate covariate values are not empty."""
         if len(v) == 0:
             raise ValueError("Covariate values cannot be empty")
@@ -260,7 +260,7 @@ class InstrumentData(BaseModel):
     for addressing unmeasured confounding.
     """
 
-    values: pd.Series | NDArray[Any] = Field(..., description="Instrument values")
+    values: Union[pd.Series, NDArray[Any]] = Field(..., description="Instrument values")
     name: str = Field(
         default="instrument", description="Name of the instrument variable"
     )
@@ -285,7 +285,7 @@ class InstrumentData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: pd.Series | NDArray[Any]) -> pd.Series | NDArray[Any]:
+    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
         """Validate instrument values are not empty."""
         if len(v) == 0:
             raise ValueError("Instrument values cannot be empty")
@@ -451,8 +451,8 @@ class EstimatorProtocol(Protocol):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1)."""
         ...
@@ -617,8 +617,8 @@ class BaseEstimator(abc.ABC):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        treatment_values: Union[pd.Series, NDArray[Any]],
+        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs.
 
