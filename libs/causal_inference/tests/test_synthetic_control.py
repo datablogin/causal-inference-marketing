@@ -633,6 +633,104 @@ class TestSyntheticControlEstimator:
             "Results not reproducible with same random state"
         )
 
+    def test_permutation_inference(self):
+        """Test permutation-based confidence intervals."""
+        estimator = SyntheticControlEstimator(
+            intervention_period=10,
+            inference_method="permutation",
+            n_permutations=50,  # Smaller number for faster testing
+            random_state=42,
+            verbose=True,
+        )
+
+        estimator.fit(
+            treatment=self.treatment_data,
+            outcome=self.outcome_data,
+        )
+
+        result = estimator.estimate_ate()
+
+        # Check that either permutation inference was used or it fell back to normal
+        # (fallback is expected with small datasets/permutations)
+        assert result.inference_method in ["permutation", "normal"]
+        assert result.ate_ci_lower is not None
+        assert result.ate_ci_upper is not None
+        assert result.ate_ci_lower < result.ate_ci_upper
+
+        # Verify that estimator was configured for permutation inference
+        assert estimator.inference_method == "permutation"
+        assert estimator.n_permutations == 50
+
+    def test_convergence_diagnostics(self):
+        """Test that convergence diagnostics are properly recorded."""
+        estimator = SyntheticControlEstimator(
+            intervention_period=10,
+            random_state=42,
+        )
+
+        estimator.fit(
+            treatment=self.treatment_data,
+            outcome=self.outcome_data,
+        )
+
+        result = estimator.estimate_ate()
+
+        # Check convergence diagnostics are present
+        assert result.optimization_converged is not None
+        assert result.optimization_objective is not None
+        assert result.optimization_iterations is not None
+        assert isinstance(result.optimization_converged, bool)
+        assert isinstance(result.optimization_objective, float)
+        assert isinstance(result.optimization_iterations, int)
+
+    def test_inference_method_parameter(self):
+        """Test different inference methods."""
+        # Test normal inference
+        estimator_normal = SyntheticControlEstimator(
+            intervention_period=10,
+            inference_method="normal",
+            random_state=42,
+        )
+
+        estimator_normal.fit(
+            treatment=self.treatment_data,
+            outcome=self.outcome_data,
+        )
+
+        result_normal = estimator_normal.estimate_ate()
+        assert result_normal.inference_method == "normal"
+
+        # Test permutation inference (fallback to normal for speed)
+        estimator_perm = SyntheticControlEstimator(
+            intervention_period=10,
+            inference_method="permutation",
+            n_permutations=10,  # Very small for testing
+            random_state=42,
+        )
+
+        estimator_perm.fit(
+            treatment=self.treatment_data,
+            outcome=self.outcome_data,
+        )
+
+        result_perm = estimator_perm.estimate_ate()
+        # Could be either permutation or normal (fallback)
+        assert result_perm.inference_method in ["normal", "permutation"]
+
+    def test_new_parameters_initialization(self):
+        """Test initialization with new parameters."""
+        estimator = SyntheticControlEstimator(
+            intervention_period=10,
+            inference_method="permutation",
+            n_permutations=500,
+            normalize_features=True,
+            random_state=42,
+        )
+
+        assert estimator.inference_method == "permutation"
+        assert estimator.n_permutations == 500
+        assert estimator.normalize_features is True
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

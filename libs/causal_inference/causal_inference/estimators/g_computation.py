@@ -8,7 +8,7 @@ treatment scenarios.
 from __future__ import annotations
 
 from contextlib import nullcontext
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -53,12 +53,12 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         model_type: str = "auto",
-        model_params: Union[dict[str, Any], None] = None,
-        bootstrap_config: Union[Any, None] = None,
+        model_params: dict[str, Any] | None = None,
+        bootstrap_config: Any | None = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: Union[int, None] = None,
+        random_state: int | None = None,
         verbose: bool = False,
         # Large dataset optimization parameters
         chunk_size: int = 10000,
@@ -102,11 +102,11 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         self.large_dataset_threshold = large_dataset_threshold
 
         # Model storage
-        self.outcome_model: Union[SklearnBaseEstimator, None] = None
-        self._model_features: Union[list[str], None] = None
+        self.outcome_model: SklearnBaseEstimator | None = None
+        self._model_features: list[str] | None = None
 
     def _create_bootstrap_estimator(
-        self, random_state: Union[int, None] = None
+        self, random_state: int | None = None
     ) -> GComputationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -171,7 +171,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
     def _prepare_features(
         self,
         treatment: TreatmentData,
-        covariates: Union[CovariateData, None] = None,
+        covariates: CovariateData | None = None,
     ) -> pd.DataFrame:
         """Prepare feature matrix for model fitting.
 
@@ -211,8 +211,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
     def _prepare_features_efficient(
         self,
         treatment: TreatmentData,
-        covariates: Union[CovariateData, None] = None,
-        n_samples: Union[int, None] = None,
+        covariates: CovariateData | None = None,
+        n_samples: int | None = None,
     ) -> pd.DataFrame:
         """Prepare feature matrix with memory optimizations for large datasets.
 
@@ -256,7 +256,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: Union[CovariateData, None] = None,
+        covariates: CovariateData | None = None,
     ) -> None:
         """Fit the outcome model for G-computation.
 
@@ -339,8 +339,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
     def _predict_counterfactuals(
         self,
-        treatment_value: Union[float, int],
-        covariates: Union[CovariateData, None] = None,
+        treatment_value: float | int,
+        covariates: CovariateData | None = None,
     ) -> NDArray[Any]:
         """Predict counterfactual outcomes for a given treatment value.
 
@@ -381,8 +381,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
     def _predict_counterfactuals_regular(
         self,
-        treatment_value: Union[float, int],
-        covariates: Union[CovariateData, None],
+        treatment_value: float | int,
+        covariates: CovariateData | None,
         n_obs: int,
     ) -> NDArray[Any]:
         """Regular prediction method for smaller datasets."""
@@ -420,8 +420,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
     def _predict_counterfactuals_chunked(
         self,
-        treatment_value: Union[float, int],
-        covariates: Union[CovariateData, None],
+        treatment_value: float | int,
+        covariates: CovariateData | None,
         n_obs: int,
     ) -> NDArray[Any]:
         """Memory-efficient chunked prediction for large datasets.
@@ -629,8 +629,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: Union[pd.Series, NDArray[Any]],
-        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
+        treatment_values: pd.Series | NDArray[Any],
+        covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs.
 
@@ -694,7 +694,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> tuple[Union[float, None], Union[float, None], Union[NDArray[Any], None]]:
+    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:

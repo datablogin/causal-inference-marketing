@@ -4,17 +4,21 @@ This example demonstrates the DID estimator on simulated panel data
 similar to the NHEFS dataset, addressing the requirements from GitHub issue #63.
 """
 
+import sys
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import sys
-from pathlib import Path
-
 # Add the causal_inference package to the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "causal_inference"))
 
-from core.base import CovariateData, OutcomeData, TreatmentData  # type: ignore[import-untyped]
+from core.base import (  # type: ignore[import-untyped]
+    CovariateData,
+    OutcomeData,
+    TreatmentData,
+)
 
 # from core.bootstrap import BootstrapConfig
 from data.nhefs import load_nhefs_data  # type: ignore[import-untyped]

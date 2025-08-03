@@ -48,6 +48,10 @@ class SyntheticControlResult(CausalEffect):
         synthetic_trajectory: NDArray[Any] | None = None,
         control_units: list[Any] | None = None,
         intervention_period: int | None = None,
+        optimization_converged: bool | None = None,
+        optimization_objective: float | None = None,
+        optimization_iterations: int | None = None,
+        inference_method: str = "normal",
         **kwargs: Any,
     ) -> None:
         """Initialize Synthetic Control result.
@@ -63,6 +67,10 @@ class SyntheticControlResult(CausalEffect):
             synthetic_trajectory: Outcome trajectory for synthetic control
             control_units: Names/identifiers of control units
             intervention_period: Time period when intervention occurred
+            optimization_converged: Whether weight optimization converged successfully
+            optimization_objective: Final objective function value from optimization
+            optimization_iterations: Number of optimization iterations performed
+            inference_method: Method used for confidence interval calculation
             **kwargs: Additional fields for parent class
         """
         super().__init__(
@@ -79,6 +87,10 @@ class SyntheticControlResult(CausalEffect):
         self.synthetic_trajectory = synthetic_trajectory
         self.control_units = control_units
         self.intervention_period = intervention_period
+        self.optimization_converged = optimization_converged
+        self.optimization_objective = optimization_objective
+        self.optimization_iterations = optimization_iterations
+        self.inference_method = inference_method
 
     def plot_trajectories(
         self,
@@ -245,6 +257,8 @@ class SyntheticControlEstimator(BaseEstimator):
         optimization_method: str = "SLSQP",
         weight_penalty: float = 0.0,
         normalize_features: bool = True,
+        inference_method: str = "normal",
+        n_permutations: int = 1000,
         random_state: int | None = None,
         verbose: bool = False,
         **kwargs: Any,
@@ -255,7 +269,11 @@ class SyntheticControlEstimator(BaseEstimator):
             intervention_period: Time period when intervention occurred (0-indexed)
             optimization_method: Optimization method for weight calculation
             weight_penalty: L2 penalty on weights to promote sparsity
-            normalize_features: Whether to normalize features before optimization
+            normalize_features: Whether to normalize features before optimization.
+                Features are normalized across time periods (not units) to preserve
+                unit-specific characteristics while standardizing temporal variation.
+            inference_method: Method for confidence intervals ('normal', 'permutation')
+            n_permutations: Number of permutations for permutation-based inference
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output during estimation
             **kwargs: Additional arguments for parent class
@@ -265,6 +283,8 @@ class SyntheticControlEstimator(BaseEstimator):
         self.optimization_method = optimization_method
         self.weight_penalty = weight_penalty
         self.normalize_features = normalize_features
+        self.inference_method = inference_method
+        self.n_permutations = n_permutations
 
         # Fitted attributes
         self.weights_: NDArray[Any] | None = None
@@ -273,6 +293,7 @@ class SyntheticControlEstimator(BaseEstimator):
         self.synthetic_trajectory_: NDArray[Any] | None = None
         self._feature_means: NDArray[Any] | None = None
         self._feature_stds: NDArray[Any] | None = None
+        self._optimization_result: Any | None = None
 
     def _validate_data(
         self,
@@ -425,9 +446,18 @@ class SyntheticControlEstimator(BaseEstimator):
             options={"maxiter": 1000},
         )
 
+        # Store optimization result for diagnostics
+        self._optimization_result = result
+
         if not result.success:
+            warning_msg = (
+                f"Optimization did not converge: {result.message}. "
+                f"Final objective value: {result.fun:.6f}, "
+                f"Iterations: {result.nit}, "
+                f"Status: {result.status}"
+            )
             if self.verbose:
-                print(f"Warning: Optimization did not converge: {result.message}")
+                print(f"Warning: {warning_msg}")
 
         return result.x
 
@@ -462,6 +492,118 @@ class SyntheticControlEstimator(BaseEstimator):
             RMSPE value
         """
         return np.sqrt(mean_squared_error(treated, synthetic))
+
+    def _permutation_inference(
+        self,
+        treatment: TreatmentData,
+        outcome: OutcomeData,
+        ate_observed: float,
+    ) -> tuple[float | None, float | None]:
+        """Perform permutation-based inference for confidence intervals.
+
+        Following Abadie et al. (2010) approach, this method permutes the treatment
+        assignment across control units to generate a null distribution.
+
+        Args:
+            treatment: Treatment assignment data
+            outcome: Outcome variable data
+            ate_observed: Observed ATE to compare against null distribution
+
+        Returns:
+            Tuple of (lower_ci, upper_ci) based on permutation test
+        """
+        if self.random_state is not None:
+            np.random.seed(self.random_state)
+
+        # Get control unit indices
+        treatment_array = (
+            treatment.values.values
+            if isinstance(treatment.values, pd.Series)
+            else np.array(treatment.values)
+        )
+        control_indices = np.where(treatment_array == 0)[0]
+
+        # Store original data
+        outcome_df = outcome.values
+        permutation_effects = []
+
+        for perm in range(self.n_permutations):
+            # Randomly select a control unit to be "treated"
+            if perm == 0:
+                # First permutation uses original treated unit for comparison
+                fake_treated_idx = np.where(treatment_array == 1)[0][0]
+            else:
+                fake_treated_idx = np.random.choice(control_indices)
+
+            # Create fake treatment assignment
+            fake_treatment = np.zeros_like(treatment_array)
+            fake_treatment[fake_treated_idx] = 1
+
+            # Get remaining control units
+            fake_control_indices = np.where(fake_treatment == 0)[0]
+
+            if len(fake_control_indices) < 2:
+                continue  # Need at least 2 control units
+
+            # Extract trajectories
+            fake_treated_trajectory = outcome_df.iloc[fake_treated_idx].values
+            fake_control_trajectories = outcome_df.iloc[fake_control_indices].values
+
+            # Pre-intervention data for weight optimization
+            fake_treated_pre = fake_treated_trajectory[: self.intervention_period]
+            fake_control_pre = fake_control_trajectories[:, : self.intervention_period]
+
+            try:
+                # Optimize weights for this permutation
+                if self.normalize_features and self._feature_means is not None:
+                    fake_control_pre_norm = (
+                        fake_control_pre - self._feature_means
+                    ) / self._feature_stds
+                    fake_treated_pre_norm = (
+                        fake_treated_pre - self._feature_means.flatten()
+                    ) / self._feature_stds.flatten()
+                else:
+                    fake_control_pre_norm = fake_control_pre
+                    fake_treated_pre_norm = fake_treated_pre
+
+                fake_weights = self._optimize_weights(
+                    fake_treated_pre_norm, fake_control_pre_norm
+                )
+
+                # Calculate fake synthetic trajectory
+                fake_synthetic_trajectory = self._calculate_synthetic_trajectory(
+                    fake_weights, fake_control_trajectories
+                )
+
+                # Calculate fake treatment effect
+                fake_post_treated = fake_treated_trajectory[self.intervention_period :]
+                fake_post_synthetic = fake_synthetic_trajectory[
+                    self.intervention_period :
+                ]
+                fake_ate = np.mean(fake_post_treated - fake_post_synthetic)
+                permutation_effects.append(fake_ate)
+
+            except Exception:
+                # Skip failed optimizations
+                continue
+
+        if len(permutation_effects) < 100:  # Minimum for reasonable inference
+            if self.verbose:
+                print("Warning: Too few successful permutations for reliable inference")
+            return None, None
+
+        # Calculate p-value and confidence interval
+        permutation_effects = np.array(permutation_effects)
+
+        # Two-sided confidence interval
+        alpha = 0.05  # For 95% CI
+        lower_percentile = (alpha / 2) * 100
+        upper_percentile = (1 - alpha / 2) * 100
+
+        ci_lower = np.percentile(permutation_effects, lower_percentile)
+        ci_upper = np.percentile(permutation_effects, upper_percentile)
+
+        return ci_lower, ci_upper
 
     def _fit_implementation(
         self,
@@ -554,10 +696,49 @@ class SyntheticControlEstimator(BaseEstimator):
         )
         rmspe_post = self._calculate_rmspe(post_treated, post_synthetic)
 
-        # Simple confidence interval (could be improved with bootstrap/permutation)
-        ate_se = np.std(post_effects) / np.sqrt(len(post_effects))
-        ate_ci_lower = ate - 1.96 * ate_se
-        ate_ci_upper = ate + 1.96 * ate_se
+        # Calculate confidence intervals based on inference method
+        if self.inference_method == "permutation":
+            if self.verbose:
+                print(
+                    f"Computing permutation-based confidence intervals with {self.n_permutations} permutations..."
+                )
+
+            if self.treatment_data is not None and self.outcome_data is not None:
+                ate_ci_lower, ate_ci_upper = self._permutation_inference(
+                    self.treatment_data, self.outcome_data, ate
+                )
+            else:
+                ate_ci_lower, ate_ci_upper = None, None
+
+            # Fallback to normal approximation if permutation fails
+            if ate_ci_lower is None or ate_ci_upper is None:
+                if self.verbose:
+                    print(
+                        "Permutation inference failed, falling back to normal approximation"
+                    )
+                ate_se = np.std(post_effects) / np.sqrt(len(post_effects))
+                ate_ci_lower = ate - 1.96 * ate_se
+                ate_ci_upper = ate + 1.96 * ate_se
+                inference_method = "normal"
+            else:
+                inference_method = "permutation"
+        else:
+            # Normal approximation (default)
+            ate_se = np.std(post_effects) / np.sqrt(len(post_effects))
+            ate_ci_lower = ate - 1.96 * ate_se
+            ate_ci_upper = ate + 1.96 * ate_se
+            inference_method = "normal"
+
+        # Extract optimization diagnostics
+        optimization_converged = (
+            self._optimization_result.success if self._optimization_result else None
+        )
+        optimization_objective = (
+            self._optimization_result.fun if self._optimization_result else None
+        )
+        optimization_iterations = (
+            self._optimization_result.nit if self._optimization_result else None
+        )
 
         return SyntheticControlResult(
             ate=ate,
@@ -570,6 +751,10 @@ class SyntheticControlEstimator(BaseEstimator):
             synthetic_trajectory=self.synthetic_trajectory_,
             control_units=self.control_units_,
             intervention_period=self.intervention_period,
+            optimization_converged=optimization_converged,
+            optimization_objective=optimization_objective,
+            optimization_iterations=optimization_iterations,
+            inference_method=inference_method,
             n_observations=len(self.treated_trajectory_),
         )
 
