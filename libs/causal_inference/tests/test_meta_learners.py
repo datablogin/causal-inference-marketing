@@ -207,7 +207,7 @@ class TestSLearner:
             slearner = SLearner(base_learner=base_learner)
             slearner.fit(treatment, outcome, covariates)
             result = slearner.estimate_ate()
-            assert isinstance(result.ate, int | float)
+            assert isinstance(result.ate, (int, float))
 
 
 class TestTLearner:
