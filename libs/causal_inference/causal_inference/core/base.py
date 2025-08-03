@@ -243,7 +243,7 @@ class CovariateData(BaseModel):
     Represents the covariates used for adjustment in causal inference.
     """
 
-    values: pd.DataFrame | NDArray[Any] = Field(..., description="Covariate values")
+    values: Union[pd.DataFrame, NDArray[Any]] = Field(..., description="Covariate values")
     names: list[str] = Field(
         default_factory=list, description="Names of the covariate variables"
     )
@@ -253,8 +253,8 @@ class CovariateData(BaseModel):
     @field_validator("values")
     @classmethod
     def validate_values(
-        cls, v: pd.DataFrame | NDArray[Any]
-    ) -> pd.DataFrame | NDArray[Any]:
+        cls, v: Union[pd.DataFrame, NDArray[Any]]
+    ) -> Union[pd.DataFrame, NDArray[Any]]:
         """Validate covariate values are not empty."""
         if len(v) == 0:
             raise ValueError("Covariate values cannot be empty")
