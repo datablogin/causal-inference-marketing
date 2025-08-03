@@ -115,11 +115,11 @@ class CausalDataValidator:
         if isinstance(outcome.values, pd.Series):
             missing_count = outcome.values.isnull().sum()
             total_count = len(outcome.values)
-            values = outcome.values.dropna().values
+            values = np.asarray(outcome.values.dropna().values)
         else:
             missing_count = np.isnan(outcome.values).sum()
             total_count = len(outcome.values)
-            values = outcome.values[~np.isnan(outcome.values)]
+            values = np.asarray(outcome.values[~np.isnan(outcome.values)])
 
         if missing_count > 0:
             pct_missing = 100 * missing_count / total_count
@@ -234,7 +234,7 @@ class CausalDataValidator:
                         corr_val = corr_matrix.iloc[i, j]
                         if (
                             pd.notna(corr_val)
-                            and isinstance(corr_val, (int, float))
+                            and isinstance(corr_val, (int, float))  # noqa: UP038
                             and corr_val > 0.95
                         ):
                             pair = (corr_matrix.columns[i], corr_matrix.columns[j])

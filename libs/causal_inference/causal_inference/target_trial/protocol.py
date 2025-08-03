@@ -3,6 +3,7 @@
 This module implements the TargetTrialProtocol class for specifying the hypothetical
 randomized trial that would answer the causal question of interest.
 """
+# ruff: noqa: UP007, UP038
 
 from __future__ import annotations
 
@@ -63,7 +64,7 @@ class EligibilityCriteria(BaseModel):
         # Custom criteria
         for column, criteria in self.custom_criteria.items():
             if column in data.columns:
-                if isinstance(criteria, (list, tuple)):
+                if isinstance(criteria, (list, tuple)):  # noqa: UP038
                     # Range criteria
                     if len(criteria) == 2:
                         eligible &= (data[column] >= criteria[0]) & (

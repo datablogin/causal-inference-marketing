@@ -428,7 +428,7 @@ class TestDIDEstimator:
         assert "post_treatment" in summary["differences"]
 
         # DID estimate should be present and numeric
-        assert isinstance(summary["did_estimate"], (int, float))
+        assert isinstance(summary["did_estimate"], (int, float))  # noqa: UP038
 
     def test_predict_counterfactual(self):
         """Test counterfactual prediction functionality."""

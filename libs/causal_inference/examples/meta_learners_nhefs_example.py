@@ -5,6 +5,8 @@ to estimate conditional average treatment effects (CATE) in the NHEFS dataset,
 analyzing the effect of smoking cessation on weight gain.
 """
 
+import sys
+from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -15,18 +17,15 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 
-import sys
-from pathlib import Path
-
 # Add the causal_inference package to the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "causal_inference"))
 
-from core.base import (  # type: ignore[import-untyped]
+from causal_inference.core.base import (  # type: ignore[import-untyped]
     CovariateData,
     OutcomeData,
     TreatmentData,
 )
-from estimators.meta_learners import (  # type: ignore[import-untyped]
+from causal_inference.estimators.meta_learners import (  # type: ignore[import-untyped]
     RLearner,
     SLearner,
     TLearner,

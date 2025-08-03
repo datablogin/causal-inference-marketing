@@ -630,7 +630,8 @@ class TargetTrialEmulator:
         if n_unique == 2:
             return "binary"
         elif n_unique <= 10 and all(
-            isinstance(x, (int, float)) and x == int(x) for x in unique_values
+            isinstance(x, (int, float)) and x == int(x)  # noqa: UP038
+            for x in unique_values
         ):
             return "categorical"
         elif treatment_series.dtype in ["int64", "float64"]:

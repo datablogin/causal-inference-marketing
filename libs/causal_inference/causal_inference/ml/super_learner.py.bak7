@@ -4,7 +4,7 @@ The Super Learner is an ensemble method that optimally combines multiple
 machine learning algorithms using cross-validation to achieve the best
 possible prediction performance.
 """
-# ruff: noqa: N803, UP007, UP038
+# ruff: noqa: N803
 
 from __future__ import annotations
 
@@ -160,10 +160,10 @@ class SuperLearner:
         self.fitted_learners_: dict[str, BaseEstimator] = {}
         self.meta_learner_: Union[BaseEstimator, None] = None
         self.scaler_: Union[StandardScaler, None] = None
-        self.cv_predictions_: Union[NDArray[Any], None] = None
+        self.cv_predictions_: NDArray[Any] | None = None
         self.learner_performance_: dict[str, float] = {}
         self.ensemble_performance_: dict[str, float] = {}
-        self.feature_importance_: Union[NDArray[Any], None] = None
+        self.feature_importance_: NDArray[Any] | None = None
 
     def _get_predefined_learners(
         self, learner_names: list[str]
@@ -253,7 +253,7 @@ class SuperLearner:
             )
 
     def _get_cv_predictions(
-        self, X: Union[NDArray[Any], pd.DataFrame], y: Union[NDArray[Any], pd.Series]
+        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
     ) -> dict[str, NDArray[Any]]:
         """Get cross-validation predictions for each base learner."""
         # Ensure X and y are numpy arrays
@@ -381,7 +381,7 @@ class SuperLearner:
         self.cv_predictions_ = stacked_preds
 
     def fit(
-        self, X: Union[NDArray[Any], pd.DataFrame], y: Union[NDArray[Any], pd.Series]
+        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
     ) -> SuperLearner:
         """Fit the Super Learner ensemble.
 
@@ -496,7 +496,7 @@ class SuperLearner:
 
         return self
 
-    def predict(self, X: Union[NDArray[Any], pd.DataFrame]) -> NDArray[Any]:
+    def predict(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
         """Make predictions using the fitted Super Learner.
 
         Args:
@@ -552,7 +552,7 @@ class SuperLearner:
         else:
             raise ValueError("Meta learner not fitted")
 
-    def predict_proba(self, X: Union[NDArray[Any], pd.DataFrame]) -> NDArray[Any]:
+    def predict_proba(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
         """Make probability predictions for classification tasks.
 
         Args:
@@ -587,7 +587,7 @@ class SuperLearner:
             raise ValueError("SuperLearner must be fitted first")
         return self.ensemble_performance_.copy()
 
-    def get_learner_weights(self) -> Union[dict[str, float], None]:
+    def get_learner_weights(self) -> dict[str, float] | None:
         """Get weights assigned to each base learner by the meta-learner."""
         if not self.is_fitted:
             raise ValueError("SuperLearner must be fitted first")
@@ -615,8 +615,8 @@ class SuperLearner:
         return None
 
     def get_variable_importance(
-        self, X: Union[NDArray[Any], pd.DataFrame, None] = None
-    ) -> Union[pd.DataFrame, None]:
+        self, X: NDArray[Any] | pd.DataFrame | None = None
+    ) -> pd.DataFrame | None:
         """Get feature importance from ensemble of base learners.
 
         Args:

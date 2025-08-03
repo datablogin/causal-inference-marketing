@@ -3,11 +3,14 @@
 This module provides data models and utilities for handling longitudinal
 (panel) data with time-varying treatments, outcomes, and confounders.
 """
+# ruff: noqa: UP007, UP035, I001
 
 from __future__ import annotations
 
-from collections.abc import Callable
+# Use typing_extensions for Python 3.9 compatibility
 from typing import Any, Union
+from typing_extensions import TypeAlias
+from collections.abc import Callable
 
 import pandas as pd
 from numpy.typing import NDArray
@@ -20,6 +23,10 @@ __all__ = [
     "TimeVaryingOutcomeData",
     "TimeVaryingCovariateData",
 ]
+
+
+# Type alias for treatment strategy functions
+TreatmentStrategy: TypeAlias = Callable[[pd.DataFrame, Union[int, str]], NDArray[Any]]
 
 
 class TimeVaryingTreatmentData(BaseModel):
@@ -106,10 +113,6 @@ class TimeVaryingCovariateData(BaseModel):
     )
 
     model_config = {"arbitrary_types_allowed": True}
-
-
-# Type alias for treatment strategy functions
-TreatmentStrategy = Callable[[pd.DataFrame, Union[int, str]], NDArray[Any]]
 
 
 class LongitudinalData(BaseModel):
@@ -290,7 +293,7 @@ class LongitudinalData(BaseModel):
         return result_data
 
     def check_sequential_exchangeability(
-        self, treatment_col: Union[str, None] = None
+        self, treatment_col: str | None = None
     ) -> dict[str, Any]:
         """Check indicators of sequential exchangeability assumption.
 
@@ -352,7 +355,7 @@ class LongitudinalData(BaseModel):
         return results
 
     def test_treatment_confounder_feedback(
-        self, treatment_col: Union[str, None] = None
+        self, treatment_col: str | None = None
     ) -> dict[str, Any]:
         """Test for treatment-confounder feedback.
 

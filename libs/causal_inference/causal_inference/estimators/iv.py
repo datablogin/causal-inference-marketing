@@ -16,7 +16,7 @@ The IV estimator provides:
 from __future__ import annotations
 
 import warnings
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -67,7 +67,7 @@ class IVEstimator(BaseEstimator):
         weak_instrument_threshold: float = 10.0,
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: Union[int, None] = None,
+        random_state: int | None = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the IV estimator.
@@ -93,17 +93,17 @@ class IVEstimator(BaseEstimator):
         self.confidence_level = confidence_level
 
         # Internal state
-        self._first_stage_fitted_model: Union[SklearnBaseEstimator, None] = None
-        self._second_stage_fitted_model: Union[SklearnBaseEstimator, None] = None
-        self._instrument_data: Union[InstrumentData, None] = None
-        self._first_stage_predictions: Union[NDArray[Any], None] = None
-        self._weak_instrument_test_results: Union[dict[str, Any], None] = None
+        self._first_stage_fitted_model: SklearnBaseEstimator | None = None
+        self._second_stage_fitted_model: SklearnBaseEstimator | None = None
+        self._instrument_data: InstrumentData | None = None
+        self._first_stage_predictions: NDArray[Any] | None = None
+        self._weak_instrument_test_results: dict[str, Any] | None = None
 
     def _validate_iv_inputs(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: Union[CovariateData, None],
+        covariates: CovariateData | None,
         instrument: InstrumentData,
     ) -> None:
         """Validate input data for IV estimation."""
@@ -166,7 +166,7 @@ class IVEstimator(BaseEstimator):
     def _prepare_design_matrix(
         self,
         instrument: InstrumentData,
-        covariates: Union[CovariateData, None],
+        covariates: CovariateData | None,
     ) -> NDArray[Any]:
         """Prepare design matrix for first stage regression."""
         # Start with instrument
@@ -189,7 +189,7 @@ class IVEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         instrument: InstrumentData,
-        covariates: Union[CovariateData, None],
+        covariates: CovariateData | None,
     ) -> tuple[SklearnBaseEstimator, NDArray[Any]]:
         """Fit first stage regression: treatment ~ instrument + covariates."""
         # Prepare design matrix
@@ -218,7 +218,7 @@ class IVEstimator(BaseEstimator):
         self,
         outcome: OutcomeData,
         predicted_treatment: NDArray[Any],
-        covariates: Union[CovariateData, None],
+        covariates: CovariateData | None,
     ) -> SklearnBaseEstimator:
         """Fit second stage regression: outcome ~ predicted_treatment + covariates."""
         # Start with predicted treatment
@@ -248,7 +248,7 @@ class IVEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         instrument: InstrumentData,
-        covariates: Union[CovariateData, None],
+        covariates: CovariateData | None,
     ) -> dict[str, Any]:
         """Compute F-statistic for weak instrument test."""
         # Prepare data
@@ -345,8 +345,8 @@ class IVEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: Union[CovariateData, None] = None,
-        instrument: Union[InstrumentData, None] = None,
+        covariates: CovariateData | None = None,
+        instrument: InstrumentData | None = None,
     ) -> None:
         """Fit the IV estimator using Two-Stage Least Squares."""
         if instrument is None:
@@ -712,8 +712,8 @@ class IVEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: Union[CovariateData, None] = None,
-        instrument: Union[InstrumentData, None] = None,
+        covariates: CovariateData | None = None,
+        instrument: InstrumentData | None = None,
     ) -> IVEstimator:
         """Fit the IV estimator to data.
 
@@ -789,8 +789,8 @@ class IVEstimator(BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: Union[pd.Series, NDArray[Any]],
-        covariates: Union[pd.DataFrame, NDArray[Any], None] = None,
+        treatment_values: pd.Series | NDArray[Any],
+        covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1).
 

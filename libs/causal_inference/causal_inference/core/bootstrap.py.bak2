@@ -45,7 +45,6 @@ References:
     - DiCiccio, T. J. & Efron, B. (1996). "Bootstrap confidence intervals"
     - Davison, A. C. & Hinkley, D. V. (1997). "Bootstrap Methods and their Applications"
 """
-# ruff: noqa: UP007
 
 from __future__ import annotations
 
@@ -259,35 +258,27 @@ class BootstrapResult(BaseModel):
     point_estimate: float = Field(description="Original point estimate")
 
     # Percentile method
-    ci_lower_percentile: Union[float, None] = Field(
-        description="Percentile CI lower bound"
-    )
-    ci_upper_percentile: Union[float, None] = Field(
-        description="Percentile CI upper bound"
-    )
+    ci_lower_percentile: float | None = Field(description="Percentile CI lower bound")
+    ci_upper_percentile: float | None = Field(description="Percentile CI upper bound")
 
     # Bias-corrected method
-    ci_lower_bias_corrected: Union[float, None] = Field(
+    ci_lower_bias_corrected: float | None = Field(
         description="Bias-corrected CI lower bound"
     )
-    ci_upper_bias_corrected: Union[float, None] = Field(
+    ci_upper_bias_corrected: float | None = Field(
         description="Bias-corrected CI upper bound"
     )
 
     # BCa method
-    ci_lower_bca: Union[float, None] = Field(description="BCa CI lower bound")
-    ci_upper_bca: Union[float, None] = Field(description="BCa CI upper bound")
+    ci_lower_bca: float | None = Field(description="BCa CI lower bound")
+    ci_upper_bca: float | None = Field(description="BCa CI upper bound")
 
     # Studentized method
-    ci_lower_studentized: Union[float, None] = Field(
-        description="Studentized CI lower bound"
-    )
-    ci_upper_studentized: Union[float, None] = Field(
-        description="Studentized CI upper bound"
-    )
+    ci_lower_studentized: float | None = Field(description="Studentized CI lower bound")
+    ci_upper_studentized: float | None = Field(description="Studentized CI upper bound")
 
     # Bootstrap estimates
-    bootstrap_estimates: Union[NDArray[Any], None] = Field(
+    bootstrap_estimates: NDArray[Any] | None = Field(
         description="Array of bootstrap estimates", default=None
     )
 
@@ -295,9 +286,9 @@ class BootstrapResult(BaseModel):
     n_successful_samples: int = Field(
         description="Number of successful bootstrap samples"
     )
-    bootstrap_se: Union[float, None] = Field(description="Bootstrap standard error")
-    bias_estimate: Union[float, None] = Field(description="Estimated bias")
-    acceleration_estimate: Union[float, None] = Field(
+    bootstrap_se: float | None = Field(description="Bootstrap standard error")
+    bias_estimate: float | None = Field(description="Estimated bias")
+    acceleration_estimate: float | None = Field(
         description="BCa acceleration parameter"
     )
     converged: bool = Field(description="Whether bootstrap converged")
@@ -644,7 +635,7 @@ class BootstrapMixin(abc.ABC):
             print(f"Using chunked bootstrap for {n_obs:,} observations")
 
         # Determine stratification array
-        stratify_by: Union[NDArray[Any], None] = None
+        stratify_by: NDArray[Any] | None = None
         if self.bootstrap_config.stratified and hasattr(
             treatment_data, "treatment_type"
         ):

@@ -5,9 +5,10 @@ the exchangeability assumption critical for causal inference.
 """
 
 from __future__ import annotations
+# ruff: noqa: UP007
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -54,7 +55,7 @@ class AssumptionResults:
     exchangeability_likely: bool
     confounding_detected: bool
     confounding_strength: dict[str, float]
-    backdoor_criterion_met: bool | None
+    backdoor_criterion_met: Union[bool, None]
     collider_bias_risk: bool
     selection_bias_indicators: list[str]
     outcome_predictors: dict[str, float]
