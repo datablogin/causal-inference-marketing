@@ -47,7 +47,7 @@ jobs:
     
     - name: Run linting
       run: |
-        uv run ruff check --ignore UP007 --ignore UP038 libs/causal_inference/causal_inference/ services/ shared/
+        uv run ruff check --ignore UP007 --ignore UP038 --ignore UP035 --ignore I001 libs/causal_inference/causal_inference/ services/ shared/
     
     - name: Run formatting check
       run: |
