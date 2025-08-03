@@ -3,10 +3,11 @@
 This module implements the TargetTrialProtocol class for specifying the hypothetical
 randomized trial that would answer the causal question of interest.
 """
+# ruff: noqa: UP007, UP038
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator
@@ -15,8 +16,8 @@ from pydantic import BaseModel, Field, field_validator
 class EligibilityCriteria(BaseModel):
     """Eligibility criteria for target trial participants."""
 
-    age_min: int | None = Field(None, description="Minimum age for eligibility")
-    age_max: int | None = Field(None, description="Maximum age for eligibility")
+    age_min: Union[int, None] = Field(None, description="Minimum age for eligibility")
+    age_max: Union[int, None] = Field(None, description="Maximum age for eligibility")
     baseline_smoker: bool | None = Field(None, description="Smoking status requirement")
     no_missing_weight: bool | None = Field(
         None, description="Require complete weight data"
@@ -27,7 +28,7 @@ class EligibilityCriteria(BaseModel):
 
     @field_validator("age_min", "age_max")
     @classmethod
-    def validate_age(cls, v: int | None) -> int | None:
+    def validate_age(cls, v: Union[int, None]) -> Union[int, None]:
         """Validate age values are reasonable."""
         if v is not None and (v < 0 or v > 120):
             raise ValueError("Age must be between 0 and 120")
