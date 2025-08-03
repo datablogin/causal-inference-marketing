@@ -7,7 +7,7 @@ optimization over weights to create synthetic controls.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -39,18 +39,18 @@ class SyntheticControlResult(CausalEffect):
     def __init__(
         self,
         ate: float,
-        ate_ci_lower: float | None = None,
-        ate_ci_upper: float | None = None,
-        weights: NDArray[Any] | None = None,
-        rmspe_pre: float | None = None,
-        rmspe_post: float | None = None,
-        treated_trajectory: NDArray[Any] | None = None,
-        synthetic_trajectory: NDArray[Any] | None = None,
-        control_units: list[Any] | None = None,
-        intervention_period: int | None = None,
-        optimization_converged: bool | None = None,
-        optimization_objective: float | None = None,
-        optimization_iterations: int | None = None,
+        ate_ci_lower: Union[float, None] = None,
+        ate_ci_upper: Union[float, None] = None,
+        weights: Union[NDArray[Any], None] = None,
+        rmspe_pre: Union[float, None] = None,
+        rmspe_post: Union[float, None] = None,
+        treated_trajectory: Union[NDArray[Any], None] = None,
+        synthetic_trajectory: Union[NDArray[Any], None] = None,
+        control_units: Union[list[Any], None] = None,
+        intervention_period: Union[int, None] = None,
+        optimization_converged: Union[bool, None] = None,
+        optimization_objective: Union[float, None] = None,
+        optimization_iterations: Union[int, None] = None,
         inference_method: str = "normal",
         **kwargs: Any,
     ) -> None:
@@ -94,7 +94,7 @@ class SyntheticControlResult(CausalEffect):
 
     def plot_trajectories(
         self,
-        ax: Any | None = None,
+        ax: Union[Any, None] = None,
         figsize: tuple[int, int] = (12, 8),
         show_intervention: bool = True,
     ) -> Any:
@@ -176,9 +176,9 @@ class SyntheticControlResult(CausalEffect):
 
     def plot_weights(
         self,
-        ax: Any | None = None,
+        ax: Union[Any, None] = None,
         figsize: tuple[int, int] = (10, 6),
-        top_n: int | None = None,
+        top_n: Union[int, None] = None,
     ) -> Any:
         """Plot weights assigned to control units.
 
@@ -259,7 +259,7 @@ class SyntheticControlEstimator(BaseEstimator):
         normalize_features: bool = True,
         inference_method: str = "normal",
         n_permutations: int = 1000,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -287,19 +287,19 @@ class SyntheticControlEstimator(BaseEstimator):
         self.n_permutations = n_permutations
 
         # Fitted attributes
-        self.weights_: NDArray[Any] | None = None
-        self.control_units_: list[Any] | None = None
-        self.treated_trajectory_: NDArray[Any] | None = None
-        self.synthetic_trajectory_: NDArray[Any] | None = None
-        self._feature_means: NDArray[Any] | None = None
-        self._feature_stds: NDArray[Any] | None = None
-        self._optimization_result: Any | None = None
+        self.weights_: Union[NDArray[Any], None] = None
+        self.control_units_: Union[list[Any], None] = None
+        self.treated_trajectory_: Union[NDArray[Any], None] = None
+        self.synthetic_trajectory_: Union[NDArray[Any], None] = None
+        self._feature_means: Union[NDArray[Any], None] = None
+        self._feature_stds: Union[NDArray[Any], None] = None
+        self._optimization_result: Union[Any, None] = None
 
     def _validate_data(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Validate input data for synthetic control analysis.
 
@@ -362,7 +362,7 @@ class SyntheticControlEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any], list[Any]]:
         """Prepare data for synthetic control analysis.
 
@@ -421,11 +421,11 @@ class SyntheticControlEstimator(BaseEstimator):
         def objective(weights: NDArray[Any]) -> float:
             """Objective function to minimize: squared prediction error."""
             synthetic_pre = np.dot(weights, control_pre)
-            mse = np.mean((treated_pre - synthetic_pre) ** 2)
+            mse = float(np.mean((treated_pre - synthetic_pre) ** 2))
 
             # Add L2 penalty on weights if specified
             if self.weight_penalty > 0:
-                mse += self.weight_penalty * np.sum(weights**2)
+                mse += float(self.weight_penalty * np.sum(weights**2))
 
             return mse
 
@@ -475,7 +475,7 @@ class SyntheticControlEstimator(BaseEstimator):
         Returns:
             Synthetic control trajectory
         """
-        return np.dot(weights, control_trajectories)
+        return np.asarray(np.dot(weights, control_trajectories))
 
     def _calculate_rmspe(
         self,
@@ -491,14 +491,14 @@ class SyntheticControlEstimator(BaseEstimator):
         Returns:
             RMSPE value
         """
-        return np.sqrt(mean_squared_error(treated, synthetic))
+        return float(np.sqrt(mean_squared_error(treated, synthetic)))
 
     def _permutation_inference(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
         ate_observed: float,
-    ) -> tuple[float | None, float | None]:
+    ) -> tuple[Union[float, None], Union[float, None]]:
         """Perform permutation-based inference for confidence intervals.
 
         Following Abadie et al. (2010) approach, this method permutes the treatment
@@ -525,7 +525,9 @@ class SyntheticControlEstimator(BaseEstimator):
 
         # Store original data
         outcome_df = outcome.values
-        permutation_effects = []
+        if not isinstance(outcome_df, pd.DataFrame):
+            raise ValueError("Outcome data must be a DataFrame for permutation inference")
+        permutation_effects: list[float] = []
 
         for perm in range(self.n_permutations):
             # Randomly select a control unit to be "treated"
@@ -555,7 +557,9 @@ class SyntheticControlEstimator(BaseEstimator):
 
             try:
                 # Optimize weights for this permutation
-                if self.normalize_features and self._feature_means is not None:
+                if (self.normalize_features and 
+                    self._feature_means is not None and 
+                    self._feature_stds is not None):
                     fake_control_pre_norm = (
                         fake_control_pre - self._feature_means
                     ) / self._feature_stds
@@ -593,15 +597,15 @@ class SyntheticControlEstimator(BaseEstimator):
             return None, None
 
         # Calculate p-value and confidence interval
-        permutation_effects = np.array(permutation_effects)
+        permutation_effects_array = np.array(permutation_effects)
 
         # Two-sided confidence interval
         alpha = 0.05  # For 95% CI
         lower_percentile = (alpha / 2) * 100
         upper_percentile = (1 - alpha / 2) * 100
 
-        ci_lower = np.percentile(permutation_effects, lower_percentile)
-        ci_upper = np.percentile(permutation_effects, upper_percentile)
+        ci_lower = float(np.percentile(permutation_effects_array, lower_percentile))
+        ci_upper = float(np.percentile(permutation_effects_array, upper_percentile))
 
         return ci_lower, ci_upper
 
@@ -609,7 +613,7 @@ class SyntheticControlEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Fit the Synthetic Control estimator.
 
@@ -648,7 +652,10 @@ class SyntheticControlEstimator(BaseEstimator):
         weights = self._optimize_weights(treated_pre_norm, control_pre_norm)
 
         # Calculate synthetic trajectory
-        control_trajectories = outcome.values.iloc[
+        outcome_df = outcome.values
+        if not isinstance(outcome_df, pd.DataFrame):
+            raise DataValidationError("Outcome must be a DataFrame for panel data")
+        control_trajectories = outcome_df.iloc[
             np.where(treatment.values == 0)[0]
         ].values
         synthetic_trajectory = self._calculate_synthetic_trajectory(
@@ -678,7 +685,9 @@ class SyntheticControlEstimator(BaseEstimator):
         Returns:
             SyntheticControlResult with causal effect estimates
         """
-        if self.weights_ is None or self.treated_trajectory_ is None:
+        if (self.weights_ is None or 
+            self.treated_trajectory_ is None or 
+            self.synthetic_trajectory_ is None):
             raise EstimationError("Model must be fitted before estimation")
 
         # Calculate post-intervention effects
