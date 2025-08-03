@@ -3,6 +3,7 @@
 This module provides data models and utilities for handling longitudinal
 (panel) data with time-varying treatments, outcomes, and confounders.
 """
+# ruff: noqa: UP007, UP035, I001
 
 from __future__ import annotations
 

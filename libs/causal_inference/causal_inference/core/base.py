@@ -3,12 +3,13 @@
 This module provides the foundational abstract classes and data models
 that establish consistent patterns across all causal inference estimators.
 """
+# ruff: noqa: UP007
 
 from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, Union
 
 if TYPE_CHECKING:
     from ..diagnostics.reporting import DiagnosticReport
