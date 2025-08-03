@@ -287,7 +287,7 @@ class BootstrapResult(BaseModel):
     )
 
     # Bootstrap estimates
-    bootstrap_estimates: NDArray[Any] | None = Field(
+    bootstrap_estimates: Union[NDArray[Any], None] = Field(
         description="Array of bootstrap estimates", default=None
     )
 
@@ -644,7 +644,7 @@ class BootstrapMixin(abc.ABC):
             print(f"Using chunked bootstrap for {n_obs:,} observations")
 
         # Determine stratification array
-        stratify_by: NDArray[Any] | None = None
+        stratify_by: Union[NDArray[Any], None] = None
         if self.bootstrap_config.stratified and hasattr(
             treatment_data, "treatment_type"
         ):
