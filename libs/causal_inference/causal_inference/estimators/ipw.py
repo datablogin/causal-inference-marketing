@@ -652,9 +652,9 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             treatment_values = self.treatment_data.values
 
         if isinstance(self.outcome_data.values, pd.Series):
-            outcome_values = self.outcome_data.values.values
+            outcome_values = np.asarray(self.outcome_data.values.values)
         else:
-            outcome_values = self.outcome_data.values
+            outcome_values = np.asarray(self.outcome_data.values)
 
         # Compute weighted means for treated and control groups
         treated_mask = treatment_values == 1

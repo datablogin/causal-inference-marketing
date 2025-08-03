@@ -284,9 +284,9 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
             # Prepare outcome
             if isinstance(outcome.values, pd.Series):
-                y = outcome.values.values
+                y = np.asarray(outcome.values.values)
             else:
-                y = outcome.values
+                y = np.asarray(outcome.values)
 
             # Select and fit model
             self.outcome_model = self._select_model(outcome.outcome_type)
