@@ -8,7 +8,7 @@ possible prediction performance.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import numpy as np
 import pandas as pd
@@ -50,7 +50,7 @@ class SuperLearnerConfig(BaseModel):
     scale_features: bool = Field(
         default=True, description="Scale features before training"
     )
-    random_state: int | None = Field(
+    random_state: Union[int, None] = Field(
         default=None, description="Random state for reproducibility"
     )
     n_jobs: int = Field(default=-1, description="Number of parallel jobs")
@@ -116,8 +116,8 @@ class SuperLearner:
 
     def __init__(
         self,
-        base_learners: list[str] | dict[str, BaseEstimator] | None = None,
-        config: SuperLearnerConfig | None = None,
+        base_learners: Union[list[str], dict[str, BaseEstimator], None] = None,
+        config: Union[SuperLearnerConfig, None] = None,
         task_type: Literal["auto", "regression", "classification"] = "auto",
     ) -> None:
         """Initialize the Super Learner.
@@ -148,7 +148,7 @@ class SuperLearner:
                 base_learners = ["linear_regression", "ridge", "lasso", "random_forest"]
 
         if isinstance(base_learners, list):
-            self._base_learner_names: list[str] | None = base_learners
+            self._base_learner_names: Union[list[str], None] = base_learners
             self.base_learners = self._get_predefined_learners(base_learners)
         else:
             self._base_learner_names = None
@@ -158,12 +158,12 @@ class SuperLearner:
 
         # Storage for fitted models and performance
         self.fitted_learners_: dict[str, BaseEstimator] = {}
-        self.meta_learner_: BaseEstimator | None = None
-        self.scaler_: StandardScaler | None = None
-        self.cv_predictions_: NDArray[Any] | None = None
+        self.meta_learner_: Union[BaseEstimator, None] = None
+        self.scaler_: Union[StandardScaler, None] = None
+        self.cv_predictions_: Union[NDArray[Any], None] = None
         self.learner_performance_: dict[str, float] = {}
         self.ensemble_performance_: dict[str, float] = {}
-        self.feature_importance_: NDArray[Any] | None = None
+        self.feature_importance_: Union[NDArray[Any], None] = None
 
     def _get_predefined_learners(
         self, learner_names: list[str]
@@ -253,7 +253,7 @@ class SuperLearner:
             )
 
     def _get_cv_predictions(
-        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
+        self, X: Union[NDArray[Any], pd.DataFrame], y: Union[NDArray[Any], pd.Series]
     ) -> dict[str, NDArray[Any]]:
         """Get cross-validation predictions for each base learner."""
         # Ensure X and y are numpy arrays
@@ -381,7 +381,7 @@ class SuperLearner:
         self.cv_predictions_ = stacked_preds
 
     def fit(
-        self, X: NDArray[Any] | pd.DataFrame, y: NDArray[Any] | pd.Series
+        self, X: Union[NDArray[Any], pd.DataFrame], y: Union[NDArray[Any], pd.Series]
     ) -> SuperLearner:
         """Fit the Super Learner ensemble.
 
@@ -496,7 +496,7 @@ class SuperLearner:
 
         return self
 
-    def predict(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
+    def predict(self, X: Union[NDArray[Any], pd.DataFrame]) -> NDArray[Any]:
         """Make predictions using the fitted Super Learner.
 
         Args:
@@ -552,7 +552,7 @@ class SuperLearner:
         else:
             raise ValueError("Meta learner not fitted")
 
-    def predict_proba(self, X: NDArray[Any] | pd.DataFrame) -> NDArray[Any]:
+    def predict_proba(self, X: Union[NDArray[Any], pd.DataFrame]) -> NDArray[Any]:
         """Make probability predictions for classification tasks.
 
         Args:
@@ -615,8 +615,8 @@ class SuperLearner:
         return None
 
     def get_variable_importance(
-        self, X: NDArray[Any] | pd.DataFrame | None = None
-    ) -> pd.DataFrame | None:
+        self, X: Union[NDArray[Any], pd.DataFrame, None] = None
+    ) -> Union[pd.DataFrame, None]:
         """Get feature importance from ensemble of base learners.
 
         Args:
