@@ -92,7 +92,7 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -1155,7 +1155,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: Union[pd.Series, NDArray[Any]],
+        treatment_values: pd.Series | NDArray[Any],
         covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes using the fitted AIPW model.

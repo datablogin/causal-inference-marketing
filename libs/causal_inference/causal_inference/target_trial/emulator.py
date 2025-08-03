@@ -6,7 +6,7 @@ the emulation of randomized trials using observational data.
 
 from __future__ import annotations
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -38,7 +38,7 @@ class TargetTrialEmulator:
         protocol: TargetTrialProtocol,
         estimation_method: str = "g_computation",
         adherence_adjustment: str = "intention_to_treat",
-        random_state: Union[int, None] = None,
+        random_state: int | None = None,
         verbose: bool = False,
     ):
         """Initialize target trial emulator.
@@ -69,8 +69,8 @@ class TargetTrialEmulator:
 
         # Internal state
         self._fitted_estimators: dict[str, Any] = {}
-        self._emulated_data: Union[pd.DataFrame, None] = None
-        self._cloned_data: Union[pd.DataFrame, None] = None
+        self._emulated_data: pd.DataFrame | None = None
+        self._cloned_data: pd.DataFrame | None = None
 
     def emulate(
         self,
@@ -630,7 +630,7 @@ class TargetTrialEmulator:
         if n_unique == 2:
             return "binary"
         elif n_unique <= 10 and all(
-            isinstance(x, (int, float)) and x == int(x) for x in unique_values
+            isinstance(x, int | float) and x == int(x) for x in unique_values
         ):
             return "categorical"
         elif treatment_series.dtype in ["int64", "float64"]:

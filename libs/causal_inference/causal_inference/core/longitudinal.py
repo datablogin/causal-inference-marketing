@@ -7,7 +7,7 @@ This module provides data models and utilities for handling longitudinal
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 import pandas as pd
 from numpy.typing import NDArray
@@ -23,7 +23,7 @@ __all__ = [
 
 
 # Type alias for treatment strategy functions
-TreatmentStrategy = Callable[[pd.DataFrame, Union[int, str]], NDArray[Any]]
+TreatmentStrategy = Callable[[pd.DataFrame, int | str], NDArray[Any]]
 
 
 class TimeVaryingTreatmentData(BaseModel):
@@ -39,7 +39,7 @@ class TimeVaryingTreatmentData(BaseModel):
     treatment_names: list[str] = Field(
         default_factory=list, description="Names of treatment variables"
     )
-    time_periods: list[Union[int, str]] = Field(
+    time_periods: list[int | str] = Field(
         default_factory=list, description="Time period labels"
     )
     treatment_type: str = Field(
@@ -72,7 +72,7 @@ class TimeVaryingOutcomeData(BaseModel):
     outcome_names: list[str] = Field(
         default_factory=list, description="Names of outcome variables"
     )
-    time_periods: list[Union[int, str]] = Field(
+    time_periods: list[int | str] = Field(
         default_factory=list, description="Time period labels"
     )
     outcome_type: str = Field(
@@ -105,7 +105,7 @@ class TimeVaryingCovariateData(BaseModel):
     covariate_names: list[str] = Field(
         default_factory=list, description="Names of covariate variables"
     )
-    time_periods: list[Union[int, str]] = Field(
+    time_periods: list[int | str] = Field(
         default_factory=list, description="Time period labels"
     )
 
@@ -190,12 +190,12 @@ class LongitudinalData(BaseModel):
         return int(self.data[self.time_col].nunique())
 
     @property
-    def time_periods(self) -> list[Union[int, str]]:
+    def time_periods(self) -> list[int | str]:
         """List of unique time periods."""
         return sorted(self.data[self.time_col].unique())
 
     @property
-    def individuals(self) -> list[Union[int, str]]:
+    def individuals(self) -> list[int | str]:
         """List of unique individual IDs."""
         return sorted(self.data[self.id_col].unique())
 

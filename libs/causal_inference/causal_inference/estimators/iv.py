@@ -16,7 +16,7 @@ The IV estimator provides:
 from __future__ import annotations
 
 import warnings
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -789,7 +789,7 @@ class IVEstimator(BaseEstimator):
 
     def predict_potential_outcomes(
         self,
-        treatment_values: Union[pd.Series, NDArray[Any]],
+        treatment_values: pd.Series | NDArray[Any],
         covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1).

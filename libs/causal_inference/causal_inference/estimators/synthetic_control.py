@@ -746,7 +746,9 @@ class SyntheticControlEstimator(BaseEstimator):
 
         # Extract optimization diagnostics
         optimization_converged = (
-            self._optimization_result.success if self._optimization_result else None
+            bool(self._optimization_result.success)
+            if self._optimization_result
+            else None
         )
         optimization_objective = (
             self._optimization_result.fun if self._optimization_result else None
