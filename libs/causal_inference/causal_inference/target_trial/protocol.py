@@ -18,8 +18,10 @@ class EligibilityCriteria(BaseModel):
 
     age_min: Union[int, None] = Field(None, description="Minimum age for eligibility")
     age_max: Union[int, None] = Field(None, description="Maximum age for eligibility")
-    baseline_smoker: bool | None = Field(None, description="Smoking status requirement")
-    no_missing_weight: bool | None = Field(
+    baseline_smoker: Union[bool, None] = Field(
+        None, description="Smoking status requirement"
+    )
+    no_missing_weight: Union[bool, None] = Field(
         None, description="Require complete weight data"
     )
     custom_criteria: dict[str, Any] = Field(
@@ -193,7 +195,7 @@ class TargetTrialProtocol(BaseModel):
     time_zero_definition: str = Field(
         "baseline", description="Definition of time zero for the trial"
     )
-    grace_period: GracePeriod | None = Field(
+    grace_period: Union[GracePeriod, None] = Field(
         None, description="Grace period for treatment initiation"
     )
 

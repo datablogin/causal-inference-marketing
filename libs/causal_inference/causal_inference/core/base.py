@@ -316,65 +316,65 @@ class CausalEffect:
 
     # Core estimates
     ate: float  # Average Treatment Effect
-    ate_se: float | None = None  # Standard error of ATE
-    ate_ci_lower: float | None = None  # Lower confidence interval
-    ate_ci_upper: float | None = None  # Upper confidence interval
+    ate_se: Union[float, None] = None  # Standard error of ATE
+    ate_ci_lower: Union[float, None] = None  # Lower confidence interval
+    ate_ci_upper: Union[float, None] = None  # Upper confidence interval
     confidence_level: float = 0.95  # Confidence level for intervals
 
     # Additional estimates for specific contexts
-    att: float | None = None  # Average Treatment Effect on the Treated
-    atc: float | None = None  # Average Treatment Effect on the Controls
+    att: Union[float, None] = None  # Average Treatment Effect on the Treated
+    atc: Union[float, None] = None  # Average Treatment Effect on the Controls
 
     # Potential outcomes means
-    potential_outcome_treated: float | None = None  # E[Y(1)]
-    potential_outcome_control: float | None = None  # E[Y(0)]
+    potential_outcome_treated: Union[float, None] = None  # E[Y(1)]
+    potential_outcome_control: Union[float, None] = None  # E[Y(0)]
 
     # Survival-specific estimates
-    hazard_ratio: float | None = None  # Hazard ratio for survival outcomes
-    hazard_ratio_se: float | None = None  # Standard error of hazard ratio
-    hazard_ratio_ci_lower: float | None = None  # Lower CI for hazard ratio
-    hazard_ratio_ci_upper: float | None = None  # Upper CI for hazard ratio
+    hazard_ratio: Union[float, None] = None  # Hazard ratio for survival outcomes
+    hazard_ratio_se: Union[float, None] = None  # Standard error of hazard ratio
+    hazard_ratio_ci_lower: Union[float, None] = None  # Lower CI for hazard ratio
+    hazard_ratio_ci_upper: Union[float, None] = None  # Upper CI for hazard ratio
 
-    rmst_treated: float | None = None  # Restricted mean survival time - treated
-    rmst_control: float | None = None  # Restricted mean survival time - control
-    rmst_difference: float | None = None  # RMST difference (treated - control)
-    rmst_ci_lower: float | None = None  # Lower CI for RMST difference
-    rmst_ci_upper: float | None = None  # Upper CI for RMST difference
+    rmst_treated: Union[float, None] = None  # Restricted mean survival time - treated
+    rmst_control: Union[float, None] = None  # Restricted mean survival time - control
+    rmst_difference: Union[float, None] = None  # RMST difference (treated - control)
+    rmst_ci_lower: Union[float, None] = None  # Lower CI for RMST difference
+    rmst_ci_upper: Union[float, None] = None  # Upper CI for RMST difference
 
-    median_survival_treated: float | None = None  # Median survival time - treated
-    median_survival_control: float | None = None  # Median survival time - control
+    median_survival_treated: Union[float, None] = None  # Median survival time - treated
+    median_survival_control: Union[float, None] = None  # Median survival time - control
 
-    log_rank_test_pvalue: float | None = None  # Log-rank test p-value
+    log_rank_test_pvalue: Union[float, None] = None  # Log-rank test p-value
 
-    survival_curves: dict[str, Any] | None = None  # Estimated survival curves
+    survival_curves: Union[dict[str, Any], None] = None  # Estimated survival curves
 
     # Method-specific information
     method: str = "unknown"  # Name of the estimation method used
-    n_observations: int | None = None  # Number of observations used
-    n_treated: int | None = None  # Number of treated units
-    n_control: int | None = None  # Number of control units
+    n_observations: Union[int, None] = None  # Number of observations used
+    n_treated: Union[int, None] = None  # Number of treated units
+    n_control: Union[int, None] = None  # Number of control units
 
     # Model diagnostics and assumptions
-    diagnostics: dict[str, Any] | None = None  # Method-specific diagnostics
-    assumptions_checked: dict[str, bool] | None = None  # Assumption violations
+    diagnostics: Union[dict[str, Any], None] = None  # Method-specific diagnostics
+    assumptions_checked: Union[dict[str, bool], None] = None  # Assumption violations
 
     # Bootstrap/simulation details
-    bootstrap_samples: int | None = None  # Number of bootstrap samples
-    bootstrap_estimates: NDArray[Any] | None = None  # Bootstrap ATE estimates
+    bootstrap_samples: Union[int, None] = None  # Number of bootstrap samples
+    bootstrap_estimates: Union[NDArray[Any], None] = None  # Bootstrap ATE estimates
 
     # Enhanced bootstrap confidence intervals
-    ate_ci_lower_bca: float | None = None  # BCa lower confidence interval
-    ate_ci_upper_bca: float | None = None  # BCa upper confidence interval
-    ate_ci_lower_bias_corrected: float | None = None  # Bias-corrected lower CI
-    ate_ci_upper_bias_corrected: float | None = None  # Bias-corrected upper CI
-    ate_ci_lower_studentized: float | None = None  # Studentized lower CI
-    ate_ci_upper_studentized: float | None = None  # Studentized upper CI
+    ate_ci_lower_bca: Union[float, None] = None  # BCa lower confidence interval
+    ate_ci_upper_bca: Union[float, None] = None  # BCa upper confidence interval
+    ate_ci_lower_bias_corrected: Union[float, None] = None  # Bias-corrected lower CI
+    ate_ci_upper_bias_corrected: Union[float, None] = None  # Bias-corrected upper CI
+    ate_ci_lower_studentized: Union[float, None] = None  # Studentized lower CI
+    ate_ci_upper_studentized: Union[float, None] = None  # Studentized upper CI
 
     # Bootstrap diagnostics
-    bootstrap_method: str | None = None  # Bootstrap method used
-    bootstrap_converged: bool | None = None  # Whether bootstrap converged
-    bootstrap_bias: float | None = None  # Estimated bias from bootstrap
-    bootstrap_acceleration: float | None = None  # BCa acceleration parameter
+    bootstrap_method: Union[str, None] = None  # Bootstrap method used
+    bootstrap_converged: Union[bool, None] = None  # Whether bootstrap converged
+    bootstrap_bias: Union[float, None] = None  # Estimated bias from bootstrap
+    bootstrap_acceleration: Union[float, None] = None  # BCa acceleration parameter
 
     def __post_init__(self) -> None:
         """Validate the causal effect estimates after initialization."""
@@ -397,7 +397,7 @@ class CausalEffect:
         return self.ate_ci_lower > 0 or self.ate_ci_upper < 0
 
     @property
-    def confidence_interval(self) -> tuple[float, float] | None:
+    def confidence_interval(self) -> Union[tuple[float, float], None]:
         """Get confidence interval as a tuple.
 
         Returns:
@@ -453,7 +453,7 @@ class EstimatorProtocol(Protocol):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> BaseEstimator:
         """Fit the causal inference estimator to data."""
         ...
@@ -488,9 +488,9 @@ class BaseEstimator(abc.ABC):
 
     def __init__(
         self,
-        random_state: int | None = None,
+        random_state: Union[int, None] = None,
         verbose: bool = False,
-        bootstrap_config: Any | None = None,
+        bootstrap_config: Union[Any, None] = None,
     ) -> None:
         """Initialize the base estimator.
 
@@ -507,12 +507,12 @@ class BaseEstimator(abc.ABC):
         self.bootstrap_config = bootstrap_config
 
         # Data containers
-        self.treatment_data: TreatmentData | None = None
-        self.outcome_data: OutcomeData | None = None
-        self.covariate_data: CovariateData | None = None
+        self.treatment_data: Union[TreatmentData, None] = None
+        self.outcome_data: Union[OutcomeData, None] = None
+        self.covariate_data: Union[CovariateData, None] = None
 
         # Results cache
-        self._causal_effect: CausalEffect | None = None
+        self._causal_effect: Union[CausalEffect, None] = None
 
         # Set random state
         if random_state is not None:
@@ -523,7 +523,7 @@ class BaseEstimator(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Implement the specific fitting logic for this estimator.
 
@@ -550,7 +550,7 @@ class BaseEstimator(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> BaseEstimator:
         """Fit the causal inference estimator to data.
 
@@ -660,7 +660,7 @@ class BaseEstimator(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Union[CovariateData, None] = None,
     ) -> None:
         """Validate input data for causal inference.
 
