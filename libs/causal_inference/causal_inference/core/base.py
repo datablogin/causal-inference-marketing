@@ -50,7 +50,7 @@ class TreatmentData(BaseModel):
         default="binary",
         description="Type of treatment: 'binary', 'categorical', or 'continuous'",
     )
-    categories: list[str | int | float] | None = Field(
+    categories: Union[list[Union[str, int, float]], None] = Field(
         default=None, description="For categorical treatments, the possible categories"
     )
 
@@ -279,7 +279,7 @@ class InstrumentData(BaseModel):
         default="continuous",
         description="Type of instrument: 'binary', 'categorical', or 'continuous'",
     )
-    categories: list[str | int | float] | None = Field(
+    categories: Union[list[Union[str, int, float]], None] = Field(
         default=None, description="For categorical instruments, the possible categories"
     )
 
