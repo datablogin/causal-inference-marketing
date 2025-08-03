@@ -66,7 +66,9 @@ class TreatmentData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
+    def validate_values(
+        cls, v: Union[pd.Series, NDArray[Any]]
+    ) -> Union[pd.Series, NDArray[Any]]:
         """Validate treatment values are not empty."""
         if len(v) == 0:
             raise ValueError("Treatment values cannot be empty")
@@ -117,7 +119,9 @@ class SurvivalOutcomeData(BaseModel):
     for causal survival analysis.
     """
 
-    times: Union[pd.Series, NDArray[Any]] = Field(..., description="Event/censoring times")
+    times: Union[pd.Series, NDArray[Any]] = Field(
+        ..., description="Event/censoring times"
+    )
     events: Union[pd.Series, NDArray[Any]] = Field(
         ..., description="Event indicators (1=event, 0=censored)"
     )
@@ -145,7 +149,9 @@ class SurvivalOutcomeData(BaseModel):
 
     @field_validator("times")
     @classmethod
-    def validate_times(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
+    def validate_times(
+        cls, v: Union[pd.Series, NDArray[Any]]
+    ) -> Union[pd.Series, NDArray[Any]]:
         """Validate survival times are positive and not empty."""
         if len(v) == 0:
             raise ValueError("Survival times cannot be empty")
@@ -161,7 +167,9 @@ class SurvivalOutcomeData(BaseModel):
 
     @field_validator("events")
     @classmethod
-    def validate_events(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
+    def validate_events(
+        cls, v: Union[pd.Series, NDArray[Any]]
+    ) -> Union[pd.Series, NDArray[Any]]:
         """Validate event indicators are binary and not empty."""
         if len(v) == 0:
             raise ValueError("Event indicators cannot be empty")
@@ -285,7 +293,9 @@ class InstrumentData(BaseModel):
 
     @field_validator("values")
     @classmethod
-    def validate_values(cls, v: Union[pd.Series, NDArray[Any]]) -> Union[pd.Series, NDArray[Any]]:
+    def validate_values(
+        cls, v: Union[pd.Series, NDArray[Any]]
+    ) -> Union[pd.Series, NDArray[Any]]:
         """Validate instrument values are not empty."""
         if len(v) == 0:
             raise ValueError("Instrument values cannot be empty")
