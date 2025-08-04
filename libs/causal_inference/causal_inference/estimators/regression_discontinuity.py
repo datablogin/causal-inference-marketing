@@ -289,7 +289,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         # The actual treatment assignment is derived from the forcing variable and cutoff
 
         # Validate forcing variable data types
-        if isinstance(treatment.values, pd.Series | np.ndarray):
+        if isinstance(treatment.values, (pd.Series, np.ndarray)):
             forcing_values = np.array(treatment.values)
         else:
             raise EstimationError(
@@ -786,7 +786,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
                     self.treatment_data, self.outcome_data, self.covariate_data
                 )
 
-        return p_value
+        return float(p_value)
 
     def run_mccrary_density_test(self, bins: int = 30) -> float:
         """Run McCrary (2008) density test for manipulation around cutoff.
@@ -812,8 +812,8 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         bin_edges = np.linspace(f_min, f_max, bins + 1)
 
         # Find bins around cutoff
-        cutoff_bin_idx = np.searchsorted(bin_edges, cutoff) - 1
-        cutoff_bin_idx = int(max(0, min(cutoff_bin_idx, bins - 1)))
+        cutoff_bin_idx = int(np.searchsorted(bin_edges, cutoff)) - 1
+        cutoff_bin_idx = max(0, min(cutoff_bin_idx, bins - 1))
 
         # Get densities (counts) in bins
         hist, _ = np.histogram(forcing_values, bins=bin_edges)
@@ -821,8 +821,8 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
         # Focus on bins around cutoff (within reasonable window)
         window_size = min(5, bins // 4)  # Look at nearby bins
-        start_idx = int(max(0, cutoff_bin_idx - window_size))
-        end_idx = int(min(bins, cutoff_bin_idx + window_size + 1))
+        start_idx = max(0, cutoff_bin_idx - window_size)
+        end_idx = min(bins, cutoff_bin_idx + window_size + 1)
 
         # Split into left and right of cutoff
         left_indices = []
@@ -868,7 +868,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             else:
                 return 0.2  # Probably OK
 
-        return p_value
+        return float(p_value)
 
     def estimate_rdd(
         self,
