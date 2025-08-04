@@ -176,7 +176,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         self.left_model: LinearRegression | None = None
         self.right_model: LinearRegression | None = None
         self._rdd_result: RDDResult | None = None
-        
+
         # Feature caching for efficiency
         self._cached_left_features: NDArray[Any] | None = None
         self._cached_right_features: NDArray[Any] | None = None
@@ -226,7 +226,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         # Scale based on data range and ensure reasonable bounds
         optimal_bw = max(min(h_rot, x_range / 4), x_range / 20)
 
-        return optimal_bw
+        return float(optimal_bw)
 
     def _apply_kernel_weights(
         self, distances: NDArray[Any], bandwidth: float
@@ -236,7 +236,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             return np.ones_like(distances)
         elif self.kernel == "triangular":
             weights = np.maximum(0, 1 - np.abs(distances) / bandwidth)
-            return weights
+            return np.asarray(weights)
         else:
             raise ValueError(f"Unknown kernel type: {self.kernel}")
 
@@ -287,7 +287,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         """
         # RDD requires a forcing variable to be provided as treatment data
         # The actual treatment assignment is derived from the forcing variable and cutoff
-        
+
         # Validate forcing variable data types
         if isinstance(treatment.values, (pd.Series, np.ndarray)):
             forcing_values = np.array(treatment.values)
@@ -295,13 +295,13 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             raise EstimationError(
                 f"Forcing variable must be pandas Series or numpy array, got {type(treatment.values)}"
             )
-            
+
         # Validate forcing variable is numeric
         if not np.issubdtype(forcing_values.dtype, np.number):
             raise EstimationError(
                 f"Forcing variable must be numeric, got dtype {forcing_values.dtype}"
             )
-            
+
         # Check for missing values
         if np.any(np.isnan(forcing_values)):
             raise EstimationError("Forcing variable cannot contain missing values (NaN)")
@@ -360,7 +360,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         # Cache the training data features and fit local polynomial models
         left_features = self._get_cached_features(x_left, "left")
         right_features = self._get_cached_features(x_right, "right")
-        
+
         # Fit local polynomial models on each side
         try:
             self.left_model = self._fit_local_polynomial(x_left, y_left, weights_left)
@@ -379,35 +379,35 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             print(f"Right model R²: {right_r2:.4f}")
 
     def _compute_robust_se(
-        self, 
-        X: NDArray[Any], 
-        residuals: NDArray[Any], 
+        self,
+        design_matrix: NDArray[Any],
+        residuals: NDArray[Any],
         model: LinearRegression,
         robust_type: str = "HC2"
     ) -> NDArray[Any]:
         """Compute robust (heteroskedasticity-consistent) standard errors.
-        
+
         Args:
-            X: Design matrix
+            design_matrix: Design matrix
             residuals: Model residuals
             model: Fitted linear regression model
             robust_type: Type of robust SE ('HC0', 'HC1', 'HC2', 'HC3')
-            
+
         Returns:
             Array of robust standard errors for model coefficients
         """
-        n, k = X.shape
-        
+        n, k = design_matrix.shape
+
         # Get hat matrix diagonal (leverage values)
         try:
             # X(X'X)^(-1)X' diagonal elements
-            XTX_inv = np.linalg.inv(X.T @ X)
-            hat_diag = np.diag(X @ XTX_inv @ X.T)
+            XTX_inv = np.linalg.inv(design_matrix.T @ design_matrix)
+            hat_diag = np.diag(design_matrix @ XTX_inv @ design_matrix.T)
         except np.linalg.LinAlgError:
             # Fallback to pseudoinverse for singular matrices
-            XTX_pinv = np.linalg.pinv(X.T @ X)
-            hat_diag = np.diag(X @ XTX_pinv @ X.T)
-        
+            XTX_pinv = np.linalg.pinv(design_matrix.T @ design_matrix)
+            hat_diag = np.diag(design_matrix @ XTX_pinv @ design_matrix.T)
+
         # Compute robust variance adjustment based on type
         if robust_type == "HC0":
             # White's original heteroskedasticity-consistent estimator
@@ -423,56 +423,56 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             weights = 1 / ((1 - hat_diag) ** 2)
         else:
             raise ValueError(f"Unknown robust standard error type: {robust_type}")
-        
+
         # Compute robust covariance matrix
         weighted_residuals = residuals * np.sqrt(weights)
         Omega = np.diag(weighted_residuals ** 2)
-        
+
         try:
-            robust_cov = XTX_inv @ (X.T @ Omega @ X) @ XTX_inv
+            robust_cov = XTX_inv @ (design_matrix.T @ Omega @ design_matrix) @ XTX_inv
         except np.linalg.LinAlgError:
-            robust_cov = XTX_pinv @ (X.T @ Omega @ X) @ XTX_pinv
-        
+            robust_cov = XTX_pinv @ (design_matrix.T @ Omega @ design_matrix) @ XTX_pinv
+
         # Extract standard errors
         robust_se = np.sqrt(np.diag(robust_cov))
-        
-        return robust_se
+
+        return np.asarray(robust_se)
 
     def _get_cached_features(self, x: NDArray[Any], side: str) -> NDArray[Any]:
         """Get cached polynomial features or create and cache them.
-        
+
         Args:
             x: Input values
             side: 'left' or 'right' to specify which cache to use
-            
+
         Returns:
             Polynomial features matrix
         """
         if side == "left":
-            if (self._cached_left_x is not None and 
+            if (self._cached_left_x is not None and
                 self._cached_left_features is not None and
                 np.array_equal(x, self._cached_left_x)):
                 return self._cached_left_features
-            
+
             features = self._create_polynomial_features(x)
-            self._cached_left_x = x.copy()  
+            self._cached_left_x = x.copy()
             self._cached_left_features = features
-            return features
-            
+            return np.asarray(features)
+
         elif side == "right":
-            if (self._cached_right_x is not None and 
+            if (self._cached_right_x is not None and
                 self._cached_right_features is not None and
                 np.array_equal(x, self._cached_right_x)):
                 return self._cached_right_features
-                
+
             features = self._create_polynomial_features(x)
             self._cached_right_x = x.copy()
             self._cached_right_features = features
-            return features
-            
+            return np.asarray(features)
+
         else:
             # For other cases (like plotting), don't cache
-            return self._create_polynomial_features(x)
+            return np.asarray(self._create_polynomial_features(x))
 
     def _create_polynomial_features(self, x: NDArray[Any]) -> NDArray[Any]:
         """Create polynomial features for prediction."""
@@ -481,10 +481,10 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
                 degree=self.polynomial_order, include_bias=True
             )
             features = poly_features.fit_transform(x.reshape(-1, 1))
-            return features
+            return np.asarray(features)
         else:
             features = np.column_stack([np.ones(len(x)), x])
-            return features
+            return np.asarray(features)
 
     def _estimate_ate_implementation(self) -> CausalEffect:
         """Estimate the treatment effect at the cutoff using RDD."""
@@ -535,13 +535,13 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             # Compute robust standard errors for both models
             left_robust_se = self._compute_robust_se(left_features, left_residuals, self.left_model, self.robust_se)
             right_robust_se = self._compute_robust_se(right_features, right_residuals, self.right_model, self.robust_se)
-            
+
             # Standard error of RDD estimate at cutoff (intercept term)
             # For RDD, we're interested in the SE of the discontinuity at x=0
             # This is the SE of the difference between intercepts
             left_intercept_se = left_robust_se[0]  # Intercept is first coefficient
             right_intercept_se = right_robust_se[0]
-            
+
             # SE of difference (assuming independence between left and right models)
             ate_se = np.sqrt(left_intercept_se**2 + right_intercept_se**2)
 
@@ -590,19 +590,19 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         )
 
         causal_effect = self._rdd_result.to_causal_effect()
-        
+
         # Add bootstrap information if available
         if self.bootstrap_config and self.bootstrap_config.n_samples > 0:
             try:
                 bootstrap_result = self.compute_bootstrap_confidence_intervals(ate)
-                
+
                 causal_effect.bootstrap_samples = int(self.bootstrap_config.n_samples)
                 causal_effect.bootstrap_estimates = bootstrap_result.bootstrap_estimates
                 causal_effect.bootstrap_method = bootstrap_result.config.method
                 causal_effect.bootstrap_converged = bootstrap_result.converged
                 causal_effect.bootstrap_bias = bootstrap_result.bias_estimate
                 causal_effect.bootstrap_acceleration = bootstrap_result.acceleration_estimate
-                
+
                 # Update confidence intervals with bootstrap results
                 if bootstrap_result.config.method == "percentile":
                     causal_effect.ate_ci_lower = bootstrap_result.ci_lower_percentile
@@ -613,20 +613,20 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
                 elif bootstrap_result.config.method == "bca":
                     causal_effect.ate_ci_lower = bootstrap_result.ci_lower_bca
                     causal_effect.ate_ci_upper = bootstrap_result.ci_upper_bca
-                
+
                 # Set all CI variants
                 causal_effect.ate_ci_lower_bca = bootstrap_result.ci_lower_bca
                 causal_effect.ate_ci_upper_bca = bootstrap_result.ci_upper_bca
                 causal_effect.ate_ci_lower_bias_corrected = bootstrap_result.ci_lower_bias_corrected
                 causal_effect.ate_ci_upper_bias_corrected = bootstrap_result.ci_upper_bias_corrected
-                
+
                 if bootstrap_result.bootstrap_se is not None:
                     causal_effect.ate_se = bootstrap_result.bootstrap_se
-                    
+
             except Exception as e:
                 if self.verbose:
                     print(f"Bootstrap confidence intervals failed: {str(e)}")
-        
+
         return causal_effect
 
     def plot_rdd(
@@ -736,15 +736,16 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
         try:
             # Re-fit with placebo cutoff
-            self._fit_implementation(
-                self.treatment_data, self.outcome_data, self.covariate_data
-            )
+            if self.treatment_data is not None and self.outcome_data is not None:
+                self._fit_implementation(
+                    self.treatment_data, self.outcome_data, self.covariate_data
+                )
             placebo_result = self._estimate_ate_implementation()
 
             # Calculate test statistic
             if placebo_result.ate_se is not None and placebo_result.ate_se > 0:
                 t_stat = placebo_result.ate / placebo_result.ate_se
-                df = ((self._rdd_result.n_left + self._rdd_result.n_right - 4) 
+                df = ((self._rdd_result.n_left + self._rdd_result.n_right - 4)
                       if self._rdd_result is not None else 100)
                 p_value = 2 * (1 - stats.t.cdf(abs(t_stat), df))
             else:
@@ -762,81 +763,81 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
     def run_mccrary_density_test(self, bins: int = 30) -> float:
         """Run McCrary (2008) density test for manipulation around cutoff.
-        
+
         Tests for discontinuities in the density of the forcing variable,
         which would suggest manipulation around the cutoff.
-        
+
         Args:
             bins: Number of bins for histogram-based density estimation
-            
+
         Returns:
             P-value for density test (should be non-significant if no manipulation)
         """
         if not self.is_fitted or self.forcing_variable_data is None:
             raise EstimationError("Estimator must be fitted before density test")
-            
+
         forcing_values = np.array(self.forcing_variable_data.values)
         cutoff = self.cutoff
-        
+
         # Create bins centered around cutoff
         f_min, f_max = np.min(forcing_values), np.max(forcing_values)
         bin_width = (f_max - f_min) / bins
         bin_edges = np.linspace(f_min, f_max, bins + 1)
-        
+
         # Find bins around cutoff
         cutoff_bin_idx = np.searchsorted(bin_edges, cutoff) - 1
-        cutoff_bin_idx = max(0, min(cutoff_bin_idx, bins - 1))
-        
+        cutoff_bin_idx = int(max(0, min(cutoff_bin_idx, bins - 1)))
+
         # Get densities (counts) in bins
         hist, _ = np.histogram(forcing_values, bins=bin_edges)
         densities = hist / (len(forcing_values) * bin_width)  # Normalize to densities
-        
+
         # Focus on bins around cutoff (within reasonable window)
         window_size = min(5, bins // 4)  # Look at nearby bins
-        start_idx = max(0, cutoff_bin_idx - window_size)
-        end_idx = min(bins, cutoff_bin_idx + window_size + 1)
-        
+        start_idx = int(max(0, cutoff_bin_idx - window_size))
+        end_idx = int(min(bins, cutoff_bin_idx + window_size + 1))
+
         # Split into left and right of cutoff
         left_indices = []
         right_indices = []
-        
+
         for i in range(start_idx, end_idx):
             bin_center = (bin_edges[i] + bin_edges[i + 1]) / 2
             if bin_center < cutoff:
                 left_indices.append(i)
             else:
                 right_indices.append(i)
-        
+
         if len(left_indices) < 2 or len(right_indices) < 2:
             # Not enough bins on each side for meaningful test
             return 1.0
-            
+
         # Get densities on each side
         left_densities = densities[left_indices]
         right_densities = densities[right_indices]
-        
+
         # Simple t-test for difference in mean densities
         # More sophisticated versions would fit smooth densities and test discontinuity
         try:
             from scipy.stats import ttest_ind
             _, p_value = ttest_ind(left_densities, right_densities, equal_var=False)
-            return p_value
+            return float(p_value)
         except Exception:
             # Fallback to simple comparison
             left_mean = np.mean(left_densities)
             right_mean = np.mean(right_densities)
-            
+
             # Crude approximation: if densities are very different, suspicious
             relative_diff = abs(left_mean - right_mean) / (left_mean + right_mean + 1e-8)
-            
+
             # Convert to rough p-value (this is very approximate)
             if relative_diff > 0.5:  # 50% difference
                 return 0.01  # Suspicious
-            elif relative_diff > 0.3:  # 30% difference  
+            elif relative_diff > 0.3:  # 30% difference
                 return 0.05  # Borderline
             else:
                 return 0.2   # Probably OK
-                
+
         return p_value
 
     def estimate_rdd(

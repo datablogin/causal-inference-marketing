@@ -4,7 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causal_inference.core.base import CovariateData, DataValidationError, EstimationError, OutcomeData, TreatmentData
+from causal_inference.core.base import (
+    CovariateData,
+    DataValidationError,
+    EstimationError,
+    OutcomeData,
+    TreatmentData,
+)
 from causal_inference.core.bootstrap import BootstrapConfig
 from causal_inference.estimators.regression_discontinuity import (
     ForcingVariableData,
@@ -327,25 +333,25 @@ class TestRDDEstimator:
             )
             estimator.fit(self.treatment_data, self.outcome_data)
             result = estimator.estimate_ate()
-            
+
             # Should have standard errors
             assert result.ate_se is not None
             assert result.ate_se > 0
-            
+
     def test_mccrary_density_test(self):
         """Test McCrary density test for manipulation."""
         estimator = RDDEstimator(cutoff=self.cutoff, bandwidth=10.0)
         estimator.fit(self.treatment_data, self.outcome_data)
-        
+
         # Run density test
         p_value = estimator.run_mccrary_density_test()
-        
+
         # Should return a valid p-value
         assert 0 <= p_value <= 1
-        
+
         # For random data, should generally not detect manipulation
         # (though this is not guaranteed with random data)
-        
+
     def test_input_validation(self):
         """Test input validation for forcing variables."""
         # Test non-numeric forcing variable - use enough data to pass minimum sample size
@@ -354,19 +360,19 @@ class TestRDDEstimator:
             treatment_type="continuous"
         )
         bad_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
-        
+
         estimator = RDDEstimator(cutoff=2.5)
-        
+
         with pytest.raises(EstimationError, match="must be numeric"):
             estimator.fit(bad_treatment, bad_outcome)
-        
+
         # Test forcing variable with NaN values - use enough data to pass minimum sample size
         nan_treatment = TreatmentData(
             values=np.array([1, 2, np.nan, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
             treatment_type="continuous"
         )
         nan_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
-        
+
         with pytest.raises(DataValidationError, match="cannot contain missing data"):
             estimator.fit(nan_treatment, nan_outcome)
 
