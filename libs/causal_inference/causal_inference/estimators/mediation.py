@@ -511,28 +511,40 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
 
             # Add confidence intervals
             if ate_estimates:
-                effect.ate_ci_lower = float(np.percentile(ate_estimates, lower_percentile))
-                effect.ate_ci_upper = float(np.percentile(ate_estimates, upper_percentile))
+                effect.ate_ci_lower = float(
+                    np.percentile(ate_estimates, lower_percentile)
+                )
+                effect.ate_ci_upper = float(
+                    np.percentile(ate_estimates, upper_percentile)
+                )
                 effect.ate_se = float(np.std(ate_estimates))
                 effect.bootstrap_samples = len(ate_estimates)
 
             if nde_estimates:
-                effect.nde_ci_lower = float(np.percentile(nde_estimates, lower_percentile))
-                effect.nde_ci_upper = float(np.percentile(nde_estimates, upper_percentile))
+                effect.nde_ci_lower = float(
+                    np.percentile(nde_estimates, lower_percentile)
+                )
+                effect.nde_ci_upper = float(
+                    np.percentile(nde_estimates, upper_percentile)
+                )
                 effect.nde_se = float(np.std(nde_estimates))
 
             if nie_estimates:
-                effect.nie_ci_lower = float(np.percentile(nie_estimates, lower_percentile))
-                effect.nie_ci_upper = float(np.percentile(nie_estimates, upper_percentile))
+                effect.nie_ci_lower = float(
+                    np.percentile(nie_estimates, lower_percentile)
+                )
+                effect.nie_ci_upper = float(
+                    np.percentile(nie_estimates, upper_percentile)
+                )
                 effect.nie_se = float(np.std(nie_estimates))
 
             if mp_estimates:
-                effect.mediated_prop_ci_lower = float(np.percentile(
-                    mp_estimates, lower_percentile
-                ))
-                effect.mediated_prop_ci_upper = float(np.percentile(
-                    mp_estimates, upper_percentile
-                ))
+                effect.mediated_prop_ci_lower = float(
+                    np.percentile(mp_estimates, lower_percentile)
+                )
+                effect.mediated_prop_ci_upper = float(
+                    np.percentile(mp_estimates, upper_percentile)
+                )
                 effect.mediated_prop_se = float(np.std(mp_estimates))
 
             effect.bootstrap_method = "percentile"
@@ -569,8 +581,11 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
                 boot_indices = np.random.choice(n_obs, size=n_obs, replace=True)
 
                 # Check required data
-                if (self.treatment_data is None or self.outcome_data is None or
-                    self.mediator_data is None):
+                if (
+                    self.treatment_data is None
+                    or self.outcome_data is None
+                    or self.mediator_data is None
+                ):
                     raise EstimationError("Required data not available for bootstrap")
 
                 # Create bootstrap samples
@@ -638,9 +653,15 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
                 bootstrap_results.append(
                     {
                         "ate": float(boot_effect.ate),
-                        "nde": float(boot_effect.nde) if boot_effect.nde is not None else 0.0,
-                        "nie": float(boot_effect.nie) if boot_effect.nie is not None else 0.0,
-                        "mediated_proportion": float(boot_effect.mediated_proportion) if boot_effect.mediated_proportion is not None else 0.0,
+                        "nde": float(boot_effect.nde)
+                        if boot_effect.nde is not None
+                        else 0.0,
+                        "nie": float(boot_effect.nie)
+                        if boot_effect.nie is not None
+                        else 0.0,
+                        "mediated_proportion": float(boot_effect.mediated_proportion)
+                        if boot_effect.mediated_proportion is not None
+                        else 0.0,
                     }
                 )
 
