@@ -21,6 +21,7 @@ from .meta_learners import (
     XLearner,
 )
 from .propensity_score import PropensityScoreEstimator
+from .regression_discontinuity import ForcingVariableData, RDDEstimator, RDDResult
 from .synthetic_control import SyntheticControlEstimator, SyntheticControlResult
 from .time_varying import StrategyComparison, StrategyOutcome, TimeVaryingEstimator
 from .tmle import TMLEEstimator
@@ -35,6 +36,9 @@ __all__ = [
     "IPWEstimator",
     "IVEstimator",
     "PropensityScoreEstimator",
+    "RDDEstimator",
+    "RDDResult",
+    "ForcingVariableData",
     "SyntheticControlEstimator",
     "SyntheticControlResult",
     "TimeVaryingEstimator",
