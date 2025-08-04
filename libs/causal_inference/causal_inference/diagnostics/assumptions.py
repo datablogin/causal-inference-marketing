@@ -5,8 +5,8 @@ the exchangeability assumption critical for causal inference.
 """
 
 from __future__ import annotations
-# ruff: noqa: UP007
 
+# ruff: noqa: UP007
 from dataclasses import dataclass
 from typing import Any, Union
 

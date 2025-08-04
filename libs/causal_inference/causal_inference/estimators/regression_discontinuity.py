@@ -289,7 +289,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         # The actual treatment assignment is derived from the forcing variable and cutoff
 
         # Validate forcing variable data types
-        if isinstance(treatment.values, (pd.Series, np.ndarray)):
+        if isinstance(treatment.values, pd.Series | np.ndarray):
             forcing_values = np.array(treatment.values)
         else:
             raise EstimationError(
@@ -304,7 +304,9 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
         # Check for missing values
         if np.any(np.isnan(forcing_values)):
-            raise EstimationError("Forcing variable cannot contain missing values (NaN)")
+            raise EstimationError(
+                "Forcing variable cannot contain missing values (NaN)"
+            )
 
         # Create forcing variable data structure
         self.forcing_variable_data = ForcingVariableData(
@@ -383,7 +385,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         design_matrix: NDArray[Any],
         residuals: NDArray[Any],
         model: LinearRegression,
-        robust_type: str = "HC2"
+        robust_type: str = "HC2",
     ) -> NDArray[Any]:
         """Compute robust (heteroskedasticity-consistent) standard errors.
 
@@ -426,7 +428,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
         # Compute robust covariance matrix
         weighted_residuals = residuals * np.sqrt(weights)
-        Omega = np.diag(weighted_residuals ** 2)
+        Omega = np.diag(weighted_residuals**2)
 
         try:
             robust_cov = XTX_inv @ (design_matrix.T @ Omega @ design_matrix) @ XTX_inv
@@ -449,9 +451,11 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             Polynomial features matrix
         """
         if side == "left":
-            if (self._cached_left_x is not None and
-                self._cached_left_features is not None and
-                np.array_equal(x, self._cached_left_x)):
+            if (
+                self._cached_left_x is not None
+                and self._cached_left_features is not None
+                and np.array_equal(x, self._cached_left_x)
+            ):
                 return self._cached_left_features
 
             features = self._create_polynomial_features(x)
@@ -460,9 +464,11 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             return np.asarray(features)
 
         elif side == "right":
-            if (self._cached_right_x is not None and
-                self._cached_right_features is not None and
-                np.array_equal(x, self._cached_right_x)):
+            if (
+                self._cached_right_x is not None
+                and self._cached_right_features is not None
+                and np.array_equal(x, self._cached_right_x)
+            ):
                 return self._cached_right_features
 
             features = self._create_polynomial_features(x)
@@ -533,8 +539,12 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             right_residuals = y_right - right_pred
 
             # Compute robust standard errors for both models
-            left_robust_se = self._compute_robust_se(left_features, left_residuals, self.left_model, self.robust_se)
-            right_robust_se = self._compute_robust_se(right_features, right_residuals, self.right_model, self.robust_se)
+            left_robust_se = self._compute_robust_se(
+                left_features, left_residuals, self.left_model, self.robust_se
+            )
+            right_robust_se = self._compute_robust_se(
+                right_features, right_residuals, self.right_model, self.robust_se
+            )
 
             # Standard error of RDD estimate at cutoff (intercept term)
             # For RDD, we're interested in the SE of the discontinuity at x=0
@@ -601,15 +611,21 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
                 causal_effect.bootstrap_method = bootstrap_result.config.method
                 causal_effect.bootstrap_converged = bootstrap_result.converged
                 causal_effect.bootstrap_bias = bootstrap_result.bias_estimate
-                causal_effect.bootstrap_acceleration = bootstrap_result.acceleration_estimate
+                causal_effect.bootstrap_acceleration = (
+                    bootstrap_result.acceleration_estimate
+                )
 
                 # Update confidence intervals with bootstrap results
                 if bootstrap_result.config.method == "percentile":
                     causal_effect.ate_ci_lower = bootstrap_result.ci_lower_percentile
                     causal_effect.ate_ci_upper = bootstrap_result.ci_upper_percentile
                 elif bootstrap_result.config.method == "bias_corrected":
-                    causal_effect.ate_ci_lower = bootstrap_result.ci_lower_bias_corrected
-                    causal_effect.ate_ci_upper = bootstrap_result.ci_upper_bias_corrected
+                    causal_effect.ate_ci_lower = (
+                        bootstrap_result.ci_lower_bias_corrected
+                    )
+                    causal_effect.ate_ci_upper = (
+                        bootstrap_result.ci_upper_bias_corrected
+                    )
                 elif bootstrap_result.config.method == "bca":
                     causal_effect.ate_ci_lower = bootstrap_result.ci_lower_bca
                     causal_effect.ate_ci_upper = bootstrap_result.ci_upper_bca
@@ -617,8 +633,12 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
                 # Set all CI variants
                 causal_effect.ate_ci_lower_bca = bootstrap_result.ci_lower_bca
                 causal_effect.ate_ci_upper_bca = bootstrap_result.ci_upper_bca
-                causal_effect.ate_ci_lower_bias_corrected = bootstrap_result.ci_lower_bias_corrected
-                causal_effect.ate_ci_upper_bias_corrected = bootstrap_result.ci_upper_bias_corrected
+                causal_effect.ate_ci_lower_bias_corrected = (
+                    bootstrap_result.ci_lower_bias_corrected
+                )
+                causal_effect.ate_ci_upper_bias_corrected = (
+                    bootstrap_result.ci_upper_bias_corrected
+                )
 
                 if bootstrap_result.bootstrap_se is not None:
                     causal_effect.ate_se = bootstrap_result.bootstrap_se
@@ -647,7 +667,11 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             Matplotlib figure object
         """
-        if not self.is_fitted or self.forcing_variable_data is None or self.outcome_data is None:
+        if (
+            not self.is_fitted
+            or self.forcing_variable_data is None
+            or self.outcome_data is None
+        ):
             raise EstimationError("Estimator must be fitted before plotting")
 
         fig, ax = plt.subplots(figsize=figsize)
@@ -745,8 +769,11 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             # Calculate test statistic
             if placebo_result.ate_se is not None and placebo_result.ate_se > 0:
                 t_stat = placebo_result.ate / placebo_result.ate_se
-                df = ((self._rdd_result.n_left + self._rdd_result.n_right - 4)
-                      if self._rdd_result is not None else 100)
+                df = (
+                    (self._rdd_result.n_left + self._rdd_result.n_right - 4)
+                    if self._rdd_result is not None
+                    else 100
+                )
                 p_value = 2 * (1 - stats.t.cdf(abs(t_stat), df))
             else:
                 p_value = 1.0  # Conservative default
@@ -820,6 +847,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         # More sophisticated versions would fit smooth densities and test discontinuity
         try:
             from scipy.stats import ttest_ind
+
             _, p_value = ttest_ind(left_densities, right_densities, equal_var=False)
             return float(p_value)
         except Exception:
@@ -828,7 +856,9 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             right_mean = np.mean(right_densities)
 
             # Crude approximation: if densities are very different, suspicious
-            relative_diff = abs(left_mean - right_mean) / (left_mean + right_mean + 1e-8)
+            relative_diff = abs(left_mean - right_mean) / (
+                left_mean + right_mean + 1e-8
+            )
 
             # Convert to rough p-value (this is very approximate)
             if relative_diff > 0.5:  # 50% difference
@@ -836,7 +866,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
             elif relative_diff > 0.3:  # 30% difference
                 return 0.05  # Borderline
             else:
-                return 0.2   # Probably OK
+                return 0.2  # Probably OK
 
         return p_value
 

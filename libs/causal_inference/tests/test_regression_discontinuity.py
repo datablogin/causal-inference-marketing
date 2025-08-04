@@ -356,8 +356,10 @@ class TestRDDEstimator:
         """Test input validation for forcing variables."""
         # Test non-numeric forcing variable - use enough data to pass minimum sample size
         bad_treatment = TreatmentData(
-            values=pd.Series(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]),
-            treatment_type="continuous"
+            values=pd.Series(
+                ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
+            ),
+            treatment_type="continuous",
         )
         bad_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
 
@@ -369,7 +371,7 @@ class TestRDDEstimator:
         # Test forcing variable with NaN values - use enough data to pass minimum sample size
         nan_treatment = TreatmentData(
             values=np.array([1, 2, np.nan, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
-            treatment_type="continuous"
+            treatment_type="continuous",
         )
         nan_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
 
@@ -488,4 +490,3 @@ class TestRDDValidation:
 
         with pytest.raises(Exception):
             estimator.estimate_ate()
-
