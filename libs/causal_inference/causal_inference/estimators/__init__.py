@@ -12,6 +12,7 @@ from .g_computation import GComputationEstimator
 from .g_estimation import GEstimationEstimator
 from .ipw import IPWEstimator
 from .iv import IVEstimator
+from .mediation import MediationEffect, MediationEstimator, MediatorData
 from .meta_learners import (
     BaseMetaLearner,
     CATEResult,
@@ -34,7 +35,13 @@ __all__ = [
     "GEstimationEstimator",
     "IPWEstimator",
     "IVEstimator",
+    "MediationEstimator",
+    "MediationEffect",
+    "MediatorData",
     "PropensityScoreEstimator",
+    "RDDEstimator",
+    "RDDResult",
+    "ForcingVariableData",
     "SyntheticControlEstimator",
     "SyntheticControlResult",
     "TimeVaryingEstimator",
