@@ -354,7 +354,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         # Check that we have fitted data
         if self.treatment_data is None:
             raise EstimationError("Treatment data is not available")
-        
+
         # Get original data arrays
         X_mediator, X_outcome = self._prepare_feature_matrices(
             self.treatment_data, self.covariate_data
@@ -552,7 +552,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         """
         if self.treatment_data is None or self.bootstrap_config is None:
             raise EstimationError("Treatment data and bootstrap config are required")
-        
+
         n_obs = len(self.treatment_data.values)
         bootstrap_results = []
         failed_samples = 0
@@ -572,7 +572,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
                 if (self.treatment_data is None or self.outcome_data is None or
                     self.mediator_data is None):
                     raise EstimationError("Required data not available for bootstrap")
-                
+
                 # Create bootstrap samples
                 boot_treatment_values = (
                     self.treatment_data.values.iloc[boot_indices]
