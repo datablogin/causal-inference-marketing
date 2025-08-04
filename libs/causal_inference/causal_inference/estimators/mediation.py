@@ -6,6 +6,7 @@ into natural direct effects (NDE) and natural indirect effects (NIE) through med
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,6 +26,9 @@ from ..core.base import (
     TreatmentData,
 )
 from ..core.bootstrap import BootstrapConfig, BootstrapMixin
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -80,8 +84,8 @@ class MediationEffect(CausalEffect):
             total_from_components = self.nde + self.nie
             if abs(total_from_components - self.ate) > 1e-6:
                 # Allow small numerical differences
-                print(
-                    f"Warning: NDE + NIE ({total_from_components:.6f}) != ATE ({self.ate:.6f})"
+                logger.warning(
+                    f"Effect decomposition inconsistency: NDE + NIE ({total_from_components:.6f}) != ATE ({self.ate:.6f})"
                 )
 
     @property
@@ -227,7 +231,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
@@ -283,10 +287,10 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         # Fit outcome model: Y ~ T + M + X
         self.outcome_model = self._create_model(
             self.outcome_model_type,
-            self.outcome_data.outcome_type,
+            outcome.outcome_type,
             self.outcome_model_params,
         )
-        self.outcome_model.fit(X_outcome, self.outcome_data.values)
+        self.outcome_model.fit(X_outcome, outcome.values)
 
         if self.verbose:
             print("Fitted mediator and outcome models for mediation analysis")
@@ -307,15 +311,17 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         """
         # Convert treatment to array
         if isinstance(treatment.values, pd.Series):
-            T = treatment.values.values.reshape(-1, 1)
+            T = np.asarray(treatment.values.values).reshape(-1, 1)
         else:
-            T = np.array(treatment.values).reshape(-1, 1)
+            T = np.asarray(treatment.values).reshape(-1, 1)
 
         # Convert mediator to array
+        if self.mediator_data is None:
+            raise EstimationError("Mediator data is required")
         if isinstance(self.mediator_data.values, pd.Series):
-            M = self.mediator_data.values.values.reshape(-1, 1)
+            M = np.asarray(self.mediator_data.values.values).reshape(-1, 1)
         else:
-            M = np.array(self.mediator_data.values).reshape(-1, 1)
+            M = np.asarray(self.mediator_data.values).reshape(-1, 1)
 
         # Add covariates if provided
         if covariates is not None:
@@ -345,6 +351,10 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         if self.mediator_model is None or self.outcome_model is None:
             raise EstimationError("Models must be fitted before estimation")
 
+        # Check that we have fitted data
+        if self.treatment_data is None:
+            raise EstimationError("Treatment data is not available")
+        
         # Get original data arrays
         X_mediator, X_outcome = self._prepare_feature_matrices(
             self.treatment_data, self.covariate_data
@@ -375,9 +385,6 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
             )
             X_outcome_t1_m0 = np.hstack(
                 [np.ones((n_obs, 1)), M_t0.reshape(-1, 1), X_cov]
-            )
-            X_outcome_t0_m1 = np.hstack(
-                [np.zeros((n_obs, 1)), M_t1.reshape(-1, 1), X_cov]
             )
             X_outcome_t0_m0 = np.hstack(
                 [np.zeros((n_obs, 1)), M_t0.reshape(-1, 1), X_cov]
@@ -432,7 +439,10 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
 
         # Return cached result if available and requested
         if use_cache and self._causal_effect is not None:
-            return self._causal_effect
+            if isinstance(self._causal_effect, MediationEffect):
+                return self._causal_effect
+            # If cached result is wrong type, recalculate
+            self._causal_effect = None
 
         try:
             # Get point estimates
@@ -468,7 +478,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
     def _add_bootstrap_confidence_intervals(
         self, effect: MediationEffect
     ) -> MediationEffect:
-        """Add bootstrap confidence intervals to mediation effect using built-in bootstrap.
+        """Add bootstrap confidence intervals to mediation effect.
 
         Args:
             effect: Original mediation effect estimate
@@ -476,138 +486,113 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             Updated mediation effect with confidence intervals
         """
-        # Store original mediator data for bootstrap
-        original_mediator = self.mediator_data
+        if not self.bootstrap_config or self.bootstrap_config.n_samples <= 0:
+            return effect
 
-        # Define bootstrap function for mediation effects
-        def bootstrap_func(estimator, boot_treatment, boot_outcome, boot_covariates):
-            # Set bootstrap mediator data
-            if original_mediator is not None:
-
-                if isinstance(original_mediator.values, pd.Series):
-                    # Need to get original indices for bootstrap sampling
-                    original_indices = getattr(
-                        estimator,
-                        "_bootstrap_indices",
-                        np.arange(len(original_mediator.values)),
-                    )
-                    boot_mediator_values = original_mediator.values.iloc[
-                        original_indices
-                    ]
-                else:
-                    original_indices = getattr(
-                        estimator,
-                        "_bootstrap_indices",
-                        np.arange(len(original_mediator.values)),
-                    )
-                    boot_mediator_values = original_mediator.values[original_indices]
-
-                boot_mediator = MediatorData(
-                    values=boot_mediator_values,
-                    name=original_mediator.name,
-                    mediator_type=original_mediator.mediator_type,
-                )
-
-                estimator.mediator_data = boot_mediator
-
-            # Fit and estimate
-            estimator._fit_implementation(boot_treatment, boot_outcome, boot_covariates)
-            boot_effect = estimator._estimate_ate_implementation()
-
-            return {
-                "ate": boot_effect.ate,
-                "nde": boot_effect.nde,
-                "nie": boot_effect.nie,
-                "mediated_proportion": boot_effect.mediated_proportion,
-            }
-
-        # Use bootstrap with custom function
         try:
-            boot_results = self._bootstrap_estimates_with_custom_function(
-                bootstrap_func
-            )
+            # Perform bootstrap sampling with proper error handling
+            bootstrap_results = self._perform_mediation_bootstrap()
 
-            # Add confidence intervals
+            if not bootstrap_results:
+                logger.warning("Bootstrap failed - no successful samples")
+                return effect
+
+            # Calculate confidence intervals
             confidence_level = self.bootstrap_config.confidence_level
             alpha = 1 - confidence_level
             lower_percentile = 100 * (alpha / 2)
             upper_percentile = 100 * (1 - alpha / 2)
 
             # Extract bootstrap estimates
-            ate_estimates = [
-                result["ate"] for result in boot_results if result is not None
-            ]
-            nde_estimates = [
-                result["nde"] for result in boot_results if result is not None
-            ]
-            nie_estimates = [
-                result["nie"] for result in boot_results if result is not None
-            ]
-            mp_estimates = [
-                result["mediated_proportion"]
-                for result in boot_results
-                if result is not None
-            ]
+            ate_estimates = [r["ate"] for r in bootstrap_results]
+            nde_estimates = [r["nde"] for r in bootstrap_results]
+            nie_estimates = [r["nie"] for r in bootstrap_results]
+            mp_estimates = [r["mediated_proportion"] for r in bootstrap_results]
 
-            if len(ate_estimates) > 0:
-                effect.ate_ci_lower = np.percentile(ate_estimates, lower_percentile)
-                effect.ate_ci_upper = np.percentile(ate_estimates, upper_percentile)
-                effect.ate_se = np.std(ate_estimates)
+            # Add confidence intervals
+            if ate_estimates:
+                effect.ate_ci_lower = float(np.percentile(ate_estimates, lower_percentile))
+                effect.ate_ci_upper = float(np.percentile(ate_estimates, upper_percentile))
+                effect.ate_se = float(np.std(ate_estimates))
                 effect.bootstrap_samples = len(ate_estimates)
 
-            if len(nde_estimates) > 0:
-                effect.nde_ci_lower = np.percentile(nde_estimates, lower_percentile)
-                effect.nde_ci_upper = np.percentile(nde_estimates, upper_percentile)
-                effect.nde_se = np.std(nde_estimates)
+            if nde_estimates:
+                effect.nde_ci_lower = float(np.percentile(nde_estimates, lower_percentile))
+                effect.nde_ci_upper = float(np.percentile(nde_estimates, upper_percentile))
+                effect.nde_se = float(np.std(nde_estimates))
 
-            if len(nie_estimates) > 0:
-                effect.nie_ci_lower = np.percentile(nie_estimates, lower_percentile)
-                effect.nie_ci_upper = np.percentile(nie_estimates, upper_percentile)
-                effect.nie_se = np.std(nie_estimates)
+            if nie_estimates:
+                effect.nie_ci_lower = float(np.percentile(nie_estimates, lower_percentile))
+                effect.nie_ci_upper = float(np.percentile(nie_estimates, upper_percentile))
+                effect.nie_se = float(np.std(nie_estimates))
 
-            if len(mp_estimates) > 0:
-                effect.mediated_prop_ci_lower = np.percentile(
+            if mp_estimates:
+                effect.mediated_prop_ci_lower = float(np.percentile(
                     mp_estimates, lower_percentile
-                )
-                effect.mediated_prop_ci_upper = np.percentile(
+                ))
+                effect.mediated_prop_ci_upper = float(np.percentile(
                     mp_estimates, upper_percentile
-                )
-                effect.mediated_prop_se = np.std(mp_estimates)
+                ))
+                effect.mediated_prop_se = float(np.std(mp_estimates))
 
             effect.bootstrap_method = "percentile"
+            effect.bootstrap_converged = True
 
         except Exception as e:
-            if self.verbose:
-                print(f"Bootstrap confidence intervals failed: {e}")
-
-        # Restore original mediator data
-        self.mediator_data = original_mediator
+            logger.warning(f"Bootstrap confidence intervals failed: {e}")
+            effect.bootstrap_converged = False
 
         return effect
 
-    def _bootstrap_estimates_with_custom_function(self, bootstrap_func):
-        """Simplified bootstrap implementation for mediation analysis."""
+    def _perform_mediation_bootstrap(self) -> list[dict[str, float]]:
+        """Perform bootstrap sampling for mediation analysis.
+
+        Returns:
+            List of bootstrap results with mediation estimates
+        """
+        if self.treatment_data is None or self.bootstrap_config is None:
+            raise EstimationError("Treatment data and bootstrap config are required")
+        
         n_obs = len(self.treatment_data.values)
         bootstrap_results = []
+        failed_samples = 0
+        max_failures = int(
+            0.5 * self.bootstrap_config.n_samples
+        )  # Allow up to 50% failures
 
         for i in range(self.bootstrap_config.n_samples):
             try:
                 # Generate bootstrap indices
+                if self.bootstrap_config.random_state is not None:
+                    np.random.seed(self.bootstrap_config.random_state + i)
+
                 boot_indices = np.random.choice(n_obs, size=n_obs, replace=True)
 
+                # Check required data
+                if (self.treatment_data is None or self.outcome_data is None or
+                    self.mediator_data is None):
+                    raise EstimationError("Required data not available for bootstrap")
+                
                 # Create bootstrap samples
-                if isinstance(self.treatment_data.values, pd.Series):
-                    boot_treatment_values = self.treatment_data.values.iloc[
-                        boot_indices
-                    ]
-                else:
-                    boot_treatment_values = self.treatment_data.values[boot_indices]
+                boot_treatment_values = (
+                    self.treatment_data.values.iloc[boot_indices]
+                    if isinstance(self.treatment_data.values, pd.Series)
+                    else self.treatment_data.values[boot_indices]
+                )
 
-                if isinstance(self.outcome_data.values, pd.Series):
-                    boot_outcome_values = self.outcome_data.values.iloc[boot_indices]
-                else:
-                    boot_outcome_values = self.outcome_data.values[boot_indices]
+                boot_outcome_values = (
+                    self.outcome_data.values.iloc[boot_indices]
+                    if isinstance(self.outcome_data.values, pd.Series)
+                    else self.outcome_data.values[boot_indices]
+                )
 
+                boot_mediator_values = (
+                    self.mediator_data.values.iloc[boot_indices]
+                    if isinstance(self.mediator_data.values, pd.Series)
+                    else self.mediator_data.values[boot_indices]
+                )
+
+                # Create data objects
                 boot_treatment = TreatmentData(
                     values=boot_treatment_values,
                     name=self.treatment_data.name,
@@ -620,32 +605,65 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
                     outcome_type=self.outcome_data.outcome_type,
                 )
 
+                boot_mediator = MediatorData(
+                    values=boot_mediator_values,
+                    name=self.mediator_data.name,
+                    mediator_type=self.mediator_data.mediator_type,
+                )
+
                 boot_covariates = None
                 if self.covariate_data is not None:
-                    if isinstance(self.covariate_data.values, pd.DataFrame):
-                        boot_cov_values = self.covariate_data.values.iloc[boot_indices]
-                    else:
-                        boot_cov_values = self.covariate_data.values[boot_indices]
-
+                    boot_cov_values = (
+                        self.covariate_data.values.iloc[boot_indices]
+                        if isinstance(self.covariate_data.values, pd.DataFrame)
+                        else self.covariate_data.values[boot_indices]
+                    )
                     boot_covariates = CovariateData(
                         values=boot_cov_values, names=self.covariate_data.names
                     )
 
-                # Create bootstrap estimator
-                boot_estimator = self._create_bootstrap_estimator(random_state=None)
-
-                # Store bootstrap indices for mediator sampling
-                boot_estimator._bootstrap_indices = boot_indices
-
-                # Run bootstrap function
-                result = bootstrap_func(
-                    boot_estimator, boot_treatment, boot_outcome, boot_covariates
+                # Create and fit bootstrap estimator
+                boot_estimator = self._create_bootstrap_estimator(
+                    random_state=self.bootstrap_config.random_state + i
+                    if self.bootstrap_config.random_state
+                    else None
                 )
-                bootstrap_results.append(result)
+
+                boot_estimator.fit(
+                    boot_treatment, boot_outcome, boot_mediator, boot_covariates
+                )
+                boot_effect = boot_estimator._estimate_ate_implementation()
+
+                # Store results
+                bootstrap_results.append(
+                    {
+                        "ate": float(boot_effect.ate),
+                        "nde": float(boot_effect.nde) if boot_effect.nde is not None else 0.0,
+                        "nie": float(boot_effect.nie) if boot_effect.nie is not None else 0.0,
+                        "mediated_proportion": float(boot_effect.mediated_proportion) if boot_effect.mediated_proportion is not None else 0.0,
+                    }
+                )
 
             except Exception as e:
+                failed_samples += 1
                 if self.verbose:
-                    print(f"Bootstrap sample {i} failed: {e}")
-                bootstrap_results.append(None)
+                    logger.debug(f"Bootstrap sample {i} failed: {e}")
+
+                # Check for too many failures
+                if failed_samples > max_failures:
+                    logger.error(
+                        f"Too many bootstrap failures ({failed_samples}/{i + 1})"
+                    )
+                    break
+
+        # Check minimum sample requirement
+        if len(bootstrap_results) < 10:
+            raise EstimationError(
+                f"Insufficient successful bootstrap samples: {len(bootstrap_results)}/{self.bootstrap_config.n_samples}"
+            )
+
+        success_rate = len(bootstrap_results) / self.bootstrap_config.n_samples
+        if success_rate < 0.5:
+            logger.warning(f"Low bootstrap success rate: {success_rate:.1%}")
 
         return bootstrap_results
