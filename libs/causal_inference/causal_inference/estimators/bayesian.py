@@ -19,10 +19,10 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
-import arviz as az  # type: ignore[import-not-found]
+import arviz as az  # type: ignore[import-untyped,import-not-found]
 import numpy as np
 import pandas as pd
-import pymc as pm  # type: ignore[import-not-found]
+import pymc as pm  # type: ignore[import-untyped,import-not-found]
 from numpy.typing import NDArray
 
 from ..core.base import (
@@ -349,7 +349,7 @@ class BayesianEstimator(BaseEstimator):
             raise EstimationError("Model must be fitted before estimation")
 
         # Extract treatment effect posterior samples
-        treatment_effect_samples = self.trace_.posterior[
+        treatment_effect_samples = self.trace_.posterior[  # type: ignore[attr-defined]
             "treatment_effect"
         ].values.flatten()
 
@@ -454,7 +454,7 @@ class BayesianEstimator(BaseEstimator):
         if var_names is None:
             var_names = ["treatment_effect"]
 
-        return az.plot_posterior(
+        return az.plot_posterior(  # type: ignore[no-untyped-call]
             self.trace_, var_names=var_names, figsize=figsize, textsize=12
         )
 
@@ -511,6 +511,6 @@ class BayesianEstimator(BaseEstimator):
                 progressbar=False,
             )
 
-        return az.plot_ppc(
+        return az.plot_ppc(  # type: ignore[no-untyped-call]
             pp_trace, group="posterior_predictive", num_pp_samples=n_samples
         )
