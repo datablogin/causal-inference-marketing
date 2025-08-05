@@ -11,7 +11,11 @@ from causal_inference.core.base import (
     OutcomeData,
     TreatmentData,
 )
-from causal_inference.estimators.bayesian import BayesianCausalEffect, BayesianEstimator
+
+# Skip all tests if Bayesian dependencies are not available
+pytest_bayesian = pytest.importorskip("causal_inference.estimators.bayesian")
+BayesianCausalEffect = pytest_bayesian.BayesianCausalEffect
+BayesianEstimator = pytest_bayesian.BayesianEstimator
 
 
 class TestBayesianCausalEffect:
