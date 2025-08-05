@@ -21,7 +21,9 @@ from causal_inference.core.base import (  # type: ignore[import-not-found]
 )
 
 # from causal_inference.core.bootstrap import BootstrapConfig
-from causal_inference.data.nhefs import load_nhefs_data  # type: ignore[import-not-found]
+from causal_inference.data.nhefs import (
+    load_nhefs_data,  # type: ignore[import-not-found]
+)
 from causal_inference.estimators.difference_in_differences import (  # type: ignore[import-not-found]
     DIDResult,
     DifferenceInDifferencesEstimator,
