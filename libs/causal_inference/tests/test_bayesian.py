@@ -4,7 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+from causal_inference.core.base import (
+    CovariateData,
+    DataValidationError,
+    EstimationError,
+    OutcomeData,
+    TreatmentData,
+)
 from causal_inference.estimators.bayesian import BayesianCausalEffect, BayesianEstimator
 
 
@@ -431,4 +437,54 @@ class TestBayesianEstimator:
 
         # Results should be very close (allowing for small numerical differences)
         assert abs(effect1.ate - effect2.ate) < 0.01, "Results should be reproducible"
+
+    def test_parameter_validation(self):
+        """Test parameter validation in __init__."""
+        # Test negative prior scales
+        with pytest.raises(ValueError, match="prior_treatment_scale must be positive"):
+            BayesianEstimator(prior_treatment_scale=-1.0)
+
+        with pytest.raises(ValueError, match="prior_intercept_scale must be positive"):
+            BayesianEstimator(prior_intercept_scale=0.0)
+
+        # Test invalid MCMC parameters
+        with pytest.raises(ValueError, match="mcmc_draws must be positive"):
+            BayesianEstimator(mcmc_draws=0)
+
+        with pytest.raises(ValueError, match="mcmc_chains must be positive"):
+            BayesianEstimator(mcmc_chains=-1)
+
+        # Test invalid credible level
+        with pytest.raises(ValueError, match="credible_level must be between 0 and 1"):
+            BayesianEstimator(credible_level=1.5)
+
+        with pytest.raises(ValueError, match="credible_level must be between 0 and 1"):
+            BayesianEstimator(credible_level=0.0)
+
+    def test_insufficient_sample_size(self):
+        """Test error with insufficient sample size."""
+        # Test base class validation (< 10 observations)
+        very_small_treatment = TreatmentData(
+            values=pd.Series([1, 0, 1, 0, 1]), treatment_type="binary"
+        )
+        very_small_outcome = OutcomeData(
+            values=pd.Series([10.0, 8.0, 12.0, 9.0, 11.0]), outcome_type="continuous"
+        )
+
+        estimator = BayesianEstimator()
+
+        with pytest.raises(DataValidationError, match="Minimum sample size of 10"):
+            estimator.fit(very_small_treatment, very_small_outcome)
+
+        # Test Bayesian-specific validation (< 50 observations but > 10)
+        np.random.seed(42)
+        medium_treatment = TreatmentData(
+            values=pd.Series(np.random.binomial(1, 0.5, 30)), treatment_type="binary"
+        )
+        medium_outcome = OutcomeData(
+            values=pd.Series(np.random.normal(10, 2, 30)), outcome_type="continuous"
+        )
+
+        with pytest.raises(EstimationError, match="Insufficient sample size.*50 observations"):
+            estimator.fit(medium_treatment, medium_outcome)
 

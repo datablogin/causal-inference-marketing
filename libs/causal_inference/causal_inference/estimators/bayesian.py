@@ -37,8 +37,9 @@ from ..core.base import (
 # Set up logger
 logger = logging.getLogger(__name__)
 
-# Suppress PyMC warnings for cleaner output
-warnings.filterwarnings("ignore", category=UserWarning, module="pymc")
+# Suppress specific PyMC warnings for cleaner output, but keep convergence warnings
+warnings.filterwarnings("ignore", message=".*does not provide a compiled.*", category=UserWarning, module="pymc")
+warnings.filterwarnings("ignore", message=".*future warning.*", category=UserWarning, module="pymc")
 
 
 @dataclass
@@ -140,6 +141,26 @@ class BayesianEstimator(BaseEstimator):
         """
         super().__init__(random_state=random_state, verbose=verbose, **kwargs)
 
+        # Validate prior scale parameters
+        if prior_intercept_scale <= 0:
+            raise ValueError("prior_intercept_scale must be positive")
+        if prior_treatment_scale <= 0:
+            raise ValueError("prior_treatment_scale must be positive")
+        if prior_covariate_scale <= 0:
+            raise ValueError("prior_covariate_scale must be positive")
+        if prior_sigma_scale <= 0:
+            raise ValueError("prior_sigma_scale must be positive")
+
+        # Validate MCMC parameters
+        if mcmc_draws <= 0:
+            raise ValueError("mcmc_draws must be positive")
+        if mcmc_tune < 0:
+            raise ValueError("mcmc_tune must be non-negative")
+        if mcmc_chains <= 0:
+            raise ValueError("mcmc_chains must be positive")
+        if not 0 < credible_level < 1:
+            raise ValueError("credible_level must be between 0 and 1")
+
         self.prior_intercept_scale = prior_intercept_scale
         self.prior_treatment_scale = prior_treatment_scale
         self.prior_covariate_scale = prior_covariate_scale
@@ -167,6 +188,14 @@ class BayesianEstimator(BaseEstimator):
             outcome: Outcome variable data
             covariates: Optional covariate data
         """
+        # Check sample size is sufficient for Bayesian estimation
+        n_obs = len(treatment.values)
+        if n_obs < 50:
+            raise EstimationError(
+                f"Insufficient sample size: {n_obs}. "
+                f"Bayesian estimation requires at least 50 observations."
+            )
+
         # Check treatment is binary
         if treatment.treatment_type != "binary":
             raise EstimationError(
@@ -243,6 +272,11 @@ class BayesianEstimator(BaseEstimator):
             outcome: Outcome variable data
             covariates: Optional covariate data for adjustment
         """
+        # Store data for later use
+        self.treatment_data = treatment
+        self.outcome_data = outcome
+        self.covariate_data = covariates
+
         # Validate and prepare data
         self._validate_data(treatment, outcome, covariates)
         T, Y, X = self._prepare_data(treatment, outcome, covariates)
@@ -337,14 +371,26 @@ class BayesianEstimator(BaseEstimator):
             logger.info(f"Effective sample size: {ess:.0f}")
             logger.info(f"R-hat: {r_hat:.4f}")
 
-        # Check convergence
-        if r_hat > 1.1:
-            logger.warning(
-                f"R-hat = {r_hat:.4f} > 1.1, indicating potential convergence issues"
+        # Check convergence with stricter thresholds
+        if r_hat > 1.05:
+            raise EstimationError(
+                f"MCMC did not converge (R-hat={r_hat:.4f} > 1.05). "
+                f"Try increasing mcmc_draws or mcmc_tune."
             )
-        if ess < 100:
+        elif r_hat > 1.02:
             logger.warning(
-                f"Effective sample size = {ess:.0f} < 100, consider more MCMC draws"
+                f"R-hat = {r_hat:.4f} > 1.02, indicating marginal convergence"
+            )
+
+        if ess < 400:
+            logger.warning(
+                f"Low effective sample size: {ess:.0f} < 400. "
+                f"Consider increasing mcmc_draws for better estimates."
+            )
+        elif ess < 100:
+            logger.warning(
+                f"Very low effective sample size: {ess:.0f} < 100. "
+                f"Results may be unreliable."
             )
 
         # Create prior specification summary
