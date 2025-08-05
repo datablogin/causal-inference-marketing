@@ -198,16 +198,16 @@ class TestBayesianEstimator:
 
         estimator = BayesianEstimator()
 
-        with pytest.raises(Exception, match="contains missing values"):
+        with pytest.raises(Exception, match="Treatment values cannot contain missing data"):
             estimator.fit(treatment, outcome)
 
     def test_fitting_simple_data(self, simple_data):
         """Test fitting the Bayesian estimator on simple synthetic data."""
         treatment_data, outcome_data, covariate_data = simple_data
 
-        # Use smaller MCMC settings for faster testing
+        # Use larger MCMC settings for reliable convergence
         estimator = BayesianEstimator(
-            mcmc_draws=500, mcmc_tune=200, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=1000, mcmc_tune=500, mcmc_chains=2, random_state=42, verbose=False
         )
 
         # Should not raise any exceptions
@@ -222,7 +222,7 @@ class TestBayesianEstimator:
         treatment_data, outcome_data, covariate_data = simple_data
 
         estimator = BayesianEstimator(
-            mcmc_draws=500, mcmc_tune=200, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=1000, mcmc_tune=500, mcmc_chains=2, random_state=42, verbose=False
         )
 
         estimator.fit(treatment_data, outcome_data, covariate_data)
@@ -250,8 +250,8 @@ class TestBayesianEstimator:
         treatment_data, outcome_data, covariate_data = nhefs_subset_data
 
         estimator = BayesianEstimator(
-            mcmc_draws=600,
-            mcmc_tune=300,
+            mcmc_draws=1200,
+            mcmc_tune=600,
             mcmc_chains=2,
             random_state=123,
             verbose=False,
@@ -262,7 +262,7 @@ class TestBayesianEstimator:
 
         assert isinstance(effect, BayesianCausalEffect)
         assert effect.posterior_samples is not None
-        assert len(effect.posterior_samples) == 600 * 2  # draws * chains
+        assert len(effect.posterior_samples) == 1200 * 2  # draws * chains
 
         # True ATE is 3.5, should be reasonably close
         assert abs(effect.ate - 3.5) < 2.0, (
@@ -291,7 +291,7 @@ class TestBayesianEstimator:
         outcome_data = OutcomeData(values=pd.Series(outcome), outcome_type="continuous")
 
         estimator = BayesianEstimator(
-            mcmc_draws=400, mcmc_tune=200, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=800, mcmc_tune=400, mcmc_chains=2, random_state=42, verbose=False
         )
 
         estimator.fit(treatment_data, outcome_data)
@@ -308,7 +308,7 @@ class TestBayesianEstimator:
         treatment_data, outcome_data, covariate_data = simple_data
 
         estimator = BayesianEstimator(
-            mcmc_draws=400, mcmc_tune=200, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=800, mcmc_tune=400, mcmc_chains=2, random_state=42, verbose=False
         )
 
         estimator.fit(treatment_data, outcome_data, covariate_data)
@@ -325,7 +325,7 @@ class TestBayesianEstimator:
         treatment_data, outcome_data, covariate_data = simple_data
 
         estimator = BayesianEstimator(
-            mcmc_draws=300, mcmc_tune=150, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=600, mcmc_tune=300, mcmc_chains=2, random_state=42, verbose=False
         )
 
         estimator.fit(treatment_data, outcome_data, covariate_data)
@@ -360,8 +360,8 @@ class TestBayesianEstimator:
         estimator = BayesianEstimator(
             prior_treatment_scale=0.5,  # More informative prior
             prior_covariate_scale=1.0,
-            mcmc_draws=400,
-            mcmc_tune=200,
+            mcmc_draws=800,
+            mcmc_tune=400,
             mcmc_chains=2,
             random_state=42,
             verbose=False,
@@ -381,8 +381,8 @@ class TestBayesianEstimator:
         # Test with 90% credible intervals
         estimator = BayesianEstimator(
             credible_level=0.90,
-            mcmc_draws=400,
-            mcmc_tune=200,
+            mcmc_draws=800,
+            mcmc_tune=400,
             mcmc_chains=2,
             random_state=42,
             verbose=False,
@@ -403,10 +403,10 @@ class TestBayesianEstimator:
         """Test convergence diagnostics and warnings."""
         treatment_data, outcome_data, covariate_data = simple_data
 
-        # Use very few draws to potentially trigger convergence warnings
+        # Use moderate draws to test diagnostics without convergence failures
         estimator = BayesianEstimator(
-            mcmc_draws=50,  # Very small for fast testing
-            mcmc_tune=25,
+            mcmc_draws=500,  # Enough for convergence but still testable
+            mcmc_tune=200,
             mcmc_chains=2,
             random_state=42,
             verbose=False,
@@ -418,7 +418,7 @@ class TestBayesianEstimator:
         assert effect.mcmc_diagnostics is not None
         assert "effective_sample_size" in effect.mcmc_diagnostics
         assert "r_hat" in effect.mcmc_diagnostics
-        assert effect.mcmc_diagnostics["draws"] == 50
+        assert effect.mcmc_diagnostics["draws"] == 500
         assert effect.mcmc_diagnostics["chains"] == 2
 
     def test_reproducibility(self, simple_data):
@@ -427,14 +427,14 @@ class TestBayesianEstimator:
 
         # First run
         estimator1 = BayesianEstimator(
-            mcmc_draws=300, mcmc_tune=150, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=600, mcmc_tune=300, mcmc_chains=2, random_state=42, verbose=False
         )
         estimator1.fit(treatment_data, outcome_data, covariate_data)
         effect1 = estimator1.estimate_ate()
 
         # Second run with same seed
         estimator2 = BayesianEstimator(
-            mcmc_draws=300, mcmc_tune=150, mcmc_chains=2, random_state=42, verbose=False
+            mcmc_draws=600, mcmc_tune=300, mcmc_chains=2, random_state=42, verbose=False
         )
         estimator2.fit(treatment_data, outcome_data, covariate_data)
         effect2 = estimator2.estimate_ate()
