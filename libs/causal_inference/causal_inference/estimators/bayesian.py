@@ -38,8 +38,15 @@ from ..core.base import (
 logger = logging.getLogger(__name__)
 
 # Suppress specific PyMC warnings for cleaner output, but keep convergence warnings
-warnings.filterwarnings("ignore", message=".*does not provide a compiled.*", category=UserWarning, module="pymc")
-warnings.filterwarnings("ignore", message=".*future warning.*", category=UserWarning, module="pymc")
+warnings.filterwarnings(
+    "ignore",
+    message=".*does not provide a compiled.*",
+    category=UserWarning,
+    module="pymc",
+)
+warnings.filterwarnings(
+    "ignore", message=".*future warning.*", category=UserWarning, module="pymc"
+)
 
 
 @dataclass
