@@ -519,5 +519,8 @@ class BayesianEstimator(BaseEstimator):
         except (TypeError, KeyError):
             # Fallback: return trace info if plot_ppc fails
             import warnings
-            warnings.warn("Posterior predictive check plot failed, returning trace summary")
+
+            warnings.warn(
+                "Posterior predictive check plot failed, returning trace summary"
+            )
             return az.summary(self.trace_)
