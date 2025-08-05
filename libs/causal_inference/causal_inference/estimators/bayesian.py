@@ -512,5 +512,5 @@ class BayesianEstimator(BaseEstimator):
             )
 
         return az.plot_ppc(  # type: ignore[no-untyped-call]
-            pp_trace, group="posterior_predictive", num_pp_samples=n_samples
+            pp_trace, num_pp_samples=n_samples
         )

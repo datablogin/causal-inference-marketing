@@ -250,9 +250,9 @@ class TestBayesianEstimator:
         treatment_data, outcome_data, covariate_data = nhefs_subset_data
 
         estimator = BayesianEstimator(
-            mcmc_draws=1200,
-            mcmc_tune=600,
-            mcmc_chains=2,
+            mcmc_draws=2000,
+            mcmc_tune=1000,
+            mcmc_chains=4,
             random_state=123,
             verbose=False,
         )
@@ -262,7 +262,7 @@ class TestBayesianEstimator:
 
         assert isinstance(effect, BayesianCausalEffect)
         assert effect.posterior_samples is not None
-        assert len(effect.posterior_samples) == 1200 * 2  # draws * chains
+        assert len(effect.posterior_samples) == 2000 * 4  # draws * chains
 
         # True ATE is 3.5, should be reasonably close
         assert abs(effect.ate - 3.5) < 2.0, (
@@ -405,9 +405,9 @@ class TestBayesianEstimator:
 
         # Use moderate draws to test diagnostics without convergence failures
         estimator = BayesianEstimator(
-            mcmc_draws=500,  # Enough for convergence but still testable
-            mcmc_tune=200,
-            mcmc_chains=2,
+            mcmc_draws=1000,  # Enough for convergence but still testable
+            mcmc_tune=500,
+            mcmc_chains=4,
             random_state=42,
             verbose=False,
         )
@@ -418,8 +418,8 @@ class TestBayesianEstimator:
         assert effect.mcmc_diagnostics is not None
         assert "effective_sample_size" in effect.mcmc_diagnostics
         assert "r_hat" in effect.mcmc_diagnostics
-        assert effect.mcmc_diagnostics["draws"] == 500
-        assert effect.mcmc_diagnostics["chains"] == 2
+        assert effect.mcmc_diagnostics["draws"] == 1000
+        assert effect.mcmc_diagnostics["chains"] == 4
 
     def test_reproducibility(self, simple_data):
         """Test that results are reproducible with same random seed."""
