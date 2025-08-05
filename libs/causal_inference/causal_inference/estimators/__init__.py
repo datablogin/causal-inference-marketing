@@ -6,7 +6,6 @@ meta-learners for CATE, and survival analysis estimators.
 """
 
 from .aipw import AIPWEstimator
-from .bayesian import BayesianCausalEffect, BayesianEstimator
 from .difference_in_differences import DIDResult, DifferenceInDifferencesEstimator
 from .doubly_robust_ml import DoublyRobustMLEstimator
 from .g_computation import GComputationEstimator
@@ -30,8 +29,6 @@ from .tmle import TMLEEstimator
 
 __all__ = [
     "AIPWEstimator",
-    "BayesianEstimator",
-    "BayesianCausalEffect",
     "DifferenceInDifferencesEstimator",
     "DIDResult",
     "DoublyRobustMLEstimator",
@@ -60,6 +57,15 @@ __all__ = [
     "RLearner",
     "CATEResult",
 ]
+
+# Optional Bayesian imports (may fail due to arviz/scipy compatibility)
+try:
+    from .bayesian import BayesianCausalEffect, BayesianEstimator
+
+    __all__.extend(["BayesianEstimator", "BayesianCausalEffect"])
+except ImportError:
+    # Bayesian analysis libraries not available (arviz/scipy compatibility issue)
+    pass
 
 # Optional survival analysis imports
 try:
