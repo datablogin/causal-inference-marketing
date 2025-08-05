@@ -478,7 +478,7 @@ class BayesianEstimator(BaseEstimator):
 
         return az.plot_trace(self.trace_, var_names=var_names, figsize=figsize)
 
-    def parameter_summary(self) -> pd.DataFrame:
+    def parameter_summary(self) -> Any:
         """Get summary statistics for all model parameters.
 
         Returns:
@@ -487,7 +487,7 @@ class BayesianEstimator(BaseEstimator):
         if self.trace_ is None:
             raise EstimationError("Model must be fitted before parameter summary")
 
-        return az.summary(self.trace_)  # type: ignore[return-value]
+        return az.summary(self.trace_)
 
     def posterior_predictive_check(self, n_samples: int = 100) -> Any:
         """Perform posterior predictive checks.
