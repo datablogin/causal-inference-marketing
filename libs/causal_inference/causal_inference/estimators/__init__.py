@@ -58,6 +58,15 @@ __all__ = [
     "CATEResult",
 ]
 
+# Optional Bayesian imports (may fail due to arviz/scipy compatibility)
+try:
+    from .bayesian import BayesianCausalEffect, BayesianEstimator
+
+    __all__.extend(["BayesianEstimator", "BayesianCausalEffect"])
+except ImportError:
+    # Bayesian analysis libraries not available (arviz/scipy compatibility issue)
+    pass
+
 # Optional survival analysis imports
 try:
     from .survival import SurvivalEstimator

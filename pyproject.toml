@@ -55,6 +55,8 @@ dependencies = [
     # Causal inference specific
     # "pymc>=5.10.0",  # Temporarily disabled for Python 3.13 compatibility
     "hypothesis>=6.136.4",
+    "pymc>=5.12.0",
+    "arviz>=0.17.1",
 ]
 
 [project.optional-dependencies]
@@ -64,7 +66,7 @@ ml = [
     "mlflow>=2.15.1",
     "shap>=0.45.0",
     "alibi>=0.9.4",
-    "pymc>=5.10.0",  # Advanced causal inference with Bayesian methods
+    # "pymc>=5.10.0",  # Already included in main dependencies with version >=5.12.0
     "lifelines>=0.27.0",  # Survival analysis library
     "scikit-survival>=0.22.0",  # ML-based survival analysis
 ]
