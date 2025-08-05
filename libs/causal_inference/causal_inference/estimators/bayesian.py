@@ -504,13 +504,15 @@ class BayesianEstimator(BaseEstimator):
             )
 
         with self.model_:
-            pp_trace = pm.sample_posterior_predictive(
+            # Sample posterior predictive and get combined InferenceData
+            pp_samples = pm.sample_posterior_predictive(
                 self.trace_,
                 predictions=n_samples,
                 random_seed=self.random_state,
                 progressbar=False,
+                extend_inferencedata=True,  # This should add to the original trace
             )
 
         return az.plot_ppc(  # type: ignore[no-untyped-call]
-            pp_trace, num_pp_samples=n_samples
+            pp_samples, num_pp_samples=n_samples
         )
