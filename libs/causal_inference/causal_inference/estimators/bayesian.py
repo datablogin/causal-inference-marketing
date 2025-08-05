@@ -19,10 +19,10 @@ import warnings
 from dataclasses import dataclass
 from typing import Any
 
-import arviz as az  # type: ignore[import-untyped,import-not-found]
+import arviz as az
 import numpy as np
 import pandas as pd
-import pymc as pm  # type: ignore[import-untyped,import-not-found]
+import pymc as pm  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
 from ..core.base import (
