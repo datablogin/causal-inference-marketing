@@ -9,6 +9,15 @@ __author__ = "Robert Welborn"
 
 from .core import *
 from .data import *
+from .discovery import (
+    BaseDiscoveryAlgorithm,
+    CausalDAG,
+    DiscoveryEstimatorPipeline,
+    DiscoveryResult,
+    GESAlgorithm,
+    NOTEARSAlgorithm,
+    PCAlgorithm,
+)
 from .estimators import (
     AIPWEstimator,
     DoublyRobustMLEstimator,
@@ -25,10 +34,17 @@ __all__ = [
     "__version__",
     "__author__",
     "AIPWEstimator",
+    "BaseDiscoveryAlgorithm",
+    "CausalDAG",
+    "DiscoveryEstimatorPipeline",
+    "DiscoveryResult",
     "DoublyRobustMLEstimator",
     "GComputationEstimator",
+    "GESAlgorithm",
     "IPWEstimator",
     "IVEstimator",
+    "NOTEARSAlgorithm",
+    "PCAlgorithm",
     "SuperLearner",
     "TargetTrialEmulator",
     "TargetTrialProtocol",
