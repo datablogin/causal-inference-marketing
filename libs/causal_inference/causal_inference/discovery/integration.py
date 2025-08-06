@@ -6,7 +6,7 @@ structures with existing causal inference estimators in the library.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -53,8 +53,8 @@ class DiscoveryEstimatorPipeline:
         self.verbose = verbose
 
         # State
-        self.discovery_result: DiscoveryResult | None = None
-        self.causal_effect: CausalEffect | None = None
+        self.discovery_result: Optional[DiscoveryResult] = None
+        self.causal_effect: Optional[CausalEffect] = None
         self._is_fitted = False
 
     def fit_and_estimate(
@@ -123,11 +123,11 @@ class DiscoveryEstimatorPipeline:
 
         return self.causal_effect
 
-    def get_discovery_result(self) -> DiscoveryResult | None:
+    def get_discovery_result(self) -> Optional[DiscoveryResult]:
         """Get the causal discovery result."""
         return self.discovery_result
 
-    def get_causal_effect(self) -> CausalEffect | None:
+    def get_causal_effect(self) -> Optional[CausalEffect]:
         """Get the estimated causal effect."""
         return self.causal_effect
 

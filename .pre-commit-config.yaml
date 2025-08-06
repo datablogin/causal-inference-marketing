@@ -10,10 +10,10 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.6
+    rev: v0.8.0
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix, --ignore, UP007, --ignore, UP045]
+        args: [--fix, --exit-non-zero-on-fix, --ignore, UP007, --ignore, UP038]
       - id: ruff-format
 
   # - repo: https://github.com/pre-commit/mirrors-mypy

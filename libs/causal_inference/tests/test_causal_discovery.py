@@ -307,7 +307,9 @@ class TestDiscoveryIntegration:
         np.random.seed(42)
         n = 300
         C = np.random.normal(0, 1, n)  # Confounder
-        X = 0.5 * C + np.random.normal(0, 0.5, n)  # Treatment
+        # Generate binary treatment based on confounder
+        treatment_prob = 1 / (1 + np.exp(-(0.5 * C)))
+        X = np.random.binomial(1, treatment_prob)  # Binary treatment
         Y = 0.8 * X + 0.3 * C + np.random.normal(0, 0.5, n)  # Outcome
 
         data = pd.DataFrame({"C": C, "X": X, "Y": Y})
@@ -342,7 +344,9 @@ class TestDiscoveryIntegration:
         np.random.seed(42)
         n = 200
         C = np.random.normal(0, 1, n)
-        X = 0.5 * C + np.random.normal(0, 0.5, n)
+        # Generate binary treatment based on confounder
+        treatment_prob = 1 / (1 + np.exp(-(0.5 * C)))
+        X = np.random.binomial(1, treatment_prob)  # Binary treatment
         Y = 0.8 * X + 0.3 * C + np.random.normal(0, 0.5, n)
         data = pd.DataFrame({"C": C, "X": X, "Y": Y})
 
@@ -423,7 +427,9 @@ class TestDiscoveryIntegrationEnd2End:
         np.random.seed(42)
         n = 500
         C = np.random.normal(0, 1, n)
-        X = 0.6 * C + np.random.normal(0, 0.8, n)
+        # Generate binary treatment based on confounder
+        treatment_prob = 1 / (1 + np.exp(-(0.6 * C)))
+        X = np.random.binomial(1, treatment_prob)  # Binary treatment
         Y = 0.8 * X + 0.4 * C + np.random.normal(0, 0.6, n)
 
         data = pd.DataFrame({"C": C, "X": X, "Y": Y})
