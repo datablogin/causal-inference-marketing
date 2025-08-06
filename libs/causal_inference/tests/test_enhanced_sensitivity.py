@@ -400,6 +400,53 @@ class TestComprehensiveSensitivityAnalysis:
         # Should successfully convert and analyze
         assert result.evalue > 1.0
 
+    def test_extreme_baseline_risk_warnings(self):
+        """Test warnings are generated for extreme baseline risks."""
+        import warnings
+
+        # Create binary outcome with very rare event (should trigger warning)
+        rare_outcome = OutcomeData(
+            values=pd.Series(np.random.binomial(1, 0.005, 100)),  # 0.5% prevalence
+            outcome_type="binary",
+        )
+
+        # Large ATE that will cause clipping
+        extreme_effect = CausalEffect(
+            ate=0.5,  # Adding 50pp to 0.5% baseline
+            ate_se=0.1,
+            ate_ci_lower=0.3,
+            ate_ci_upper=0.7,
+            method="test_extreme",
+        )
+
+        # Capture warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+
+            result = self.analyzer.comprehensive_sensitivity_analysis(
+                self.treatment_data,
+                rare_outcome,
+                extreme_effect,
+            )
+
+            # Check that warnings were generated
+            warning_messages = [str(warning.message) for warning in w]
+            baseline_warnings = [
+                msg for msg in warning_messages if "baseline risk" in msg
+            ]
+            ci_warnings = [msg for msg in warning_messages if "CI E-value" in msg]
+
+            # Should have warnings about extreme risks
+            assert (
+                len(baseline_warnings) > 0
+            ), "Expected warning about extreme baseline risk"
+            assert (
+                len(ci_warnings) > 0
+            ), "Expected warning about CI E-value calculations"
+
+            # Should still provide valid results
+            assert result.evalue > 1.0
+
     def test_recommendation_generation(self):
         """Test recommendation generation quality."""
         result = self.analyzer.comprehensive_sensitivity_analysis(

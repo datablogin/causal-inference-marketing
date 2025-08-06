@@ -6,6 +6,7 @@ estimates to violations of the unconfoundedness assumption.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
@@ -173,6 +174,13 @@ def rosenbaum_bounds(
     Rosenbaum bounds assess how sensitive results are to hidden bias
     in observational studies, particularly for matched data. This implementation
     follows Rosenbaum (2002) methodology.
+
+    Note on approximations:
+        This implementation uses normal approximations for the Wilcoxon signed-rank
+        test bounds rather than exact permutation distributions. For samples with
+        n < 50 non-zero differences, exact methods would provide better precision,
+        but the normal approximation is adequate for larger samples and provides
+        computational efficiency.
 
     Args:
         treated_outcomes: Outcomes for treated units
@@ -785,12 +793,34 @@ class SensitivityAnalysis:
         """Convert ATE to risk ratio with improved methodology."""
         if outcome.outcome_type == "binary":
             # For binary outcomes, estimate baseline risk
-            baseline_risk = float(np.mean(outcome.values))
-            baseline_risk = float(np.clip(baseline_risk, 0.01, 0.99))  # Avoid extremes
+            original_baseline_risk = float(np.mean(outcome.values))
+            baseline_risk = float(
+                np.clip(original_baseline_risk, 0.01, 0.99)
+            )  # Avoid extremes
+
+            # Warn if extreme baseline risk was clipped
+            if abs(original_baseline_risk - baseline_risk) > 1e-6:
+                warnings.warn(
+                    f"Extreme baseline risk ({original_baseline_risk:.4f}) clipped to "
+                    f"{baseline_risk:.4f} for E-value calculation. Results may be less "
+                    f"reliable for very rare or very common outcomes.",
+                    UserWarning,
+                    stacklevel=3,
+                )
 
             # Convert ATE to risk ratio
-            treated_risk = baseline_risk + causal_effect.ate
-            treated_risk = float(np.clip(treated_risk, 0.01, 0.99))
+            original_treated_risk = baseline_risk + causal_effect.ate
+            treated_risk = float(np.clip(original_treated_risk, 0.01, 0.99))
+
+            # Warn if treated risk was clipped
+            if abs(original_treated_risk - treated_risk) > 1e-6:
+                warnings.warn(
+                    f"Extreme treated risk ({original_treated_risk:.4f}) clipped to "
+                    f"{treated_risk:.4f} for E-value calculation. Results may be less "
+                    f"reliable.",
+                    UserWarning,
+                    stacklevel=3,
+                )
 
             return treated_risk / baseline_risk
         else:
@@ -810,11 +840,31 @@ class SensitivityAnalysis:
     ) -> float:
         """Convert confidence interval bound to risk ratio scale."""
         if outcome.outcome_type == "binary":
-            baseline_risk = float(np.mean(outcome.values))
-            baseline_risk = float(np.clip(baseline_risk, 0.01, 0.99))
+            original_baseline_risk = float(np.mean(outcome.values))
+            baseline_risk = float(np.clip(original_baseline_risk, 0.01, 0.99))
 
-            treated_risk = baseline_risk + ci_bound
-            treated_risk = float(np.clip(treated_risk, 0.01, 0.99))
+            # Warn if extreme baseline risk was clipped
+            if abs(original_baseline_risk - baseline_risk) > 1e-6:
+                warnings.warn(
+                    f"Extreme baseline risk ({original_baseline_risk:.4f}) clipped to "
+                    f"{baseline_risk:.4f} for CI E-value calculation. Results may be less "
+                    f"reliable for very rare or very common outcomes.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+
+            original_treated_risk = baseline_risk + ci_bound
+            treated_risk = float(np.clip(original_treated_risk, 0.01, 0.99))
+
+            # Warn if treated risk was clipped
+            if abs(original_treated_risk - treated_risk) > 1e-6:
+                warnings.warn(
+                    f"Extreme CI bound risk ({original_treated_risk:.4f}) clipped to "
+                    f"{treated_risk:.4f} for E-value calculation. Results may be less "
+                    f"reliable.",
+                    UserWarning,
+                    stacklevel=3,
+                )
 
             return treated_risk / baseline_risk
         else:

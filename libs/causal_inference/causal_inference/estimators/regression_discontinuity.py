@@ -289,7 +289,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         # The actual treatment assignment is derived from the forcing variable and cutoff
 
         # Validate forcing variable data types
-        if isinstance(treatment.values, pd.Series | np.ndarray):
+        if isinstance(treatment.values, (pd.Series, np.ndarray)):
             forcing_values = np.array(treatment.values)
         else:
             raise EstimationError(
