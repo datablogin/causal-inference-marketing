@@ -7,7 +7,7 @@ methods on simulated data with known ground truth structures.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -108,7 +108,7 @@ def benchmark_discovery_algorithm(
     n_samples: int = 500,
     noise_std: float = 1.0,
     n_trials: int = 10,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> dict[str, Any]:
     """Benchmark a discovery algorithm on a known DAG structure.
 
@@ -219,11 +219,11 @@ def benchmark_discovery_algorithm(
 
 def compare_discovery_algorithms(
     algorithms: list[BaseDiscoveryAlgorithm],
-    algorithm_names: list[str] | None = None,
-    benchmark_dags: dict[str, CausalDAG] | None = None,
+    algorithm_names: Optional[list[str]] = None,
+    benchmark_dags: Optional[dict[str, CausalDAG]] = None,
     n_samples: int = 500,
     n_trials: int = 10,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
     verbose: bool = True,
 ) -> dict[str, dict[str, Any]]:
     """Compare multiple discovery algorithms on benchmark DAGs.
@@ -296,9 +296,9 @@ class DiscoveryBenchmarkSuite:
 
     def __init__(
         self,
-        algorithms: list[BaseDiscoveryAlgorithm] | None = None,
-        algorithm_names: list[str] | None = None,
-        random_state: int | None = None,
+        algorithms: Optional[list[BaseDiscoveryAlgorithm]] = None,
+        algorithm_names: Optional[list[str]] = None,
+        random_state: Optional[int] = None,
     ) -> None:
         """Initialize benchmark suite.
 
@@ -436,7 +436,7 @@ class DiscoveryBenchmarkSuite:
 
     def run_scalability_analysis(
         self,
-        dag_names: list[str] | None = None,
+        dag_names: Optional[list[str]] = None,
         n_samples: int = 500,
         n_trials: int = 5,
         verbose: bool = True,
