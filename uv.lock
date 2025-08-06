@@ -406,6 +406,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "safety" },
+    { name = "types-networkx", marker = "python_full_version >= '3.10'" },
 ]
 ml = [
     { name = "alibi" },
@@ -482,6 +483,7 @@ requires-dist = [
     { name = "shap", marker = "extra == 'ml'", specifier = ">=0.45.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "statsmodels", specifier = ">=0.14.0" },
+    { name = "types-networkx", marker = "python_full_version >= '3.10' and extra == 'dev'", specifier = ">=3.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.24.0" },
 ]
 provides-extras = ["ml", "dev", "test"]
@@ -5147,6 +5149,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c5/8c/7d682431efca5fd290017663ea4588bf6f2c6aad085c7f108c5dbc316e70/typer-0.16.0.tar.gz", hash = "sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b", size = 102625, upload-time = "2025-05-26T14:30:31.824Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/42/3efaf858001d2c2913de7f354563e3a3a2f0decae3efe98427125a8f441e/typer-0.16.0-py3-none-any.whl", hash = "sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855", size = 46317, upload-time = "2025-05-26T14:30:30.523Z" },
+]
+
+[[package]]
+name = "types-networkx"
+version = "3.5.0.20250728"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy", marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/00/6865f9ea18e861eecc19356daeebb621cc5128355af67ffc67115a9897c9/types_networkx-3.5.0.20250728.tar.gz", hash = "sha256:966425589a0f0f4b3cf015029e5144a03e5ff7f04a32c8f6ba3695922e646cdc", size = 65690, upload-time = "2025-07-28T03:29:21.013Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/a0/261be2c077ecbd7351b53fd33b1c7146aed01f2685e84702408af0e58687/types_networkx-3.5.0.20250728-py3-none-any.whl", hash = "sha256:292a6060352e9c8b155b2e9c96a2ef392ed0142a018a09f08cecbe15bcee8da0", size = 153173, upload-time = "2025-07-28T03:29:19.73Z" },
 ]
 
 [[package]]
