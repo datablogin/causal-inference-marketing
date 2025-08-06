@@ -369,9 +369,7 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
             n_samples = len(data)
             if level >= 2 and level > np.log(n_samples):  # Heuristic: log(n) limit
                 if self.verbose:
-                    print(
-                        "Early stopping: Conditioning sets too large for sample size"
-                    )
+                    print("Early stopping: Conditioning sets too large for sample size")
                 break
 
         self.pc_graph = graph.copy()

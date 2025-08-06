@@ -577,7 +577,7 @@ class BaseDiscoveryAlgorithm(abc.ABC):
                     2**max_conditioning_size
                 )  # Exponential in conditioning set size
             else:
-                min_samples_pc = 50 * (2**min(n_variables - 2, 3))
+                min_samples_pc = 50 * (2 ** min(n_variables - 2, 3))
             if n_samples < min_samples_pc:
                 import warnings
 
