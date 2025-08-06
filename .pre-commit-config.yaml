@@ -13,7 +13,7 @@ repos:
     rev: v0.1.6
     hooks:
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix, --ignore, UP007]
+        args: [--fix, --exit-non-zero-on-fix, --ignore, UP007, --ignore, UP045]
       - id: ruff-format
 
   # - repo: https://github.com/pre-commit/mirrors-mypy
