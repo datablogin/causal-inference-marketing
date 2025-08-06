@@ -13,7 +13,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
-from causal_inference.estimators.regression_discontinuity import RDDEstimator  # type: ignore[import-not-found]
+from causal_inference.estimators.regression_discontinuity import (
+    RDDEstimator,  # type: ignore[import-not-found]
+)
 
 
 def simulate_nhefs_rdd_data(
