@@ -65,7 +65,9 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
         self.pc_graph: NDArray[Any] | None = None
         self.oriented_graph: NDArray[Any] | None = None
 
-    def _get_independence_test_function(self) -> Callable:
+    def _get_independence_test_function(
+        self
+    ) -> Callable[[pd.DataFrame, int, int, set[int]], tuple[bool, float]]:
         """Get the appropriate independence test function."""
         if self.independence_test == "pearson":
             return self._pearson_independence_test

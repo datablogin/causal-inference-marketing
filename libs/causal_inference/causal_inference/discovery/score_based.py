@@ -6,6 +6,7 @@ causal graphs by optimizing scoring functions like BIC, AIC, or likelihood.
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
 from typing import Any
@@ -66,7 +67,7 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
         ] = {}  # Cache for individual node scores
         self._data_cache: pd.DataFrame | None = None
 
-    def _get_score_function(self) -> Callable:
+    def _get_score_function(self) -> Callable[[pd.DataFrame, NDArray[Any]], float]:
         """Get the appropriate scoring function."""
         if self.score_function == "bic":
             return self._bic_score
@@ -370,7 +371,7 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
                         improved = True
 
             # Apply best addition
-            if improved:
+            if improved and best_addition is not None:
                 i, j = best_addition
                 self.current_graph[i, j] = 1
                 self.best_score = best_addition_score
@@ -418,7 +419,7 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
                     improved = True
 
             # Apply best removal
-            if improved:
+            if improved and best_removal is not None:
                 i, j = best_removal
                 self.current_graph[i, j] = 0
                 self.best_score = best_removal_score
@@ -753,11 +754,11 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             M_power = M.copy()
 
             for i in range(1, min(d, 20)):  # Limit iterations
-                E += M_power / np.math.factorial(i)
+                E += M_power / math.factorial(i)
                 M_power = M_power @ M
 
                 # Check convergence
-                if np.max(np.abs(M_power)) / np.math.factorial(i + 1) < 1e-12:
+                if np.max(np.abs(M_power)) / math.factorial(i + 1) < 1e-12:
                     break
 
             return np.trace(E) - d
@@ -778,11 +779,11 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             M_power = M.copy()
 
             for i in range(1, min(d, 15)):  # Limit iterations
-                E += M_power / np.math.factorial(i)
+                E += M_power / math.factorial(i)
                 M_power_next = M_power @ M
 
                 # Check convergence
-                if np.max(np.abs(M_power_next)) / np.math.factorial(i + 1) < 1e-12:
+                if np.max(np.abs(M_power_next)) / math.factorial(i + 1) < 1e-12:
                     break
                 M_power = M_power_next
 
