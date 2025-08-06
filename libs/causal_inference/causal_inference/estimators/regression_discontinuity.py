@@ -8,7 +8,7 @@ threshold of a forcing variable.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,7 +37,7 @@ class ForcingVariableData:
     Units above/below the cutoff receive different treatments.
     """
 
-    values: Union[pd.Series, NDArray[Any]]
+    values: pd.Series | NDArray[Any]
     name: str = "forcing_variable"
     cutoff: float = 0.0
 
@@ -73,22 +73,22 @@ class RDDResult:
     """Results from RDD estimation."""
 
     ate: float
-    ate_se: Optional[float] = None
-    ate_ci_lower: Optional[float] = None
-    ate_ci_upper: Optional[float] = None
+    ate_se: float | None = None
+    ate_ci_lower: float | None = None
+    ate_ci_upper: float | None = None
     confidence_level: float = 0.95
 
     # RDD-specific diagnostics
     cutoff: float = 0.0
-    bandwidth: Optional[float] = None
+    bandwidth: float | None = None
     n_left: int = 0  # Observations to the left of cutoff
     n_right: int = 0  # Observations to the right of cutoff
 
     # Model diagnostics
-    left_model_r2: Optional[float] = None
-    right_model_r2: Optional[float] = None
-    placebo_test_pvalue: Optional[float] = None
-    density_test_pvalue: Optional[float] = None
+    left_model_r2: float | None = None
+    right_model_r2: float | None = None
+    placebo_test_pvalue: float | None = None
+    density_test_pvalue: float | None = None
 
     # Polynomial order used
     polynomial_order: int = 1
@@ -139,12 +139,12 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         cutoff: float = 0.0,
-        bandwidth: Optional[float] = None,
+        bandwidth: float | None = None,
         polynomial_order: int = 1,
         kernel: str = "uniform",
         robust_se: str = "HC2",
-        bootstrap_config: Optional[BootstrapConfig] = None,
-        random_state: Optional[int] = None,
+        bootstrap_config: BootstrapConfig | None = None,
+        random_state: int | None = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the RDD estimator.
@@ -172,19 +172,19 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         self.robust_se = robust_se
 
         # Model storage
-        self.forcing_variable_data: Optional[ForcingVariableData] = None
-        self.left_model: Optional[LinearRegression] = None
-        self.right_model: Optional[LinearRegression] = None
-        self._rdd_result: Optional[RDDResult] = None
+        self.forcing_variable_data: ForcingVariableData | None = None
+        self.left_model: LinearRegression | None = None
+        self.right_model: LinearRegression | None = None
+        self._rdd_result: RDDResult | None = None
 
         # Feature caching for efficiency
-        self._cached_left_features: Optional[NDArray[Any]] = None
-        self._cached_right_features: Optional[NDArray[Any]] = None
-        self._cached_left_x: Optional[NDArray[Any]] = None
-        self._cached_right_x: Optional[NDArray[Any]] = None
+        self._cached_left_features: NDArray[Any] | None = None
+        self._cached_right_features: NDArray[Any] | None = None
+        self._cached_left_x: NDArray[Any] | None = None
+        self._cached_right_x: NDArray[Any] | None = None
 
     def _create_bootstrap_estimator(
-        self, random_state: Optional[int] = None
+        self, random_state: int | None = None
     ) -> RDDEstimator:
         """Create a new estimator instance for bootstrap sampling."""
         return RDDEstimator(
@@ -244,7 +244,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         self,
         x: NDArray[Any],
         y: NDArray[Any],
-        weights: Optional[NDArray[Any]] = None,
+        weights: NDArray[Any] | None = None,
     ) -> LinearRegression:
         """Fit local polynomial regression.
 
@@ -276,7 +276,7 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: Optional[CovariateData] = None,
+        covariates: CovariateData | None = None,
     ) -> None:
         """Fit the RDD estimator.
 
@@ -872,10 +872,10 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
     def estimate_rdd(
         self,
-        forcing_variable: Union[pd.Series, NDArray[Any]],
-        outcome: Union[pd.Series, NDArray[Any]],
-        cutoff: Optional[float] = None,
-        covariates: pd.DataFrame | Optional[NDArray[Any]] = None,
+        forcing_variable: pd.Series | NDArray[Any],
+        outcome: pd.Series | NDArray[Any],
+        cutoff: float | None = None,
+        covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> RDDResult:
         """Generic RDD estimation function as requested in the issue.
 

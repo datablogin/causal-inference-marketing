@@ -353,7 +353,7 @@ def compare_estimators_on_discovery(
     treatment_col: str,
     outcome_col: str,
     estimators: list[BaseEstimator],
-    estimator_names: list[str] | None = None,
+    estimator_names: Optional[list[str]] = None,
     verbose: bool = False,
 ) -> dict[str, CausalEffect]:
     """Compare multiple estimators using the same discovered causal structure.
