@@ -100,7 +100,11 @@ class CausalDAG(BaseModel):
             # Create NetworkX graph from adjacency matrix
             G = nx.from_numpy_array(self.adjacency_matrix, create_using=nx.DiGraph)
             return nx.is_directed_acyclic_graph(G)
-        except Exception:
+        except (ValueError, TypeError, np.linalg.LinAlgError) as e:
+            # If we can't check acyclicity due to invalid matrix, assume it's not a DAG
+            import warnings
+
+            warnings.warn(f"Could not check DAG acyclicity: {e}", UserWarning)
             return False
 
     @property
@@ -436,7 +440,7 @@ class BaseDiscoveryAlgorithm(abc.ABC):
             ) from e
 
     def _validate_data(self, data: pd.DataFrame) -> None:
-        """Validate input data for causal discovery.
+        """Validate input data for causal discovery with comprehensive checks.
 
         Args:
             data: Input data to validate
@@ -450,15 +454,47 @@ class BaseDiscoveryAlgorithm(abc.ABC):
         if data.empty:
             raise DiscoveryDataValidationError("Data cannot be empty")
 
-        if data.shape[1] < 2:
+        n_samples, n_variables = data.shape
+
+        # Basic dimension checks
+        if n_variables < 2:
             raise DiscoveryDataValidationError(
                 "Need at least 2 variables for causal discovery"
             )
 
-        if data.shape[0] < 10:
+        # Sample size validation based on problem complexity
+        min_samples_basic = 10
+        min_samples_per_var = 5  # Rule of thumb: 5 samples per variable
+        min_samples_for_independence = 30  # For reliable independence tests
+
+        recommended_samples = max(
+            min_samples_basic,
+            n_variables * min_samples_per_var,
+            min_samples_for_independence,
+        )
+
+        if n_samples < min_samples_basic:
             raise DiscoveryDataValidationError(
-                "Need at least 10 observations for reliable discovery"
+                f"Need at least {min_samples_basic} observations for causal discovery, got {n_samples}"
             )
+        elif n_samples < recommended_samples:
+            import warnings
+
+            warnings.warn(
+                f"Only {n_samples} samples for {n_variables} variables. "
+                f"Recommend at least {recommended_samples} samples for reliable results.",
+                UserWarning,
+            )
+
+        # Check for invalid values
+        if data.isnull().any().any():
+            missing_cols = data.columns[data.isnull().any()].tolist()
+            raise DiscoveryDataValidationError(
+                f"Missing values not allowed. Found in columns: {missing_cols}"
+            )
+
+        if np.isinf(data.select_dtypes(include=[np.number]).values).any():
+            raise DiscoveryDataValidationError("Infinite values not allowed in data")
 
         # Check for constant variables
         constant_vars = [col for col in data.columns if data[col].nunique() <= 1]
@@ -466,6 +502,103 @@ class BaseDiscoveryAlgorithm(abc.ABC):
             raise DiscoveryDataValidationError(
                 f"Constant variables not allowed: {constant_vars}"
             )
+
+        # Check for highly collinear variables
+        numeric_data = data.select_dtypes(include=[np.number])
+        if len(numeric_data.columns) >= 2:
+            try:
+                corr_matrix = numeric_data.corr().abs()
+                # Find pairs with correlation > 0.99 (excluding diagonal)
+                high_corr_pairs = []
+                n_numeric = len(numeric_data.columns)
+                for i in range(n_numeric):
+                    for j in range(i + 1, n_numeric):
+                        if corr_matrix.iloc[i, j] > 0.99:
+                            high_corr_pairs.append(
+                                (numeric_data.columns[i], numeric_data.columns[j])
+                            )
+
+                if high_corr_pairs:
+                    import warnings
+
+                    warnings.warn(
+                        f"Found highly correlated variable pairs (r > 0.99): {high_corr_pairs}. "
+                        "This may cause numerical instability in discovery algorithms.",
+                        UserWarning,
+                    )
+            except Exception:
+                # Skip correlation check if it fails
+                pass
+
+        # Check data types
+        non_numeric_cols = data.select_dtypes(exclude=[np.number]).columns
+        if len(non_numeric_cols) > 0:
+            import warnings
+
+            warnings.warn(
+                f"Non-numeric columns detected: {non_numeric_cols.tolist()}. "
+                "Most discovery algorithms assume continuous data.",
+                UserWarning,
+            )
+
+        # Check for extreme values that might cause numerical issues
+        numeric_data = data.select_dtypes(include=[np.number])
+        if len(numeric_data.columns) > 0:
+            # Check for values that are too large/small
+            abs_max = np.abs(numeric_data.values).max()
+            if abs_max > 1e10:
+                import warnings
+
+                warnings.warn(
+                    f"Very large values detected (max absolute value: {abs_max:.2e}). "
+                    "Consider scaling data to prevent numerical issues.",
+                    UserWarning,
+                )
+
+            abs_min = np.abs(numeric_data[numeric_data != 0].values).min()
+            if abs_min < 1e-10:
+                import warnings
+
+                warnings.warn(
+                    f"Very small non-zero values detected (min absolute value: {abs_min:.2e}). "
+                    "Consider scaling data to prevent numerical issues.",
+                    UserWarning,
+                )
+
+        # Algorithm-specific sample size warnings
+        algorithm_name = self.__class__.__name__
+        if algorithm_name == "PCAlgorithm":
+            # PC algorithm needs more samples for higher-order conditioning sets
+            max_conditioning_size = getattr(
+                self, "max_conditioning_set_size", min(n_variables - 2, 3)
+            )
+            if max_conditioning_size is not None:
+                min_samples_pc = 50 * (
+                    2**max_conditioning_size
+                )  # Exponential in conditioning set size
+            else:
+                min_samples_pc = 50 * (2**min(n_variables - 2, 3))
+            if n_samples < min_samples_pc:
+                import warnings
+
+                warnings.warn(
+                    f"PC algorithm with conditioning sets up to size {max_conditioning_size} "
+                    f"may need {min_samples_pc} samples for reliable results. Got {n_samples}.",
+                    UserWarning,
+                )
+        elif algorithm_name == "NOTEARSAlgorithm":
+            # NOTEARS needs more samples for reliable continuous optimization
+            min_samples_notears = max(
+                100, n_variables * n_variables
+            )  # At least p^2 samples
+            if n_samples < min_samples_notears:
+                import warnings
+
+                warnings.warn(
+                    f"NOTEARS algorithm may need at least {min_samples_notears} samples "
+                    f"for {n_variables} variables. Got {n_samples}.",
+                    UserWarning,
+                )
 
         # Check for excessive missing values
         missing_pct = data.isnull().sum() / len(data)

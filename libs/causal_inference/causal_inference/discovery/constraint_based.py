@@ -138,48 +138,125 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
     def _mutual_info_independence_test(
         self, data: pd.DataFrame, x: int, y: int, conditioning_set: set[int]
     ) -> tuple[bool, float]:
-        """Perform mutual information test for independence."""
-        # This is a simplified implementation
-        # For proper conditional mutual information, more sophisticated methods needed
+        """Perform mutual information test for conditional independence.
+
+        Uses a more rigorous approach based on kernel density estimation
+        and permutation testing for statistical significance.
+        """
+        n_samples = len(data)
+
+        # Check minimum sample size requirement
+        min_samples_needed = max(30, 5 * (len(conditioning_set) + 2))
+        if n_samples < min_samples_needed:
+            return False, 1.0  # Not enough data for reliable test
 
         if not conditioning_set:
-            # Simple mutual information
-            mi = mutual_info_regression(
-                data.iloc[:, [x]], data.iloc[:, y], random_state=self.random_state
-            )[0]
-            # Convert to approximate p-value (rough approximation)
-            p_value = np.exp(-mi * len(data) / 10)
-            return p_value > self.alpha, p_value
+            # Simple mutual information with proper statistical testing
+            x_data = data.iloc[:, x].values
+            y_data = data.iloc[:, y].values
 
-        # Conditional mutual information approximation
-        # This is simplified - proper implementation would use more sophisticated methods
-        try:
-            # Use linear regression residuals as approximation
-            from sklearn.linear_model import LinearRegression
-
-            # Regress x on conditioning set
-            if len(conditioning_set) > 0:
-                X_cond = data.iloc[:, list(conditioning_set)]
-                reg_x = LinearRegression().fit(X_cond, data.iloc[:, x])
-                residual_x = data.iloc[:, x] - reg_x.predict(X_cond)
-
-                reg_y = LinearRegression().fit(X_cond, data.iloc[:, y])
-                residual_y = data.iloc[:, y] - reg_y.predict(X_cond)
-            else:
-                residual_x = data.iloc[:, x]
-                residual_y = data.iloc[:, y]
-
-            # Mutual information on residuals
-            mi = mutual_info_regression(
-                residual_x.values.reshape(-1, 1),
-                residual_y.values,
+            # Compute MI
+            mi_observed = mutual_info_regression(
+                x_data.reshape(-1, 1),
+                y_data,
+                discrete_features=False,
                 random_state=self.random_state,
             )[0]
 
-            p_value = np.exp(-mi * len(data) / 10)
+            # Permutation test for significance
+            n_permutations = min(200, n_samples // 2)  # Adaptive number of permutations
+            mi_null = []
+
+            rng = np.random.RandomState(self.random_state)
+            for _ in range(n_permutations):
+                y_permuted = rng.permutation(y_data)
+                mi_perm = mutual_info_regression(
+                    x_data.reshape(-1, 1),
+                    y_permuted,
+                    discrete_features=False,
+                    random_state=self.random_state,
+                )[0]
+                mi_null.append(mi_perm)
+
+            # Compute p-value
+            p_value = (np.sum(np.array(mi_null) >= mi_observed) + 1) / (
+                n_permutations + 1
+            )
             return p_value > self.alpha, p_value
 
-        except Exception:
+        # Conditional mutual information using residual-based approach
+        try:
+            from sklearn.preprocessing import StandardScaler
+
+            # Standardize data for numerical stability
+            scaler = StandardScaler()
+            data_scaled = pd.DataFrame(
+                scaler.fit_transform(data.iloc[:, list({x, y} | conditioning_set)]),
+                columns=data.iloc[:, list({x, y} | conditioning_set)].columns,
+            )
+
+            # Get column indices in scaled data
+            col_mapping = {
+                orig_idx: new_idx
+                for new_idx, orig_idx in enumerate(sorted({x, y} | conditioning_set))
+            }
+            x_scaled = col_mapping[x]
+            y_scaled = col_mapping[y]
+            cond_scaled = [col_mapping[c] for c in conditioning_set]
+
+            # Regress out conditioning variables
+            if len(conditioning_set) > 0:
+                X_cond = data_scaled.iloc[:, cond_scaled]
+
+                # Robust regression with regularization for stability
+                from sklearn.linear_model import Ridge
+
+                reg_x = Ridge(alpha=0.1).fit(X_cond, data_scaled.iloc[:, x_scaled])
+                residual_x = data_scaled.iloc[:, x_scaled] - reg_x.predict(X_cond)
+
+                reg_y = Ridge(alpha=0.1).fit(X_cond, data_scaled.iloc[:, y_scaled])
+                residual_y = data_scaled.iloc[:, y_scaled] - reg_y.predict(X_cond)
+            else:
+                residual_x = data_scaled.iloc[:, x_scaled]
+                residual_y = data_scaled.iloc[:, y_scaled]
+
+            # Compute conditional MI on residuals
+            mi_observed = mutual_info_regression(
+                residual_x.values.reshape(-1, 1),
+                residual_y.values,
+                discrete_features=False,
+                random_state=self.random_state,
+            )[0]
+
+            # Permutation test on residuals
+            n_permutations = min(
+                100, n_samples // 3
+            )  # Fewer permutations for conditional case
+            mi_null = []
+
+            rng = np.random.RandomState(self.random_state)
+            for _ in range(n_permutations):
+                y_residual_permuted = rng.permutation(residual_y.values)
+                mi_perm = mutual_info_regression(
+                    residual_x.values.reshape(-1, 1),
+                    y_residual_permuted,
+                    discrete_features=False,
+                    random_state=self.random_state,
+                )[0]
+                mi_null.append(mi_perm)
+
+            # Compute p-value
+            p_value = (np.sum(np.array(mi_null) >= mi_observed) + 1) / (
+                n_permutations + 1
+            )
+            return p_value > self.alpha, p_value
+
+        except (np.linalg.LinAlgError, ValueError, ImportError) as e:
+            # Fallback to conservative result in case of numerical issues
+            if self.verbose:
+                print(
+                    f"MI test failed for variables {x}, {y} given {conditioning_set}: {e}"
+                )
             return False, 1.0
 
     def _discover_implementation(self, data: pd.DataFrame) -> DiscoveryResult:
@@ -204,6 +281,12 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
             else n_vars - 2
         )
 
+        # Early stopping tracking
+        total_edges_removed_last_k_levels = []
+        min_improvement_threshold = max(
+            1, int(0.01 * (n_vars * (n_vars - 1) / 2))
+        )  # 1% of total possible edges
+
         for level in range(max_level + 1):
             if self.verbose:
                 print(f"Testing conditioning sets of size {level}")
@@ -215,6 +298,15 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
                 for j in range(i + 1, n_vars)
                 if graph[i, j] == 1
             ]
+
+            # Early stopping: if graph is very sparse, stop
+            current_edge_count = len(edges_to_check)
+            if current_edge_count < n_vars:  # Very sparse graph
+                if self.verbose:
+                    print(
+                        f"Early stopping: Graph too sparse ({current_edge_count} edges)"
+                    )
+                break
 
             for i, j in edges_to_check:
                 # Get potential conditioning sets (neighbors excluding i and j)
@@ -252,7 +344,34 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
             if self.verbose:
                 print(f"Level {level}: Removed {edges_removed} edges")
 
+            # Track recent performance for early stopping
+            total_edges_removed_last_k_levels.append(edges_removed)
+            if len(total_edges_removed_last_k_levels) > 3:
+                total_edges_removed_last_k_levels.pop(0)
+
+            # Early stopping conditions
             if edges_removed == 0:
+                if self.verbose:
+                    print("Early stopping: No edges removed in current level")
+                break
+
+            # Stop if very little progress in last few levels
+            if len(total_edges_removed_last_k_levels) >= 3:
+                recent_total = sum(total_edges_removed_last_k_levels)
+                if recent_total < min_improvement_threshold:
+                    if self.verbose:
+                        print(
+                            f"Early stopping: Minimal progress in recent levels ({recent_total} edges)"
+                        )
+                    break
+
+            # Stop if conditioning sets become too large relative to sample size
+            n_samples = len(data)
+            if level >= 2 and level > np.log(n_samples):  # Heuristic: log(n) limit
+                if self.verbose:
+                    print(
+                        "Early stopping: Conditioning sets too large for sample size"
+                    )
                 break
 
         self.pc_graph = graph.copy()

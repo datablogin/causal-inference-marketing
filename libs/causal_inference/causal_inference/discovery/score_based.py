@@ -61,6 +61,10 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
         self.current_graph: NDArray[Any] | None = None
         self.best_score: float = -np.inf
         self.score_history: list[float] = []
+        self._node_scores_cache: dict[
+            int, float
+        ] = {}  # Cache for individual node scores
+        self._data_cache: pd.DataFrame | None = None
 
     def _get_score_function(self) -> Callable:
         """Get the appropriate scoring function."""
@@ -124,6 +128,107 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
             total_score += score_j
 
         return total_score
+
+    def _compute_node_score(
+        self, data: pd.DataFrame, node: int, graph: NDArray[Any]
+    ) -> float:
+        """Compute score for a single node given its parents in the graph."""
+        n_samples = len(data)
+        parents = np.where(graph[:, node] == 1)[0]
+
+        if len(parents) == 0:
+            # No parents - just compute variance
+            var_node = np.var(data.iloc[:, node])
+            if var_node <= 0:
+                var_node = 1e-6
+            score = -0.5 * n_samples * np.log(2 * np.pi * var_node) - 0.5 * n_samples
+
+            # Add penalty based on score function
+            if self.score_function == "bic":
+                score -= 0.5 * 1 * np.log(n_samples)  # BIC penalty for intercept
+            elif self.score_function == "aic":
+                score -= 1  # AIC penalty for intercept
+
+        else:
+            # Linear regression of node on its parents
+            X = data.iloc[:, parents].values
+            y = data.iloc[:, node].values
+
+            try:
+                reg = LinearRegression().fit(X, y)
+                y_pred = reg.predict(X)
+                mse = mean_squared_error(y, y_pred)
+
+                if mse <= 0:
+                    mse = 1e-6
+
+                # Log-likelihood
+                log_likelihood = (
+                    -0.5 * n_samples * np.log(2 * np.pi * mse) - 0.5 * n_samples
+                )
+
+                # Add penalty based on score function
+                n_params = len(parents) + 1  # coefficients + intercept
+                if self.score_function == "bic":
+                    penalty = -0.5 * n_params * np.log(n_samples)
+                elif self.score_function == "aic":
+                    penalty = -n_params
+                else:  # likelihood
+                    penalty = 0
+
+                score = log_likelihood + penalty
+
+            except (np.linalg.LinAlgError, ValueError):
+                score = -np.inf
+
+        return score
+
+    def _compute_score_change_add_edge(
+        self, data: pd.DataFrame, parent: int, child: int, current_graph: NDArray[Any]
+    ) -> float:
+        """Compute the change in score when adding an edge parent -> child."""
+        # Only the child node's score changes when adding a parent
+        old_score = self._node_scores_cache.get(
+            child, self._compute_node_score(data, child, current_graph)
+        )
+
+        # Create test graph with new edge
+        test_graph = current_graph.copy()
+        test_graph[parent, child] = 1
+
+        new_score = self._compute_node_score(data, child, test_graph)
+
+        return new_score - old_score
+
+    def _compute_score_change_remove_edge(
+        self, data: pd.DataFrame, parent: int, child: int, current_graph: NDArray[Any]
+    ) -> float:
+        """Compute the change in score when removing an edge parent -> child."""
+        # Only the child node's score changes when removing a parent
+        old_score = self._node_scores_cache.get(
+            child, self._compute_node_score(data, child, current_graph)
+        )
+
+        # Create test graph without edge
+        test_graph = current_graph.copy()
+        test_graph[parent, child] = 0
+
+        new_score = self._compute_node_score(data, child, test_graph)
+
+        return new_score - old_score
+
+    def _update_node_score_cache(
+        self, data: pd.DataFrame, node: int, graph: NDArray[Any]
+    ) -> None:
+        """Update the cached score for a specific node."""
+        self._node_scores_cache[node] = self._compute_node_score(data, node, graph)
+
+    def _initialize_score_cache(self, data: pd.DataFrame, graph: NDArray[Any]) -> None:
+        """Initialize the score cache for all nodes."""
+        n_vars = graph.shape[0]
+        self._node_scores_cache.clear()
+        for node in range(n_vars):
+            self._node_scores_cache[node] = self._compute_node_score(data, node, graph)
 
     def _aic_score(self, data: pd.DataFrame, graph: NDArray[Any]) -> float:
         """Compute AIC score for a given graph structure."""
@@ -214,7 +319,9 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
 
         # Initialize with empty graph
         self.current_graph = np.zeros((n_vars, n_vars))
-        self.best_score = self._score_func(data, self.current_graph)
+        self._data_cache = data
+        self._initialize_score_cache(data, self.current_graph)
+        self.best_score = sum(self._node_scores_cache.values())
         self.score_history = [self.best_score]
 
         if self.verbose:
@@ -251,12 +358,15 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
                     if not self._is_acyclic(test_graph):
                         continue
 
-                    # Compute score
-                    score = self._score_func(data, test_graph)
+                    # Compute score change incrementally
+                    score_change = self._compute_score_change_add_edge(
+                        data, i, j, self.current_graph
+                    )
+                    new_score = self.best_score + score_change
 
-                    if score > best_addition_score:
+                    if new_score > best_addition_score:
                         best_addition = (i, j)
-                        best_addition_score = score
+                        best_addition_score = new_score
                         improved = True
 
             # Apply best addition
@@ -265,6 +375,8 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
                 self.current_graph[i, j] = 1
                 self.best_score = best_addition_score
                 self.score_history.append(self.best_score)
+                # Update cache for the affected node
+                self._update_node_score_cache(data, j, self.current_graph)
 
                 if self.verbose:
                     print(
@@ -294,16 +406,15 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
             ]
 
             for i, j in edges:
-                # Try removing edge i -> j
-                test_graph = self.current_graph.copy()
-                test_graph[i, j] = 0
+                # Compute score change incrementally
+                score_change = self._compute_score_change_remove_edge(
+                    data, i, j, self.current_graph
+                )
+                new_score = self.best_score + score_change
 
-                # Compute score
-                score = self._score_func(data, test_graph)
-
-                if score > best_removal_score:
+                if new_score > best_removal_score:
                     best_removal = (i, j)
-                    best_removal_score = score
+                    best_removal_score = new_score
                     improved = True
 
             # Apply best removal
@@ -312,6 +423,8 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
                 self.current_graph[i, j] = 0
                 self.best_score = best_removal_score
                 self.score_history.append(self.best_score)
+                # Update cache for the affected node
+                self._update_node_score_cache(data, j, self.current_graph)
 
                 if self.verbose:
                     print(
@@ -431,6 +544,7 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
         # Algorithm state
         self.W_est: NDArray[Any] | None = None
         self.optimization_history: list[dict[str, Any]] = []
+        self.max_history_size = 100  # Limit history storage
 
     def _discover_implementation(self, data: pd.DataFrame) -> DiscoveryResult:
         """Implement NOTEARS algorithm discovery logic."""
@@ -466,16 +580,25 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             W_est = W_new
             h = h_new
 
-            # Store optimization history
-            self.optimization_history.append(
-                {
-                    "iteration": iteration,
-                    "h_value": h,
-                    "rho": rho,
-                    "alpha": alpha,
-                    "nnz": np.sum(np.abs(W_est) > self.w_threshold),
-                }
-            )
+            # Store optimization history with size limit
+            history_entry = {
+                "iteration": iteration,
+                "h_value": h,
+                "rho": rho,
+                "alpha": alpha,
+                "nnz": np.sum(np.abs(W_est) > self.w_threshold),
+            }
+            self.optimization_history.append(history_entry)
+
+            # Limit history size to prevent memory issues
+            if len(self.optimization_history) > self.max_history_size:
+                # Keep first few and last entries
+                keep_first = self.max_history_size // 4
+                keep_last = self.max_history_size - keep_first
+                self.optimization_history = (
+                    self.optimization_history[:keep_first]
+                    + self.optimization_history[-keep_last:]
+                )
 
             if self.verbose and iteration % 10 == 0:
                 print(
@@ -591,8 +714,12 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             # Apply soft thresholding for L1 regularization
             w_new = self._soft_threshold(w_new, self.lambda_l1)
 
-        except Exception:
+        except (ValueError, np.linalg.LinAlgError, optimize.OptimizeWarning) as e:
             # Fallback to gradient descent if L-BFGS-B fails
+            if self.verbose:
+                print(
+                    f"L-BFGS-B optimization failed ({type(e).__name__}: {e}), falling back to gradient descent"
+                )
             w_new = self._gradient_descent_step(x, w, rho, alpha)
 
         # Remove self-loops
@@ -606,23 +733,58 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
         """Acyclicity constraint function h(W) = tr(e^(W*W)) - d."""
         d = w.shape[0]
         M = w * w
-        # Use matrix exponential trace trick
-        E = np.eye(d) + M / d
-        for i in range(1, d):
-            E = np.eye(d) + M @ E / (i + 1)
-        return np.trace(E) - d
+
+        # Check for numerical stability
+        max_eigenval = np.max(np.real(np.linalg.eigvals(M)))
+        if max_eigenval > 50:  # Prevent overflow in matrix exponential
+            # Use scaling and squaring for large matrices
+            from scipy.linalg import expm
+
+            return np.trace(expm(M)) - d
+
+        try:
+            # Use scipy's robust matrix exponential when available
+            from scipy.linalg import expm
+
+            return np.trace(expm(M)) - d
+        except ImportError:
+            # Fallback to series expansion with convergence check
+            E = np.eye(d)
+            M_power = M.copy()
+
+            for i in range(1, min(d, 20)):  # Limit iterations
+                E += M_power / np.math.factorial(i)
+                M_power = M_power @ M
+
+                # Check convergence
+                if np.max(np.abs(M_power)) / np.math.factorial(i + 1) < 1e-12:
+                    break
+
+            return np.trace(E) - d
 
     def _grad_h_func(self, w: NDArray[Any]) -> NDArray[Any]:
         """Gradient of the acyclicity constraint function."""
         d = w.shape[0]
         M = w * w
 
-        # Compute e^M using series expansion (approximation)
-        E = np.eye(d)
-        M_power = np.eye(d)
-        for i in range(1, d):
-            M_power = M_power @ M / i
-            E += M_power
+        try:
+            # Use scipy's robust matrix exponential when available
+            from scipy.linalg import expm
+
+            E = expm(M)
+        except ImportError:
+            # Fallback to series expansion with improved convergence
+            E = np.eye(d)
+            M_power = M.copy()
+
+            for i in range(1, min(d, 15)):  # Limit iterations
+                E += M_power / np.math.factorial(i)
+                M_power_next = M_power @ M
+
+                # Check convergence
+                if np.max(np.abs(M_power_next)) / np.math.factorial(i + 1) < 1e-12:
+                    break
+                M_power = M_power_next
 
         # Gradient: 2 * W * (e^(W*W))^T
         return 2 * w * E.T

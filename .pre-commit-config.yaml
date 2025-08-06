@@ -9,23 +9,20 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
-  # Temporarily disabled - example file import issues
-  # - repo: https://github.com/astral-sh/ruff-pre-commit
-  #   rev: v0.1.6
-  #   hooks:
-  #     - id: ruff
-  #       args: [--fix, --exit-non-zero-on-fix]
-  #     - id: ruff-format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
 
-  # Temporarily disabled - mypy issues with existing codebase
   # - repo: https://github.com/pre-commit/mirrors-mypy
   #   rev: v1.6.1
   #   hooks:
   #     - id: mypy
-  #       additional_dependencies: [pandas-stubs]
+  #       additional_dependencies: [pandas-stubs, networkx-stubs]
   #       args: [--ignore-missing-imports]
 
-  # Temporarily disabled - requires authentication
   # - repo: https://github.com/gitguardian/ggshield
   #   rev: v1.25.0
   #   hooks:
