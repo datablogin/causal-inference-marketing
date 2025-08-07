@@ -598,7 +598,7 @@ def suggest_trimming_thresholds(
     propensity_scores: NDArray[Any] | pd.Series,
     treatment: NDArray[Any] | pd.Series,
     percentiles: list[float] = [1.0, 2.5, 5.0, 10.0],
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, Any]:
     """Suggest propensity score trimming thresholds.
 
     Args:

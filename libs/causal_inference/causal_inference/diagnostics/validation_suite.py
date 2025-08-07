@@ -73,6 +73,20 @@ class ComprehensiveValidationSuite:
         Returns:
             ComprehensiveValidationResults with full assessment
         """
+        # Performance warning for large datasets
+        n_obs = len(treatment.values)
+        if hasattr(covariates.values, "shape"):
+            n_features = (
+                covariates.values.shape[1] if len(covariates.values.shape) > 1 else 1
+            )
+        else:
+            n_features = len(covariates.names) if covariates.names else 1
+
+        if n_obs > 10000:
+            print(
+                f"⚠️  Performance warning: Large dataset ({n_obs:,} observations, {n_features} features). "
+                f"Comprehensive validation may take several minutes. Consider sampling for faster computation."
+            )
         # 1. Covariate Balance Assessment
         balance_results = self.balance_diagnostics.assess_balance(
             treatment, covariates, outcome=outcome
@@ -211,10 +225,10 @@ class ComprehensiveValidationSuite:
             overlap_score = 15  # Partial credit for some overlap
 
         # Penalty for extreme weights
-        extreme_pct = (
+        extreme_pct = float(
             overlap_results.extreme_weights_count / overlap_results.total_units
         )
-        overlap_score -= min(10.0, extreme_pct * 100)  # Up to 10 point penalty
+        overlap_score -= min(10, int(extreme_pct * 100))  # Up to 10 point penalty
 
         # Bonus for good calibration
         if (

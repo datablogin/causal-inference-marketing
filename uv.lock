@@ -406,7 +406,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "safety" },
-    { name = "types-networkx", marker = "python_full_version >= '3.10'" },
+    { name = "types-networkx", version = "3.5.0.20250728", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 ml = [
     { name = "alibi" },
@@ -432,6 +432,8 @@ test = [
 [package.dev-dependencies]
 dev = [
     { name = "pandas-stubs", marker = "python_full_version >= '3.10'" },
+    { name = "types-networkx", version = "3.4.2.20250509", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "types-networkx", version = "3.5.0.20250728", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 test = [
     { name = "hypothesis" },
@@ -489,7 +491,10 @@ requires-dist = [
 provides-extras = ["ml", "dev", "test"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pandas-stubs", marker = "python_full_version >= '3.10'", specifier = ">=2.3.0.250703" }]
+dev = [
+    { name = "pandas-stubs", marker = "python_full_version >= '3.10'", specifier = ">=2.3.0.250703" },
+    { name = "types-networkx", specifier = ">=3.4.2.20250509" },
+]
 test = [
     { name = "hypothesis", specifier = ">=6.136.4" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
@@ -5153,8 +5158,29 @@ wheels = [
 
 [[package]]
 name = "types-networkx"
+version = "3.4.2.20250509"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+dependencies = [
+    { name = "numpy", marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/52/e7e4e72f4f46ca434546cb4c0e0a89fe5714bea4a3b805945b639f09440d/types_networkx-3.4.2.20250509.tar.gz", hash = "sha256:4bf3459461ef772f2ab35f76038fb53e3e7b80ab4f09aa91646d189accc1d456", size = 59894, upload-time = "2025-05-09T03:04:20.753Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1f/25/fb77afd928064d01d15e1b15e9ffbea46d8c6186a39d311ad9be96a0eacc/types_networkx-3.4.2.20250509-py3-none-any.whl", hash = "sha256:f0120088ae87be6645aee68888730e8d1ce3b393799e3a7ea18e9382ab81a163", size = 145013, upload-time = "2025-05-09T03:04:19.317Z" },
+]
+
+[[package]]
+name = "types-networkx"
 version = "3.5.0.20250728"
 source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13'",
+    "python_full_version == '3.12.*'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+]
 dependencies = [
     { name = "numpy", marker = "python_full_version >= '3.10'" },
 ]

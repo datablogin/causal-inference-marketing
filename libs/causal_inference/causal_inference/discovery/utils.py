@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+from matplotlib.figure import Figure
 
 from ..core.base import CovariateData
 from .base import CausalDAG, DiscoveryResult
@@ -35,7 +36,7 @@ def plot_dag(
     font_size: int = 12,
     figsize: tuple[int, int] = (10, 8),
     save_path: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     """Plot a causal DAG using matplotlib and networkx.
 
     Args:
@@ -109,7 +110,7 @@ def plot_discovery_comparison(
     true_dag: CausalDAG | None = None,
     figsize: tuple[int, int] = (15, 10),
     save_path: str | None = None,
-) -> plt.Figure:
+) -> Figure:
     """Plot comparison of multiple causal discovery results.
 
     Args:
@@ -277,7 +278,7 @@ def generate_linear_sem_data(
 
 def dag_to_adjustment_sets(
     dag: CausalDAG, treatment: str, outcome: str
-) -> dict[str, list[str]]:
+) -> dict[str, Any]:
     """Find adjustment sets for causal effect identification from a DAG.
 
     Args:
