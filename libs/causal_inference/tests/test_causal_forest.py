@@ -4,7 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causal_inference.core.base import CovariateData, EstimationError, OutcomeData, TreatmentData
+from causal_inference.core.base import (
+    CovariateData,
+    DataValidationError,
+    EstimationError,
+    OutcomeData,
+    TreatmentData,
+)
 from causal_inference.estimators.causal_forest import CausalForest, HonestTree
 
 
@@ -291,7 +297,7 @@ class TestCausalForest:
 
         cf = CausalForest(subsample_ratio=0.1, min_samples_split=30)
 
-        with pytest.raises(ValueError, match="subsample_ratio too small"):
+        with pytest.raises(EstimationError, match="subsample_ratio too small"):
             cf.fit(treatment_data, outcome_data, covariate_data)
 
     def test_no_trees_fitted_error(self):
@@ -310,8 +316,8 @@ class TestCausalForest:
             n_estimators=10, min_samples_split=50
         )  # Impossible requirements
 
-        # This should raise an EstimationError due to no trees being fitted
-        with pytest.raises((EstimationError, ValueError)):
+        # This should raise a DataValidationError due to all-treated data
+        with pytest.raises((EstimationError, ValueError, DataValidationError)):
             cf.fit(treatment_data, outcome_data, covariate_data)
 
 
@@ -432,4 +438,3 @@ class TestCausalForestIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__])
-

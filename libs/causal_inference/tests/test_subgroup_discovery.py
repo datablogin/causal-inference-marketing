@@ -4,7 +4,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causal_inference.core.base import CovariateData, EstimationError, OutcomeData, TreatmentData
+from causal_inference.core.base import (
+    CovariateData,
+    EstimationError,
+    OutcomeData,
+    TreatmentData,
+)
 from causal_inference.estimators.subgroup_discovery import (
     SIDES,
     OptimalPolicyTree,
@@ -104,7 +109,8 @@ class TestSubgroupResult:
 
         # Test with different alpha
         significant_strict = result.significant_subgroups(alpha=0.01)
-        assert len(significant_strict) == 2  # Both should still be significant
+        assert len(significant_strict) == 1  # Only Sig 2 with p=0.001 < 0.01
+        assert significant_strict[0].rule == "Sig 2"
 
         significant_very_strict = result.significant_subgroups(alpha=0.001)
         assert len(significant_very_strict) == 1
@@ -465,4 +471,3 @@ class TestSubgroupDiscoveryIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__])
-
