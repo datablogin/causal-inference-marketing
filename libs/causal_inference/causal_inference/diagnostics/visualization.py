@@ -6,7 +6,7 @@ tools including balance plots, overlap assessments, sensitivity analysis, and mo
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -49,7 +49,7 @@ class DiagnosticVisualizer:
         self,
         balance_results: BalanceResults,
         threshold: float = 0.1,
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
     ) -> Any:
         """Create comprehensive balance diagnostic plots.
 
@@ -140,7 +140,7 @@ class DiagnosticVisualizer:
         self,
         overlap_results: OverlapResults,
         treatment: TreatmentData,
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
     ) -> Any:
         """Create overlap and positivity diagnostic plots.
 
@@ -278,7 +278,7 @@ class DiagnosticVisualizer:
     def plot_sensitivity_analysis(
         self,
         sensitivity_results: SensitivityResults,
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
     ) -> Any:
         """Create sensitivity analysis visualization.
 
@@ -415,7 +415,7 @@ class DiagnosticVisualizer:
     def plot_specification_tests(
         self,
         spec_results: SpecificationResults,
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
     ) -> Any:
         """Create model specification diagnostic plots.
 
@@ -550,7 +550,7 @@ class DiagnosticVisualizer:
         sensitivity_results: SensitivityResults | None = None,
         spec_results: SpecificationResults | None = None,
         treatment: TreatmentData | None = None,
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
     ) -> list[Any]:
         """Create a comprehensive diagnostic dashboard.
 
@@ -603,7 +603,7 @@ class DiagnosticVisualizer:
 def plot_balance_diagnostics(
     balance_results: BalanceResults,
     threshold: float = 0.1,
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
 ) -> Any:
     """Convenience function for balance diagnostic plots."""
     visualizer = DiagnosticVisualizer()
@@ -613,7 +613,7 @@ def plot_balance_diagnostics(
 def plot_overlap_diagnostics(
     overlap_results: OverlapResults,
     treatment: TreatmentData,
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
 ) -> Any:
     """Convenience function for overlap diagnostic plots."""
     visualizer = DiagnosticVisualizer()
@@ -622,7 +622,7 @@ def plot_overlap_diagnostics(
 
 def plot_sensitivity_analysis(
     sensitivity_results: SensitivityResults,
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
 ) -> Any:
     """Convenience function for sensitivity analysis plots."""
     visualizer = DiagnosticVisualizer()
@@ -631,7 +631,7 @@ def plot_sensitivity_analysis(
 
 def plot_specification_tests(
     spec_results: SpecificationResults,
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
 ) -> Any:
     """Convenience function for specification test plots."""
     visualizer = DiagnosticVisualizer()
