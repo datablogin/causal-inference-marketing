@@ -545,11 +545,11 @@ class DiagnosticVisualizer:
 
     def create_diagnostic_dashboard(
         self,
-        balance_results: BalanceResults | None = None,
-        overlap_results: OverlapResults | None = None,
-        sensitivity_results: SensitivityResults | None = None,
-        spec_results: SpecificationResults | None = None,
-        treatment: TreatmentData | None = None,
+        balance_results: Optional[BalanceResults] = None,
+        overlap_results: Optional[OverlapResults] = None,
+        sensitivity_results: Optional[SensitivityResults] = None,
+        spec_results: Optional[SpecificationResults] = None,
+        treatment: Optional[TreatmentData] = None,
         save_path: Optional[str] = None,
     ) -> list[Any]:
         """Create a comprehensive diagnostic dashboard.

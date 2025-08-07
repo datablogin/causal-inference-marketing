@@ -8,7 +8,7 @@ each treatment level conditional on covariates.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -511,8 +511,8 @@ def calculate_propensity_overlap(
 
 
 def calculate_calibration_metrics(
-    true_treatment: NDArray[Any] | pd.Series,
-    predicted_probabilities: NDArray[Any] | pd.Series,
+    true_treatment: Union[NDArray[Any], pd.Series],
+    predicted_probabilities: Union[NDArray[Any], pd.Series],
     n_bins: int = 10,
 ) -> dict[str, Any]:
     """Calculate propensity score calibration metrics.
@@ -595,8 +595,8 @@ def calculate_calibration_metrics(
 
 
 def suggest_trimming_thresholds(
-    propensity_scores: NDArray[Any] | pd.Series,
-    treatment: NDArray[Any] | pd.Series,
+    propensity_scores: Union[NDArray[Any], pd.Series],
+    treatment: Union[NDArray[Any], pd.Series],
     percentiles: list[float] = [1.0, 2.5, 5.0, 10.0],
 ) -> dict[str, Any]:
     """Suggest propensity score trimming thresholds.

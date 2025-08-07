@@ -7,7 +7,7 @@ treatment groups, which is crucial for valid causal inference.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -35,8 +35,8 @@ class BalanceResults:
 
 
 def calculate_standardized_mean_difference(
-    covariate_values: NDArray[Any] | pd.Series,
-    treatment_values: NDArray[Any] | pd.Series,
+    covariate_values: Union[NDArray[Any], pd.Series],
+    treatment_values: Union[NDArray[Any], pd.Series],
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> float:
@@ -91,8 +91,8 @@ def calculate_standardized_mean_difference(
 
 
 def calculate_variance_ratio(
-    covariate_values: NDArray[Any] | pd.Series,
-    treatment_values: NDArray[Any] | pd.Series,
+    covariate_values: Union[NDArray[Any], pd.Series],
+    treatment_values: Union[NDArray[Any], pd.Series],
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> float:
@@ -136,8 +136,8 @@ def calculate_variance_ratio(
 
 
 def calculate_distributional_balance(
-    covariate_values: NDArray[Any] | pd.Series,
-    treatment_values: NDArray[Any] | pd.Series,
+    covariate_values: Union[NDArray[Any], pd.Series],
+    treatment_values: Union[NDArray[Any], pd.Series],
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> dict[str, Any]:
@@ -398,7 +398,7 @@ class BalanceDiagnostics:
     def _statistical_test(
         self,
         covariate_values: pd.Series,
-        treatment_values: NDArray[Any] | pd.Series,
+        treatment_values: Union[NDArray[Any], pd.Series],
         treatment_level_1: Any,
         treatment_level_0: Any,
     ) -> float:
