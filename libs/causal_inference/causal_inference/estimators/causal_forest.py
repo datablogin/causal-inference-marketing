@@ -654,9 +654,11 @@ class CausalForest(BaseEstimator):
         valid_trees = 0
 
         for tree in self.trees_:
-            if (hasattr(tree, "tree_") and 
-                tree.tree_ != "leaf" and 
-                isinstance(tree.tree_, DecisionTreeRegressor)):
+            if (
+                hasattr(tree, "tree_")
+                and tree.tree_ != "leaf"
+                and isinstance(tree.tree_, DecisionTreeRegressor)
+            ):
                 # Use sklearn's built-in feature importances if available
                 if hasattr(tree.tree_, "feature_importances_"):
                     tree_importances = tree.tree_.feature_importances_
