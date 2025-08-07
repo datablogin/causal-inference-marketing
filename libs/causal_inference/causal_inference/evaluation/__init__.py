@@ -28,4 +28,3 @@ __all__ = [
     "qini_score",
     "calibration_score",
 ]
-
