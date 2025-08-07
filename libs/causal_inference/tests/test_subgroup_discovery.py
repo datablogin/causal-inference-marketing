@@ -113,8 +113,7 @@ class TestSubgroupResult:
         assert significant_strict[0].rule == "Sig 2"
 
         significant_very_strict = result.significant_subgroups(alpha=0.001)
-        assert len(significant_very_strict) == 1
-        assert significant_very_strict[0].rule == "Sig 2"
+        assert len(significant_very_strict) == 0  # p=0.001 is not < alpha=0.001
 
 
 class TestVirtualTwins:
