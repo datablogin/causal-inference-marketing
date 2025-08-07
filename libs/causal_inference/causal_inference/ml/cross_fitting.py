@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -292,9 +292,9 @@ class CrossFittingEstimator(ABC):
 
 
 def create_cross_fit_data(
-    X: NDArray[Any] | pd.DataFrame,
-    y: NDArray[Any] | pd.Series,
-    treatment: NDArray[Any] | pd.Series | None = None,
+    X: Union[NDArray[Any], pd.DataFrame],
+    y: Union[NDArray[Any], pd.Series],
+    treatment: Optional[Union[NDArray[Any], pd.Series]] = None,
     cv_folds: int = 5,
     stratified: bool = True,
     random_state: int | None = None,
