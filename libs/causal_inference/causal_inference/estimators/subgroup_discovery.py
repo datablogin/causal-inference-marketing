@@ -6,6 +6,21 @@ and virtual twins methodology.
 
 These methods help discover meaningful patient segments or subpopulations
 that respond differently to treatment, enabling personalized interventions.
+
+IMPLEMENTATION LIMITATIONS:
+- Virtual Twins uses simplified regression models rather than advanced ML techniques
+  that could better capture complex treatment-outcome relationships
+- OptimalPolicyTree is a basic placeholder using standard decision trees rather than
+  specialized policy learning algorithms with welfare maximization objectives
+- SIDES clustering relies on k-means which assumes spherical clusters and may miss
+  complex subgroup structures; silhouette analysis may not always select optimal k
+- All methods assume binary treatments and may not generalize to continuous/multi-valued
+- Statistical significance testing uses basic t-tests without multiple comparison adjustments
+- Subgroup characterization is limited to simple decision rules rather than rich descriptions
+
+Production applications should consider more sophisticated methods like causal trees,
+policy learning with doubly robust estimation, or advanced clustering techniques
+designed specifically for treatment effect heterogeneity.
 """
 
 from __future__ import annotations
@@ -482,18 +497,48 @@ class SIDES:
         Returns:
             SubgroupResult with discovered subgroups
         """
-        # Simplified implementation: use k-means clustering on CATE estimates
-        # to identify subgroups with different treatment effects
+        # Improved implementation: use k-means clustering on CATE estimates
+        # with proper cluster selection
 
         from sklearn.cluster import KMeans
+        from sklearn.metrics import silhouette_score
+        from sklearn.preprocessing import StandardScaler
 
         # Cluster observations based on CATE estimates and covariates
         features = np.column_stack([X, cate_estimates.reshape(-1, 1)])
 
-        # Try different numbers of clusters
+        # Standardize features for clustering
+        scaler = StandardScaler()
+        features_scaled = scaler.fit_transform(features)
+
+        # Select optimal number of clusters using silhouette analysis
+        max_clusters = min(10, len(features) // (2 * self.min_subgroup_size))
+        max_clusters = max(2, max_clusters)  # At least 2 clusters
+
         best_k = 2
+        best_score = -1
+
+        for k in range(2, max_clusters + 1):
+            try:
+                kmeans_test = KMeans(n_clusters=k, random_state=42)
+                labels_test = kmeans_test.fit_predict(features_scaled)
+
+                # Check if all clusters have minimum size
+                cluster_sizes = [np.sum(labels_test == i) for i in range(k)]
+                if min(cluster_sizes) < self.min_subgroup_size:
+                    continue
+
+                # Compute silhouette score
+                score = silhouette_score(features_scaled, labels_test)
+                if score > best_score:
+                    best_score = score
+                    best_k = k
+            except Exception:
+                continue
+
+        # Fit final clustering model
         kmeans = KMeans(n_clusters=best_k, random_state=42)
-        cluster_labels = kmeans.fit_predict(features)
+        cluster_labels = kmeans.fit_predict(features_scaled)
 
         # Create subgroups
         subgroups = []
@@ -528,6 +573,7 @@ class SIDES:
             diff = te - overall_ate
             t_stat = diff / se if se > 0 else 0
             from scipy import stats
+
             p_value = 2 * (1 - stats.norm.cdf(np.abs(t_stat)))
 
             rule = f"Cluster {k} (n={len(indices)})"
@@ -545,4 +591,3 @@ class SIDES:
         return SubgroupResult(
             subgroups=subgroups, overall_ate=overall_ate, method="SIDES"
         )
-

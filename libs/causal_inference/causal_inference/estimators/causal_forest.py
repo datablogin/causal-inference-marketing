@@ -9,6 +9,20 @@ The implementation provides:
 - Variable importance for effect modifiers
 - Adaptive splitting criteria for treatment effect heterogeneity
 
+IMPLEMENTATION LIMITATIONS:
+- Tree splitting uses sklearn's DecisionTreeRegressor as approximation rather than
+  custom causal splitting criteria optimized for treatment effect estimation
+- Feature importance computation is based on split frequency rather than
+  decrease in treatment effect prediction error
+- Confidence intervals use normal approximation rather than asymptotic theory
+- No support for continuous treatments (binary treatments only)
+- Limited to basic honest splitting without advanced variance estimation
+- Bootstrap aggregation may not fully capture theoretical variance properties
+
+These limitations make this a proof-of-concept implementation suitable for
+research and development, but production applications should consider more
+mature libraries like grf (R) or econml (Python) for critical analyses.
+
 References:
     Wager, S., & Athey, S. (2018). Estimation and inference of heterogeneous
     treatment effects using random forests. Journal of the American Statistical
@@ -74,7 +88,7 @@ class HonestTree:
         self.honest_ratio = honest_ratio
         self.random_state = random_state
 
-        self.tree_ = None
+        self.tree_: DecisionTreeRegressor | str | None = None
         self.is_fitted_ = False
 
     def fit(
@@ -185,9 +199,11 @@ class HonestTree:
             # For each prediction point, find corresponding leaf
             leaf_indices = self.tree_.apply(X)
 
+            # Compute estimation sample leaf assignments once (efficiency fix)
+            estimation_leaf_indices = self.tree_.apply(self.X_estimate)
+
             for i, leaf_idx in enumerate(leaf_indices):
                 # Find estimation samples that would fall in this leaf
-                estimation_leaf_indices = self.tree_.apply(self.X_estimate)
                 in_leaf_mask = estimation_leaf_indices == leaf_idx
 
                 if np.sum(in_leaf_mask) > 0:
@@ -422,8 +438,8 @@ class CausalForest(BaseEstimator):
         if self.verbose:
             print(f"Successfully fitted {len(self.trees_)}/{self.n_estimators} trees")
 
-        # Compute feature importances (placeholder implementation)
-        self.feature_importances_ = np.ones(n_features) / n_features
+        # Compute feature importances based on tree splits
+        self.feature_importances_ = self._compute_feature_importances(n_features)
 
     def _prepare_data(
         self,
@@ -434,18 +450,18 @@ class CausalForest(BaseEstimator):
         """Prepare and validate data for causal forest."""
         # Extract arrays
         if isinstance(treatment.values, pd.Series):
-            T = treatment.values.values
+            T = np.asarray(treatment.values.values).flatten()
         else:
             T = np.asarray(treatment.values).flatten()
 
         if isinstance(outcome.values, pd.Series):
-            Y = outcome.values.values
+            Y = np.asarray(outcome.values.values).flatten()
         else:
             Y = np.asarray(outcome.values).flatten()
 
         if covariates is not None:
             if isinstance(covariates.values, pd.DataFrame):
-                X = covariates.values.values
+                X = np.asarray(covariates.values.values)
             else:
                 X = np.asarray(covariates.values)
                 if X.ndim == 1:
@@ -622,3 +638,70 @@ class CausalForest(BaseEstimator):
 
         return importances
 
+    def _compute_feature_importances(self, n_features: int) -> NDArray[Any]:
+        """Compute feature importances based on sklearn tree importances across forest.
+
+        Args:
+            n_features: Number of features
+
+        Returns:
+            Feature importance scores
+        """
+        if not self.trees_:
+            return np.ones(n_features) / n_features
+
+        importances = np.zeros(n_features)
+        valid_trees = 0
+
+        for tree in self.trees_:
+            if (hasattr(tree, "tree_") and 
+                tree.tree_ != "leaf" and 
+                isinstance(tree.tree_, DecisionTreeRegressor)):
+                # Use sklearn's built-in feature importances if available
+                if hasattr(tree.tree_, "feature_importances_"):
+                    tree_importances = tree.tree_.feature_importances_
+                    if len(tree_importances) == n_features:
+                        importances += tree_importances
+                        valid_trees += 1
+
+        # Normalize across trees
+        if valid_trees > 0:
+            importances = importances / valid_trees
+        else:
+            # Fallback: use permutation-based importance
+            importances = self._permutation_importance(n_features)
+
+        return importances
+
+    def _permutation_importance(self, n_features: int) -> NDArray[Any]:
+        """Compute permutation-based feature importance as fallback."""
+        if self._training_covariates is None:
+            return np.ones(n_features) / n_features
+
+        baseline_cate, _ = self.predict_cate(self._training_covariates)
+        baseline_var = np.var(baseline_cate)
+
+        if baseline_var == 0:
+            return np.ones(n_features) / n_features
+
+        importances = np.zeros(n_features)
+        rng = np.random.RandomState(self.random_state)
+
+        for j in range(n_features):
+            X_perm = self._training_covariates.copy()
+            X_perm[:, j] = rng.permutation(X_perm[:, j])
+
+            perm_cate, _ = self.predict_cate(X_perm)
+            perm_var = np.var(perm_cate)
+
+            # Importance is reduction in variance
+            importances[j] = max(0, baseline_var - perm_var)
+
+        # Normalize
+        total_importance = np.sum(importances)
+        if total_importance > 0:
+            importances = importances / total_importance
+        else:
+            importances = np.ones(n_features) / n_features
+
+        return importances

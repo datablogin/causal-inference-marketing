@@ -6,6 +6,18 @@ and overlap-weighted evaluation procedures.
 
 These metrics are essential for proper evaluation of HTE methods, especially
 when true treatment effects are unknown or vary across subpopulations.
+
+IMPLEMENTATION LIMITATIONS:
+- Policy value estimation uses simplified propensity score models (logistic regression
+  with CATE estimates only) rather than comprehensive covariate-based models
+- Qini score computation uses binned approximation rather than continuous integration
+- Calibration analysis uses simple binning which may not capture complex patterns
+- Bootstrap confidence intervals assume normality and may not be valid for all metrics
+- Overlap weighting assumes known/estimated propensity scores are accurate
+- Some metrics require large sample sizes for stable estimates
+
+These limitations mean results should be interpreted carefully and supplemented
+with domain expertise and additional validation methods when possible.
 """
 
 from __future__ import annotations
@@ -59,6 +71,7 @@ def policy_value(
     treatments: NDArray[Any],
     cate_estimates: NDArray[Any],
     policy_threshold: float = 0.0,
+    propensity_scores: NDArray[Any] | None = None,
 ) -> float:
     """Compute expected outcome under learned treatment assignment policy.
 
@@ -71,6 +84,7 @@ def policy_value(
         treatments: Actual treatment assignments
         cate_estimates: Predicted individual treatment effects
         policy_threshold: Threshold for treatment assignment (default 0)
+        propensity_scores: Individual propensity scores (if None, estimated)
 
     Returns:
         Expected outcome under the learned policy
@@ -79,8 +93,27 @@ def policy_value(
         This uses inverse propensity weighting for unbiased estimation.
         Requires overlap in treatment assignment.
     """
-    # Estimate propensity scores (simplified approach)
-    propensity = np.mean(treatments)
+    # Estimate propensity scores if not provided
+    if propensity_scores is None:
+        # Simple logistic regression approach for better individual estimates
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.preprocessing import StandardScaler
+
+        # Use CATE estimates as a simple feature for propensity estimation
+        X_prop = cate_estimates.reshape(-1, 1)
+        scaler = StandardScaler()
+        X_prop_scaled = scaler.fit_transform(X_prop)
+
+        try:
+            lr = LogisticRegression(random_state=42)
+            lr.fit(X_prop_scaled, treatments)
+            propensity_scores = lr.predict_proba(X_prop_scaled)[:, 1]
+        except Exception:
+            # Fallback to overall rate if fitting fails
+            propensity_scores = np.full(len(treatments), np.mean(treatments))
+
+    # Clip propensity scores to avoid extreme weights
+    propensity_scores = np.clip(propensity_scores, 0.01, 0.99)
 
     # Policy assigns treatment when CATE > threshold
     policy_treatment = (cate_estimates > policy_threshold).astype(int)
@@ -91,7 +124,7 @@ def policy_value(
 
     weights = np.where(
         treatments == policy_treatment,
-        1.0 / np.where(policy_treatment == 1, propensity, 1 - propensity),
+        1.0 / np.where(policy_treatment == 1, propensity_scores, 1 - propensity_scores),
         0.0,
     )
 
@@ -392,7 +425,9 @@ class HTEEvaluator:
 
         # Policy-based evaluation
         if outcomes is not None and treatments is not None:
-            metrics["policy_value"] = policy_value(outcomes, treatments, y_pred)
+            metrics["policy_value"] = policy_value(
+                outcomes, treatments, y_pred, propensity_scores=propensity_scores
+            )
             metrics["rank_weighted_ate"] = rank_weighted_ate(
                 outcomes, treatments, y_pred
             )
@@ -508,4 +543,3 @@ class HTEEvaluator:
         )
 
         return ax
-

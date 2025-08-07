@@ -239,7 +239,7 @@ class TestCalibrationScore:
         cal_metrics = calibration_score(y_true, y_pred)
 
         assert "calibration_error" in cal_metrics
-        assert isinstance(cal_metrics["calibration_error"], (float, type(np.nan)))
+        assert isinstance(cal_metrics["calibration_error"], float | type(np.nan))
 
     def test_calibration_score_with_ci(self):
         """Test calibration score with confidence intervals."""
@@ -473,4 +473,3 @@ class TestHTEMetricsIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__])
-
