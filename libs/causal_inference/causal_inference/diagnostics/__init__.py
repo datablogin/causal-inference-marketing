@@ -13,6 +13,8 @@ from .assumptions import (
 )
 from .balance import (
     BalanceDiagnostics,
+    calculate_distributional_balance,
+    calculate_prognostic_score_balance,
     calculate_standardized_mean_difference,
     calculate_variance_ratio,
     check_covariate_balance,
@@ -26,9 +28,11 @@ from .falsification import (
 from .overlap import (
     OverlapDiagnostics,
     assess_positivity,
+    calculate_calibration_metrics,
     calculate_propensity_overlap,
     calculate_propensity_scores,
     check_common_support,
+    suggest_trimming_thresholds,
 )
 from .reporting import (
     DiagnosticReport,
@@ -48,7 +52,13 @@ from .specification import (
     functional_form_tests,
     interaction_tests,
     linearity_tests,
+    ramsey_reset_test,
     test_model_specification,
+)
+from .validation_suite import (
+    ComprehensiveValidationResults,
+    ComprehensiveValidationSuite,
+    validate_causal_assumptions,
 )
 
 # Import visualization with optional dependency handling
@@ -68,15 +78,19 @@ except ImportError:
 __all__ = [
     # Balance diagnostics
     "BalanceDiagnostics",
+    "calculate_distributional_balance",
+    "calculate_prognostic_score_balance",
     "calculate_standardized_mean_difference",
     "calculate_variance_ratio",
     "check_covariate_balance",
     # Overlap diagnostics
     "OverlapDiagnostics",
     "assess_positivity",
+    "calculate_calibration_metrics",
     "calculate_propensity_overlap",
     "calculate_propensity_scores",
     "check_common_support",
+    "suggest_trimming_thresholds",
     # Assumption checking
     "AssumptionChecker",
     "check_confounding_detection",
@@ -95,6 +109,11 @@ __all__ = [
     "interaction_tests",
     "functional_form_tests",
     "test_model_specification",
+    "ramsey_reset_test",
+    # Comprehensive validation
+    "ComprehensiveValidationResults",
+    "ComprehensiveValidationSuite",
+    "validate_causal_assumptions",
     # Falsification tests
     "FalsificationTester",
     "run_all_falsification_tests",

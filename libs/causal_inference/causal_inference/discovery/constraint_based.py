@@ -9,7 +9,7 @@ from __future__ import annotations
 import itertools
 import time
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -36,8 +36,8 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
         self,
         independence_test: str = "pearson",
         alpha: float = 0.05,
-        max_conditioning_set_size: Optional[int] = None,
-        random_state: Optional[int] = None,
+        max_conditioning_set_size: int | None = None,
+        random_state: int | None = None,
         verbose: bool = False,
         max_iterations: int = 1000,
     ) -> None:
@@ -62,8 +62,8 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
 
         # Algorithm state
         self.separation_sets: dict[tuple[int, int], set[int]] = {}
-        self.pc_graph: Optional[NDArray[Any]] = None
-        self.oriented_graph: Optional[NDArray[Any]] = None
+        self.pc_graph: NDArray[Any] | None = None
+        self.oriented_graph: NDArray[Any] | None = None
 
     def _get_independence_test_function(
         self,
@@ -481,8 +481,8 @@ class FCI(BaseDiscoveryAlgorithm):
         self,
         independence_test: str = "pearson",
         alpha: float = 0.05,
-        max_conditioning_set_size: Optional[int] = None,
-        random_state: Optional[int] = None,
+        max_conditioning_set_size: int | None = None,
+        random_state: int | None = None,
         verbose: bool = False,
         max_iterations: int = 1000,
     ) -> None:

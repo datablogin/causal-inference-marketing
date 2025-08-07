@@ -932,8 +932,8 @@ class SensitivityAnalysis:
         for scenario in scenarios:
             treat_assoc = scenario["treat_assoc"]
             outcome_assoc = scenario["outcome_assoc"]
-            assert isinstance(treat_assoc, (int, float))
-            assert isinstance(outcome_assoc, (int, float))
+            assert isinstance(treat_assoc, int | float)
+            assert isinstance(outcome_assoc, int | float)
 
             result = self.linear_model.analyze_sensitivity(
                 causal_effect.ate,

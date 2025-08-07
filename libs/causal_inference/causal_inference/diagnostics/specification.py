@@ -32,6 +32,8 @@ class SpecificationResults:
     specification_passed: bool
     problematic_variables: list[str]
     recommendations: list[str]
+    reset_test_results: dict[str, Any] | None = None
+    transformation_suggestions: dict[str, dict[str, Any]] | None = None
 
 
 def linearity_tests(
@@ -457,6 +459,14 @@ class ModelSpecificationTests:
             residuals, fitted, self.alpha
         )
 
+        # RESET test for functional form
+        reset_results = reset_test(residuals, fitted)
+
+        # Transformation analysis
+        transformation_suggestions = comprehensive_transformation_analysis(
+            outcome, covariates
+        )
+
         # Assess overall specification
         problematic_variables = []
 
@@ -492,6 +502,8 @@ class ModelSpecificationTests:
             specification_passed=specification_passed,
             problematic_variables=list(set(problematic_variables)),
             recommendations=recommendations,
+            reset_test_results=reset_results,
+            transformation_suggestions=transformation_suggestions,
         )
 
     def _generate_recommendations(
@@ -602,3 +614,265 @@ def test_model_specification(
         tester.print_specification_summary(results)
 
     return results
+
+
+def reset_test(
+    residuals: NDArray[Any],
+    fitted_values: NDArray[Any],
+    powers: list[int] = [2, 3],
+    alpha: float = 0.05,
+) -> dict[str, Any]:
+    """RESET (Regression Specification Error Test) for functional form.
+
+    Tests whether powers of fitted values are jointly significant
+    in explaining residuals, indicating functional form misspecification.
+
+    Args:
+        residuals: Model residuals
+        fitted_values: Model fitted values
+        powers: Powers of fitted values to test
+        alpha: Significance level
+
+    Returns:
+        Dictionary with RESET test results
+    """
+    try:
+        # Create powers of fitted values
+        X_powers = []
+        for power in powers:
+            X_powers.append(fitted_values**power)
+
+        if not X_powers:
+            return {"error": "No powers specified for RESET test"}
+
+        X_reset = np.column_stack(X_powers)
+
+        # Fit regression of residuals on powers of fitted values
+        # Add intercept
+        X_with_intercept = np.column_stack([np.ones(len(residuals)), X_reset])
+
+        # Simple linear regression using normal equations
+        try:
+            coeffs = np.linalg.lstsq(X_with_intercept, residuals, rcond=None)[0]
+        except np.linalg.LinAlgError:
+            return {"error": "Singular matrix in RESET test"}
+
+        # Calculate SSR for the auxiliary regression
+        y_pred = X_with_intercept @ coeffs
+        ssr_aux = np.sum(y_pred**2)
+
+        # Calculate SSR for null model (intercept only)
+        mean_residual = np.mean(residuals)
+        ssr_null = np.sum((residuals - mean_residual) ** 2)
+
+        # Calculate F-statistic
+        n = len(residuals)
+        k = len(powers)  # Number of additional regressors
+
+        if n - k - 1 <= 0 or ssr_null == 0:
+            return {"error": "Insufficient degrees of freedom or zero SSR"}
+
+        f_statistic = (ssr_aux / k) / ((ssr_null - ssr_aux) / (n - k - 1))
+
+        # Calculate p-value
+        p_value = 1 - stats.f.cdf(f_statistic, k, n - k - 1)
+
+        # Determine if specification is adequate
+        specification_adequate = p_value >= alpha
+
+        return {
+            "f_statistic": float(f_statistic),
+            "p_value": float(p_value),
+            "specification_adequate": specification_adequate,
+            "powers_tested": powers,
+            "degrees_of_freedom": (k, n - k - 1),
+            "recommendation": "Linear functional form appears adequate"
+            if specification_adequate
+            else "Consider non-linear terms or alternative functional forms",
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def suggest_box_cox_transformation(
+    data: NDArray[Any] | pd.Series,
+    variable_name: str = "variable",
+    lambda_range: tuple[float, float] = (-2, 2),
+) -> dict[str, Any]:
+    """Suggest Box-Cox transformation for positive continuous variables.
+
+    Args:
+        data: Positive variable data
+        variable_name: Name of the variable
+        lambda_range: Range of lambda values to search
+
+    Returns:
+        Dictionary with transformation recommendations
+    """
+    try:
+        from scipy.stats import boxcox
+
+        data_array = np.asarray(data)
+        data_clean = data_array[~np.isnan(data_array)]
+
+        if len(data_clean) == 0:
+            return {"error": "No valid data for Box-Cox analysis"}
+
+        if np.any(data_clean <= 0):
+            return {"error": "Box-Cox transformation requires positive data"}
+
+        # Find optimal lambda using maximum likelihood
+        _, lambda_optimal = boxcox(data_clean)
+
+        # Constrain lambda to reasonable range
+        lambda_optimal = max(lambda_range[0], min(lambda_optimal, lambda_range[1]))
+
+        # Determine transformation type
+        if abs(lambda_optimal) < 0.01:  # Close to 0
+            transformation_type = "log"
+            transformation_needed = True
+        elif abs(lambda_optimal - 1) < 0.01:  # Close to 1
+            transformation_type = "none"
+            transformation_needed = False
+        elif abs(lambda_optimal - 0.5) < 0.01:  # Close to 0.5
+            transformation_type = "square_root"
+            transformation_needed = True
+        elif abs(lambda_optimal + 1) < 0.01:  # Close to -1
+            transformation_type = "reciprocal"
+            transformation_needed = True
+        else:
+            transformation_type = f"power({lambda_optimal:.2f})"
+            transformation_needed = True
+
+        # Generate recommendation
+        if not transformation_needed:
+            recommendation = f"No transformation needed for {variable_name}"
+        else:
+            recommendation = (
+                f"Consider {transformation_type} transformation for {variable_name}"
+            )
+
+        return {
+            "variable": variable_name,
+            "lambda_optimal": float(lambda_optimal),
+            "transformation_type": transformation_type,
+            "transformation_needed": transformation_needed,
+            "recommendation": recommendation,
+            "n_observations": len(data_clean),
+        }
+
+    except ImportError:
+        return {"error": "scipy.stats.boxcox not available"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def comprehensive_transformation_analysis(
+    outcome: OutcomeData,
+    covariates: CovariateData,
+) -> dict[str, dict[str, Any]]:
+    """Comprehensive transformation analysis for outcome and covariates.
+
+    Args:
+        outcome: Outcome data
+        covariates: Covariate data
+
+    Returns:
+        Dictionary with transformation suggestions for each variable
+    """
+    results = {}
+
+    # Analyze outcome variable
+    outcome_data = np.asarray(outcome.values)
+    if np.all(outcome_data > 0):  # Only analyze if positive
+        results["outcome"] = suggest_box_cox_transformation(outcome_data, "outcome")
+    else:
+        results["outcome"] = {
+            "variable": "outcome",
+            "recommendation": "Non-positive values present - consider alternative transformations",
+            "transformation_needed": False,
+        }
+
+    # Analyze covariates
+    if isinstance(covariates.values, pd.DataFrame):
+        for col_name in covariates.values.columns:
+            col_data = np.asarray(covariates.values[col_name].values)
+            col_data_clean = col_data[~np.isnan(col_data)]
+
+            if len(np.unique(col_data_clean)) > 10:  # Only continuous variables
+                if np.all(col_data_clean > 0):  # Only positive data
+                    results[col_name] = suggest_box_cox_transformation(
+                        col_data_clean, col_name
+                    )
+                else:
+                    results[col_name] = {
+                        "variable": col_name,
+                        "recommendation": f"Non-positive values in {col_name} - consider alternative transformations",
+                        "transformation_needed": False,
+                    }
+
+    return results
+
+
+def ramsey_reset_test(
+    outcome: OutcomeData,
+    covariates: CovariateData,
+    powers: list[int] = [2, 3],
+    verbose: bool = True,
+) -> dict[str, Any]:
+    """Convenience function for RESET test on outcome model.
+
+    Args:
+        outcome: Outcome data
+        covariates: Covariate data
+        powers: Powers to test in RESET
+        verbose: Whether to print results
+
+    Returns:
+        RESET test results
+    """
+    try:
+        # Fit linear model first
+        y = np.asarray(outcome.values)
+        X = (
+            covariates.values.fillna(covariates.values.mean())
+            if isinstance(covariates.values, pd.DataFrame)
+            else covariates.values
+        )
+
+        # Remove missing values
+        mask = ~np.isnan(y)
+        if isinstance(X, pd.DataFrame):
+            mask = mask & ~X.isnull().any(axis=1)
+            X_clean = X.loc[mask].values
+        else:
+            mask = mask & ~np.isnan(X).any(axis=1)
+            X_clean = X[mask]
+
+        y_clean = y[mask]
+
+        if len(y_clean) < 10:
+            return {"error": "Insufficient data for RESET test"}
+
+        # Fit linear model
+        model = LinearRegression()
+        model.fit(X_clean, y_clean)
+
+        fitted = model.predict(X_clean)
+        residuals = y_clean - fitted
+
+        # Run RESET test
+        result = reset_test(residuals, fitted, powers)
+
+        if verbose and "error" not in result:
+            print("RESET Test Results:")
+            print(f"F-statistic: {result['f_statistic']:.3f}")
+            print(f"p-value: {result['p_value']:.3f}")
+            print(f"Specification adequate: {result['specification_adequate']}")
+            print(f"Recommendation: {result['recommendation']}")
+
+        return result
+
+    except Exception as e:
+        return {"error": str(e)}

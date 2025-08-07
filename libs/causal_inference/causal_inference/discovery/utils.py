@@ -6,7 +6,7 @@ and integration with existing causal inference estimators.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -34,7 +34,7 @@ def plot_dag(
     with_labels: bool = True,
     font_size: int = 12,
     figsize: tuple[int, int] = (10, 8),
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
 ) -> plt.Figure:
     """Plot a causal DAG using matplotlib and networkx.
 
@@ -106,9 +106,9 @@ def plot_dag(
 
 def plot_discovery_comparison(
     results: list[DiscoveryResult],
-    true_dag: Optional[CausalDAG] = None,
+    true_dag: CausalDAG | None = None,
     figsize: tuple[int, int] = (15, 10),
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
 ) -> plt.Figure:
     """Plot comparison of multiple causal discovery results.
 
@@ -209,7 +209,7 @@ def generate_linear_sem_data(
     n_samples: int = 1000,
     noise_std: float = 1.0,
     edge_weight_range: tuple[float, float] = (0.5, 2.0),
-    random_state: Optional[int] = None,
+    random_state: int | None = None,
 ) -> pd.DataFrame:
     """Generate data from a linear structural equation model (SEM).
 
