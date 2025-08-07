@@ -6,6 +6,7 @@ meta-learners for CATE, and survival analysis estimators.
 """
 
 from .aipw import AIPWEstimator
+from .causal_forest import CausalForest, HonestTree
 from .difference_in_differences import DIDResult, DifferenceInDifferencesEstimator
 from .doubly_robust_ml import DoublyRobustMLEstimator
 from .g_computation import GComputationEstimator
@@ -23,6 +24,13 @@ from .meta_learners import (
 )
 from .propensity_score import PropensityScoreEstimator
 from .regression_discontinuity import ForcingVariableData, RDDEstimator, RDDResult
+from .subgroup_discovery import (
+    SIDES,
+    OptimalPolicyTree,
+    Subgroup,
+    SubgroupResult,
+    VirtualTwins,
+)
 from .synthetic_control import SyntheticControlEstimator, SyntheticControlResult
 from .time_varying import StrategyComparison, StrategyOutcome, TimeVaryingEstimator
 from .tmle import TMLEEstimator
@@ -56,6 +64,15 @@ __all__ = [
     "XLearner",
     "RLearner",
     "CATEResult",
+    # Advanced HTE methods
+    "CausalForest",
+    "HonestTree",
+    # Subgroup discovery
+    "VirtualTwins",
+    "OptimalPolicyTree",
+    "SIDES",
+    "Subgroup",
+    "SubgroupResult",
 ]
 
 # Optional Bayesian imports (may fail due to arviz/scipy compatibility)
