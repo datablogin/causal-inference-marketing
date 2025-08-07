@@ -8,7 +8,7 @@ each treatment level conditional on covariates.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -32,9 +32,12 @@ class OverlapResults:
     common_support_range: tuple[float, float]
     units_in_common_support: int
     total_units: int
-    propensity_model_auc: float | None
+    propensity_model_auc: Optional[float]
     extreme_weights_count: int
     recommendation: str
+    calibration_results: Optional[dict[str, Any]] = None
+    trimming_recommendations: Optional[dict[str, dict[str, Any]]] = None
+    roc_curve_data: Optional[dict[str, Any]] = None
 
 
 def calculate_propensity_scores(
@@ -62,6 +65,15 @@ def calculate_propensity_scores(
     # Prepare data
     X = covariates.values.fillna(covariates.values.mean())  # Simple imputation
     y = np.asarray(treatment.values)
+
+    # Check for degenerate cases
+    unique_classes = np.unique(y)
+    if len(unique_classes) < 2:
+        # All units have same treatment - return constant probabilities
+        if unique_classes[0] == 1:
+            return np.ones(len(y)) * 0.99  # All treated
+        else:
+            return np.ones(len(y)) * 0.01  # All control
 
     # Select model
     if model_type == "logistic":
@@ -249,9 +261,38 @@ class OverlapDiagnostics:
         try:
             from sklearn.metrics import roc_auc_score
 
-            auc_score = roc_auc_score(treatment_vals, propensity_scores)
+            # Check if we can calculate AUC (need at least 2 classes)
+            if len(np.unique(treatment_vals)) >= 2:
+                auc_score = roc_auc_score(treatment_vals, propensity_scores)
+            else:
+                auc_score = None  # Cannot calculate AUC with single class
         except ImportError:
             auc_score = None
+
+        # Calculate calibration metrics
+        calibration_results = calculate_calibration_metrics(
+            treatment_vals, propensity_scores
+        )
+
+        # Generate trimming recommendations
+        trimming_recommendations = suggest_trimming_thresholds(
+            propensity_scores, treatment_vals
+        )
+
+        # ROC curve data (if AUC was calculated)
+        roc_curve_data = None
+        if auc_score is not None:
+            try:
+                from sklearn.metrics import roc_curve
+
+                fpr, tpr, _ = roc_curve(treatment_vals, propensity_scores)
+                roc_curve_data = {
+                    "fpr": fpr.tolist(),
+                    "tpr": tpr.tolist(),
+                    "auc": auc_score,
+                }
+            except ImportError:
+                pass
 
         # Generate recommendation
         recommendation = self._generate_recommendation(
@@ -270,13 +311,16 @@ class OverlapDiagnostics:
             propensity_model_auc=auc_score,
             extreme_weights_count=int(extreme_weights),
             recommendation=recommendation,
+            calibration_results=calibration_results,
+            trimming_recommendations=trimming_recommendations,
+            roc_curve_data=roc_curve_data,
         )
 
     def _generate_recommendation(
         self,
         violations: list[dict[str, Any]],
         positivity_met: bool,
-        auc_score: float | None,
+        auc_score: Optional[float],
     ) -> str:
         """Generate recommendation based on overlap assessment."""
         if positivity_met and len(violations) == 0:
@@ -464,3 +508,158 @@ def calculate_propensity_overlap(
         "min_propensity": float(np.min(propensity_scores)),
         "max_propensity": float(np.max(propensity_scores)),
     }
+
+
+def calculate_calibration_metrics(
+    true_treatment: Union[NDArray[Any], pd.Series],
+    predicted_probabilities: Union[NDArray[Any], pd.Series],
+    n_bins: int = 10,
+) -> dict[str, Any]:
+    """Calculate propensity score calibration metrics.
+
+    Args:
+        true_treatment: Actual treatment assignments (0/1)
+        predicted_probabilities: Predicted propensity scores
+        n_bins: Number of bins for calibration assessment
+
+    Returns:
+        Dictionary with calibration metrics
+    """
+    try:
+        true_treatment = np.asarray(true_treatment)
+        predicted_probabilities = np.asarray(predicted_probabilities)
+
+        # Remove any NaN values
+        mask = ~(np.isnan(true_treatment) | np.isnan(predicted_probabilities))
+        y_true = true_treatment[mask]
+        y_prob = predicted_probabilities[mask]
+
+        if len(y_true) == 0:
+            return {"error": "No valid data for calibration assessment"}
+
+        # Calculate Brier score
+        brier_score = np.mean((y_prob - y_true) ** 2)
+
+        # Bin predictions for calibration curve
+        bin_boundaries = np.linspace(0, 1, n_bins + 1)
+        bin_lowers = bin_boundaries[:-1]
+        bin_uppers = bin_boundaries[1:]
+
+        fraction_of_positives = []
+        mean_predicted_value = []
+
+        for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
+            # Find predictions in this bin
+            in_bin = (y_prob > bin_lower) & (y_prob <= bin_upper)
+
+            if np.sum(in_bin) == 0:
+                continue
+
+            # Calculate fraction of positives and mean prediction in bin
+            fraction_of_positives.append(np.mean(y_true[in_bin]))
+            mean_predicted_value.append(np.mean(y_prob[in_bin]))
+
+        # Calculate mean absolute calibration error (MACE)
+        if len(fraction_of_positives) > 0:
+            mace = np.mean(
+                np.abs(np.array(fraction_of_positives) - np.array(mean_predicted_value))
+            )
+        else:
+            mace = np.nan
+
+        # Simple calibration slope (correlation between predicted and actual)
+        if len(y_true) > 1:
+            calibration_slope = np.corrcoef(y_prob, y_true)[0, 1]
+        else:
+            calibration_slope = np.nan
+
+        # Determine if well calibrated (MACE < 0.1 and Brier score reasonable)
+        well_calibrated = not np.isnan(mace) and mace < 0.1 and brier_score < 0.25
+
+        return {
+            "fraction_of_positives": fraction_of_positives,
+            "mean_predicted_value": mean_predicted_value,
+            "brier_score": float(brier_score),
+            "calibration_slope": float(calibration_slope)
+            if not np.isnan(calibration_slope)
+            else np.nan,
+            "mean_absolute_calibration_error": float(mace)
+            if not np.isnan(mace)
+            else np.nan,
+            "well_calibrated": well_calibrated,
+            "n_bins_used": len(fraction_of_positives),
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def suggest_trimming_thresholds(
+    propensity_scores: Union[NDArray[Any], pd.Series],
+    treatment: Union[NDArray[Any], pd.Series],
+    percentiles: list[float] = [1.0, 2.5, 5.0, 10.0],
+) -> dict[str, Any]:
+    """Suggest propensity score trimming thresholds.
+
+    Args:
+        propensity_scores: Array of propensity scores
+        treatment: Treatment assignment values
+        percentiles: Percentiles for trimming (symmetric from both tails)
+
+    Returns:
+        Dictionary with trimming recommendations for each percentile
+    """
+    try:
+        propensity_scores = np.asarray(propensity_scores)
+        treatment = np.asarray(treatment)
+
+        # Remove NaN values
+        mask = ~(np.isnan(propensity_scores) | np.isnan(treatment))
+        ps_clean = propensity_scores[mask]
+        treatment_clean = treatment[mask]
+
+        if len(ps_clean) == 0:
+            return {"error": "No valid data for trimming analysis"}
+
+        recommendations = {}
+
+        for pct in percentiles:
+            # Calculate symmetric percentile bounds
+            lower_pct = pct / 2
+            upper_pct = 100 - (pct / 2)
+
+            lower_bound = np.percentile(ps_clean, lower_pct)
+            upper_bound = np.percentile(ps_clean, upper_pct)
+
+            # Find units within bounds
+            within_bounds = (ps_clean >= lower_bound) & (ps_clean <= upper_bound)
+            treatment_within = treatment_clean[within_bounds]
+
+            # Count remaining units by treatment group
+            n_treated_remaining = np.sum(treatment_within == 1)
+            n_control_remaining = np.sum(treatment_within == 0)
+            n_total_remaining = len(treatment_within)
+
+            # Calculate trimming statistics
+            n_trimmed = len(ps_clean) - n_total_remaining
+            pct_trimmed = (n_trimmed / len(ps_clean)) * 100
+
+            recommendations[f"trim_{pct:.1f}pct"] = {
+                "lower_bound": float(lower_bound),
+                "upper_bound": float(upper_bound),
+                "n_trimmed": int(n_trimmed),
+                "pct_trimmed": float(pct_trimmed),
+                "n_treated_remaining": int(n_treated_remaining),
+                "n_control_remaining": int(n_control_remaining),
+                "n_total_remaining": int(n_total_remaining),
+                "treated_control_ratio": float(
+                    n_treated_remaining / n_control_remaining
+                )
+                if n_control_remaining > 0
+                else np.inf,
+            }
+
+        return recommendations
+
+    except Exception as e:
+        return {"error": str(e)}

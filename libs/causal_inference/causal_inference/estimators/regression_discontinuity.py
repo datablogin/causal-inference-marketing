@@ -8,7 +8,7 @@ threshold of a forcing variable.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,7 +37,7 @@ class ForcingVariableData:
     Units above/below the cutoff receive different treatments.
     """
 
-    values: pd.Series | NDArray[Any]
+    values: Union[pd.Series, NDArray[Any]]
     name: str = "forcing_variable"
     cutoff: float = 0.0
 
@@ -872,8 +872,8 @@ class RDDEstimator(BootstrapMixin, BaseEstimator):
 
     def estimate_rdd(
         self,
-        forcing_variable: pd.Series | NDArray[Any],
-        outcome: pd.Series | NDArray[Any],
+        forcing_variable: Union[pd.Series, NDArray[Any]],
+        outcome: Union[pd.Series, NDArray[Any]],
         cutoff: float | None = None,
         covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> RDDResult:

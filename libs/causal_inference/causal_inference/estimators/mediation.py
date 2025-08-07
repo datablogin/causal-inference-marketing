@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -39,7 +39,7 @@ class MediatorData:
     between treatment and outcome.
     """
 
-    values: pd.Series | NDArray[Any]
+    values: Union[pd.Series, NDArray[Any]]
     name: str = "mediator"
     mediator_type: str = "continuous"
 

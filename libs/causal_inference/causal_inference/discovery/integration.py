@@ -6,7 +6,7 @@ structures with existing causal inference estimators in the library.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -53,8 +53,8 @@ class DiscoveryEstimatorPipeline:
         self.verbose = verbose
 
         # State
-        self.discovery_result: Optional[DiscoveryResult] = None
-        self.causal_effect: Optional[CausalEffect] = None
+        self.discovery_result: DiscoveryResult | None = None
+        self.causal_effect: CausalEffect | None = None
         self._is_fitted = False
 
     def fit_and_estimate(
@@ -123,11 +123,11 @@ class DiscoveryEstimatorPipeline:
 
         return self.causal_effect
 
-    def get_discovery_result(self) -> Optional[DiscoveryResult]:
+    def get_discovery_result(self) -> DiscoveryResult | None:
         """Get the causal discovery result."""
         return self.discovery_result
 
-    def get_causal_effect(self) -> Optional[CausalEffect]:
+    def get_causal_effect(self) -> CausalEffect | None:
         """Get the estimated causal effect."""
         return self.causal_effect
 
@@ -353,7 +353,7 @@ def compare_estimators_on_discovery(
     treatment_col: str,
     outcome_col: str,
     estimators: list[BaseEstimator],
-    estimator_names: Optional[list[str]] = None,
+    estimator_names: list[str] | None = None,
     verbose: bool = False,
 ) -> dict[str, CausalEffect]:
     """Compare multiple estimators using the same discovered causal structure.

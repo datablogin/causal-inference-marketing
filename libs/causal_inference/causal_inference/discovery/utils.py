@@ -6,12 +6,13 @@ and integration with existing causal inference estimators.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+from matplotlib.figure import Figure
 
 from ..core.base import CovariateData
 from .base import CausalDAG, DiscoveryResult
@@ -34,8 +35,8 @@ def plot_dag(
     with_labels: bool = True,
     font_size: int = 12,
     figsize: tuple[int, int] = (10, 8),
-    save_path: Optional[str] = None,
-) -> plt.Figure:
+    save_path: str | None = None,
+) -> Figure:
     """Plot a causal DAG using matplotlib and networkx.
 
     Args:
@@ -106,10 +107,10 @@ def plot_dag(
 
 def plot_discovery_comparison(
     results: list[DiscoveryResult],
-    true_dag: Optional[CausalDAG] = None,
+    true_dag: CausalDAG | None = None,
     figsize: tuple[int, int] = (15, 10),
-    save_path: Optional[str] = None,
-) -> plt.Figure:
+    save_path: str | None = None,
+) -> Figure:
     """Plot comparison of multiple causal discovery results.
 
     Args:
@@ -209,7 +210,7 @@ def generate_linear_sem_data(
     n_samples: int = 1000,
     noise_std: float = 1.0,
     edge_weight_range: tuple[float, float] = (0.5, 2.0),
-    random_state: Optional[int] = None,
+    random_state: int | None = None,
 ) -> pd.DataFrame:
     """Generate data from a linear structural equation model (SEM).
 
@@ -277,7 +278,7 @@ def generate_linear_sem_data(
 
 def dag_to_adjustment_sets(
     dag: CausalDAG, treatment: str, outcome: str
-) -> dict[str, list[str]]:
+) -> dict[str, Any]:
     """Find adjustment sets for causal effect identification from a DAG.
 
     Args:

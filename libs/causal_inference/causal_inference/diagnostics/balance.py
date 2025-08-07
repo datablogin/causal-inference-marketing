@@ -7,14 +7,16 @@ treatment groups, which is crucial for valid causal inference.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy import stats
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
 
-from ..core.base import CovariateData, TreatmentData
+from ..core.base import CovariateData, OutcomeData, TreatmentData
 
 
 @dataclass
@@ -28,11 +30,13 @@ class BalanceResults:
     imbalanced_covariates: list[str]
     overall_balance_met: bool
     sample_sizes: dict[str, int]
+    ks_test_results: Optional[dict[str, dict[str, Any]]] = None
+    prognostic_score_balance: Optional[dict[str, Any]] = None
 
 
 def calculate_standardized_mean_difference(
-    covariate_values: NDArray[Any] | pd.Series,
-    treatment_values: NDArray[Any] | pd.Series,
+    covariate_values: Union[NDArray[Any], pd.Series],
+    treatment_values: Union[NDArray[Any], pd.Series],
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> float:
@@ -87,8 +91,8 @@ def calculate_standardized_mean_difference(
 
 
 def calculate_variance_ratio(
-    covariate_values: NDArray[Any] | pd.Series,
-    treatment_values: NDArray[Any] | pd.Series,
+    covariate_values: Union[NDArray[Any], pd.Series],
+    treatment_values: Union[NDArray[Any], pd.Series],
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> float:
@@ -131,6 +135,152 @@ def calculate_variance_ratio(
     return float(var_treated / var_control)
 
 
+def calculate_distributional_balance(
+    covariate_values: Union[NDArray[Any], pd.Series],
+    treatment_values: Union[NDArray[Any], pd.Series],
+    treatment_level_1: Any = 1,
+    treatment_level_0: Any = 0,
+) -> dict[str, Any]:
+    """Calculate distributional balance using Kolmogorov-Smirnov test.
+
+    Args:
+        covariate_values: Values of the covariate
+        treatment_values: Treatment assignment values
+        treatment_level_1: Value representing treatment group
+        treatment_level_0: Value representing control group
+
+    Returns:
+        Dictionary with KS test results
+    """
+    # Convert to numpy arrays
+    covariate_values = np.asarray(covariate_values)
+    treatment_values = np.asarray(treatment_values)
+
+    # Remove missing values
+    mask = ~(np.isnan(covariate_values) | np.isnan(treatment_values))
+    covariate_clean = covariate_values[mask]
+    treatment_clean = treatment_values[mask]
+
+    # Split by treatment
+    treated_mask = treatment_clean == treatment_level_1
+    control_mask = treatment_clean == treatment_level_0
+
+    treated_values = covariate_clean[treated_mask]
+    control_values = covariate_clean[control_mask]
+
+    if len(treated_values) == 0 or len(control_values) == 0:
+        return {
+            "ks_statistic": np.nan,
+            "p_value": np.nan,
+            "distributions_differ": False,
+            "error": "Insufficient data for one or both groups",
+        }
+
+    try:
+        # Perform KS test
+        ks_statistic, p_value = stats.ks_2samp(treated_values, control_values)
+
+        return {
+            "ks_statistic": float(ks_statistic),
+            "p_value": float(p_value),
+            "distributions_differ": p_value < 0.05,
+        }
+    except Exception as e:
+        return {
+            "ks_statistic": np.nan,
+            "p_value": np.nan,
+            "distributions_differ": False,
+            "error": str(e),
+        }
+
+
+def calculate_prognostic_score_balance(
+    outcome: OutcomeData,
+    treatment: TreatmentData,
+    covariates: CovariateData,
+    balance_threshold: float = 0.1,
+) -> dict[str, Any]:
+    """Calculate prognostic score balance to assess outcome model adequacy.
+
+    The prognostic score is the predicted outcome from a model of outcome ~ covariates
+    (excluding treatment). Balance of prognostic scores indicates whether the outcome
+    model captures important predictors.
+
+    Args:
+        outcome: Outcome data
+        treatment: Treatment assignment data
+        covariates: Covariate data
+        balance_threshold: SMD threshold for declaring imbalance
+
+    Returns:
+        Dictionary with prognostic score balance results
+    """
+    try:
+        if not isinstance(covariates.values, pd.DataFrame):
+            raise ValueError("Covariates must be a DataFrame")
+
+        # Prepare data
+        X = covariates.values.copy()
+        y = np.asarray(outcome.values)
+        treatment_vals = np.asarray(treatment.values)
+
+        # Remove missing values
+        complete_mask = ~(
+            np.isnan(y) | np.isnan(treatment_vals) | X.isnull().any(axis=1)
+        )
+        X_clean = X[complete_mask]
+        y_clean = y[complete_mask]
+        treatment_clean = treatment_vals[complete_mask]
+
+        if len(X_clean) < 10:
+            return {
+                "error": "Insufficient complete cases for prognostic score calculation"
+            }
+
+        # Standardize features
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_clean)
+
+        # Fit outcome model (excluding treatment)
+        model = LinearRegression()
+        model.fit(X_scaled, y_clean)
+
+        # Calculate prognostic scores (predicted outcomes)
+        prognostic_scores = model.predict(X_scaled)
+
+        # Calculate model R²
+        model_r2 = model.score(X_scaled, y_clean)
+
+        # Calculate SMD of prognostic scores between treatment groups
+        smd = calculate_standardized_mean_difference(prognostic_scores, treatment_clean)
+
+        # Statistical test for difference in prognostic scores
+        treated_mask = treatment_clean == 1
+        control_mask = treatment_clean == 0
+
+        treated_scores = prognostic_scores[treated_mask]
+        control_scores = prognostic_scores[control_mask]
+
+        if len(treated_scores) > 0 and len(control_scores) > 0:
+            _, p_value = stats.ttest_ind(
+                treated_scores, control_scores, equal_var=False
+            )
+        else:
+            p_value = np.nan
+
+        return {
+            "prognostic_scores": prognostic_scores,
+            "smd": float(smd),
+            "p_value": float(p_value) if not np.isnan(p_value) else np.nan,
+            "balance_met": abs(smd) <= balance_threshold,
+            "model_r2": float(model_r2),
+            "n_complete_cases": len(X_clean),
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
 class BalanceDiagnostics:
     """Comprehensive covariate balance assessment tools."""
 
@@ -155,6 +305,7 @@ class BalanceDiagnostics:
         self,
         treatment: TreatmentData,
         covariates: CovariateData,
+        outcome: Optional[OutcomeData] = None,
         treatment_level_1: Any = 1,
         treatment_level_0: Any = 0,
     ) -> BalanceResults:
@@ -163,6 +314,7 @@ class BalanceDiagnostics:
         Args:
             treatment: Treatment assignment data
             covariates: Covariate data
+            outcome: Optional outcome data for prognostic score balance
             treatment_level_1: Value representing treatment group
             treatment_level_0: Value representing control group
 
@@ -177,6 +329,7 @@ class BalanceDiagnostics:
         variance_ratios = {}
         p_values = {}
         imbalanced_covariates = []
+        ks_test_results = {}
 
         # Calculate sample sizes
         treatment_vals = np.asarray(treatment.values)
@@ -210,12 +363,25 @@ class BalanceDiagnostics:
             )
             p_values[covariate_name] = p_val
 
+            # KS test for distributional balance
+            ks_result = calculate_distributional_balance(
+                covariate_vals, treatment.values, treatment_level_1, treatment_level_0
+            )
+            ks_test_results[covariate_name] = ks_result
+
             # Check if imbalanced
             if abs(smd) > self.balance_threshold:
                 imbalanced_covariates.append(covariate_name)
 
         # Overall balance assessment
         overall_balance_met = len(imbalanced_covariates) == 0
+
+        # Calculate prognostic score balance if outcome is provided
+        prognostic_score_balance = None
+        if outcome is not None:
+            prognostic_score_balance = calculate_prognostic_score_balance(
+                outcome, treatment, covariates, self.balance_threshold
+            )
 
         return BalanceResults(
             standardized_mean_differences=smds,
@@ -225,12 +391,14 @@ class BalanceDiagnostics:
             imbalanced_covariates=imbalanced_covariates,
             overall_balance_met=overall_balance_met,
             sample_sizes=sample_sizes,
+            ks_test_results=ks_test_results,
+            prognostic_score_balance=prognostic_score_balance,
         )
 
     def _statistical_test(
         self,
         covariate_values: pd.Series,
-        treatment_values: NDArray[Any] | pd.Series,
+        treatment_values: Union[NDArray[Any], pd.Series],
         treatment_level_1: Any,
         treatment_level_0: Any,
     ) -> float:
