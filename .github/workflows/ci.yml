@@ -15,7 +15,7 @@ defaults:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Prevent runaway tests
+    timeout-minutes: 30  # Extended to allow comprehensive test coverage with coverage processing
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
