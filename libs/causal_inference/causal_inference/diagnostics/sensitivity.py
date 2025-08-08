@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,19 +22,19 @@ class SensitivityResults:
     """Results from sensitivity analysis."""
 
     evalue: float
-    evalue_ci_lower: Optional[float]
-    rosenbaum_bounds: Optional[dict[str, Any]]
+    evalue_ci_lower: float | None
+    rosenbaum_bounds: dict[str, Any] | None
     confounding_strength_needed: float
     robustness_assessment: str
-    critical_gamma: Optional[float]
-    sensitivity_plots_data: Optional[dict[str, Any]]
+    critical_gamma: float | None
+    sensitivity_plots_data: dict[str, Any] | None
     recommendations: list[str]
 
 
 def evalue_calculation(
     observed_estimate: float,
-    ci_lower: Optional[float] = None,
-    ci_upper: Optional[float] = None,
+    ci_lower: float | None = None,
+    ci_upper: float | None = None,
     rare_outcome: bool = False,
     effect_type: str = "risk_ratio",
 ) -> dict[str, Any]:
@@ -335,9 +335,7 @@ def _calculate_sign_test_bounds(
     return p_upper, p_lower
 
 
-def _assess_rosenbaum_robustness(
-    critical_gamma: Optional[float], max_gamma: float
-) -> str:
+def _assess_rosenbaum_robustness(critical_gamma: float | None, max_gamma: float) -> str:
     """Assess robustness based on critical gamma value."""
     if critical_gamma is None:
         return f"Highly robust - significant across all tested values (up to Γ = {max_gamma:.2f})"
@@ -417,7 +415,7 @@ def unmeasured_confounding_analysis(
     }
 
 
-def _assess_robustness(nullifying_strength: Optional[float]) -> str:
+def _assess_robustness(nullifying_strength: float | None) -> str:
     """Assess robustness based on confounding strength needed to nullify effect."""
     if nullifying_strength is None:
         return "Highly robust - effect remains significant across tested range"
@@ -429,7 +427,7 @@ def _assess_robustness(nullifying_strength: Optional[float]) -> str:
         return "Not robust - weak confounding could nullify effect"
 
 
-def _recommend_based_on_sensitivity(nullifying_strength: Optional[float]) -> str:
+def _recommend_based_on_sensitivity(nullifying_strength: float | None) -> str:
     """Generate recommendation based on sensitivity analysis."""
     if nullifying_strength is None or nullifying_strength > 0.6:
         return "Results appear robust to unmeasured confounding"
@@ -1008,9 +1006,7 @@ class SensitivityAnalysis:
 
         return base_results
 
-    def _interpret_confounding_strength(
-        self, nullifying_strength: Optional[float]
-    ) -> str:
+    def _interpret_confounding_strength(self, nullifying_strength: float | None) -> str:
         """Provide detailed interpretation of confounding strength."""
         if nullifying_strength is None:
             return "Effect is highly robust - remains significant even with very strong unmeasured confounding"
@@ -1282,7 +1278,7 @@ class SensitivityAnalysis:
 # Convenience functions
 def calculate_evalue(
     observed_estimate: float,
-    ci_lower: Optional[float] = None,
+    ci_lower: float | None = None,
     verbose: bool = True,
 ) -> dict[str, float]:
     """Convenience function to calculate E-value."""

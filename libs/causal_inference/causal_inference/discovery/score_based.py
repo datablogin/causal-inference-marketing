@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -36,8 +36,8 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
     def __init__(
         self,
         score_function: str = "bic",
-        max_parents: Optional[int] = None,
-        random_state: Optional[int] = None,
+        max_parents: int | None = None,
+        random_state: int | None = None,
         verbose: bool = False,
         max_iterations: int = 1000,
     ) -> None:
@@ -59,13 +59,13 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
         self._score_func = self._get_score_function()
 
         # Algorithm state
-        self.current_graph: Optional[NDArray[Any]] = None
+        self.current_graph: NDArray[Any] | None = None
         self.best_score: float = -np.inf
         self.score_history: list[float] = []
         self._node_scores_cache: dict[
             int, float
         ] = {}  # Cache for individual node scores
-        self._data_cache: Optional[pd.DataFrame] = None
+        self._data_cache: pd.DataFrame | None = None
 
     def _get_score_function(self) -> Callable[[pd.DataFrame, NDArray[Any]], float]:
         """Get the appropriate scoring function."""
@@ -516,7 +516,7 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
         h_tol: float = 1e-8,
         rho_max: float = 1e16,
         w_threshold: float = 0.3,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         verbose: bool = False,
         max_iterations: int = 1000,
     ) -> None:
@@ -543,7 +543,7 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
         self.w_threshold = w_threshold
 
         # Algorithm state
-        self.W_est: Optional[NDArray[Any]] = None
+        self.W_est: NDArray[Any] | None = None
         self.optimization_history: list[dict[str, Any]] = []
         self.max_history_size = 100  # Limit history storage
 

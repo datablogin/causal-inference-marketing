@@ -8,7 +8,7 @@ each treatment level conditional on covariates.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -32,12 +32,12 @@ class OverlapResults:
     common_support_range: tuple[float, float]
     units_in_common_support: int
     total_units: int
-    propensity_model_auc: Optional[float]
+    propensity_model_auc: float | None
     extreme_weights_count: int
     recommendation: str
-    calibration_results: Optional[dict[str, Any]] = None
-    trimming_recommendations: Optional[dict[str, dict[str, Any]]] = None
-    roc_curve_data: Optional[dict[str, Any]] = None
+    calibration_results: dict[str, Any] | None = None
+    trimming_recommendations: dict[str, dict[str, Any]] | None = None
+    roc_curve_data: dict[str, Any] | None = None
 
 
 def calculate_propensity_scores(
@@ -320,7 +320,7 @@ class OverlapDiagnostics:
         self,
         violations: list[dict[str, Any]],
         positivity_met: bool,
-        auc_score: Optional[float],
+        auc_score: float | None,
     ) -> str:
         """Generate recommendation based on overlap assessment."""
         if positivity_met and len(violations) == 0:
@@ -511,8 +511,8 @@ def calculate_propensity_overlap(
 
 
 def calculate_calibration_metrics(
-    true_treatment: Union[NDArray[Any], pd.Series],
-    predicted_probabilities: Union[NDArray[Any], pd.Series],
+    true_treatment: NDArray[Any] | pd.Series,
+    predicted_probabilities: NDArray[Any] | pd.Series,
     n_bins: int = 10,
 ) -> dict[str, Any]:
     """Calculate propensity score calibration metrics.
@@ -595,8 +595,8 @@ def calculate_calibration_metrics(
 
 
 def suggest_trimming_thresholds(
-    propensity_scores: Union[NDArray[Any], pd.Series],
-    treatment: Union[NDArray[Any], pd.Series],
+    propensity_scores: NDArray[Any] | pd.Series,
+    treatment: NDArray[Any] | pd.Series,
     percentiles: list[float] = [1.0, 2.5, 5.0, 10.0],
 ) -> dict[str, Any]:
     """Suggest propensity score trimming thresholds.

@@ -7,7 +7,7 @@ and functional form assumptions in causal inference estimators.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -32,8 +32,8 @@ class SpecificationResults:
     specification_passed: bool
     problematic_variables: list[str]
     recommendations: list[str]
-    reset_test_results: Optional[dict[str, Any]] = None
-    transformation_suggestions: Optional[dict[str, dict[str, Any]]] = None
+    reset_test_results: dict[str, Any] | None = None
+    transformation_suggestions: dict[str, dict[str, Any]] | None = None
 
 
 def linearity_tests(
@@ -229,7 +229,7 @@ def interaction_tests(
 def functional_form_tests(
     outcome: OutcomeData,
     covariates: CovariateData,
-    comparison_models: Optional[list[str]] = None,
+    comparison_models: list[str] | None = None,
     random_state: int = 42,
 ) -> dict[str, Any]:
     """Test functional form specification using model comparison.
@@ -696,7 +696,7 @@ def reset_test(
 
 
 def suggest_box_cox_transformation(
-    data: Union[NDArray[Any], pd.Series],
+    data: NDArray[Any] | pd.Series,
     variable_name: str = "variable",
     lambda_range: tuple[float, float] = (-2, 2),
 ) -> dict[str, Any]:

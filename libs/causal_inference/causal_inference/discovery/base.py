@@ -357,7 +357,7 @@ class BaseDiscoveryAlgorithm(abc.ABC):
 
     def __init__(
         self,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         verbose: bool = False,
         max_iterations: int = 1000,
     ) -> None:
@@ -374,11 +374,11 @@ class BaseDiscoveryAlgorithm(abc.ABC):
         self.is_fitted = False
 
         # Data containers
-        self.data: Optional[pd.DataFrame] = None
-        self.variable_names: Optional[list[str]] = None
+        self.data: pd.DataFrame | None = None
+        self.variable_names: list[str] | None = None
 
         # Results cache
-        self._discovery_result: Optional[DiscoveryResult] = None
+        self._discovery_result: DiscoveryResult | None = None
 
         # Set random state
         if random_state is not None:
