@@ -15,6 +15,11 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
 
+# Type definition for moment function types
+MomentFunctionType = Literal[
+    "aipw", "orthogonal", "partialling_out", "interactive_iv", "plr", "pliv", "auto"
+]
+
 
 class OrthogonalMoments:
     """Factory class for Neyman-orthogonal score functions in Double ML.
@@ -36,6 +41,79 @@ class OrthogonalMoments:
     where W are observed variables, θ is the target parameter,
     and η̂ are estimated nuisance functions.
     """
+
+    # Default thresholds and constants (can be overridden)
+    DEFAULT_NUMERICAL_EPSILON_MULTIPLIER = 1000
+    DEFAULT_ORTHOGONALITY_THRESHOLD = 0.05
+    DEFAULT_TREATMENT_BALANCE_THRESHOLD = 0.1
+    DEFAULT_OVERLAP_THRESHOLD = 0.05
+    DEFAULT_SAMPLE_SIZE_THRESHOLD = 200
+    DEFAULT_DIMENSIONALITY_THRESHOLD = 20
+
+    @staticmethod
+    def _validate_inputs(
+        nuisance_estimates: dict[str, NDArray[Any]],
+        treatment: NDArray[Any],
+        outcome: NDArray[Any],
+        required_estimates: list[str],
+        instrument: NDArray[Any] | None = None,
+    ) -> None:
+        """Validate inputs for orthogonal moment functions.
+
+        Args:
+            nuisance_estimates: Dictionary of nuisance parameter estimates
+            treatment: Binary treatment vector
+            outcome: Continuous outcome vector
+            required_estimates: List of required keys in nuisance_estimates
+            instrument: Optional instrumental variable
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Check array shapes compatibility
+        n = len(treatment)
+        if len(outcome) != n:
+            raise ValueError(
+                f"Treatment and outcome must have same length. Got {n} vs {len(outcome)}"
+            )
+
+        if instrument is not None and len(instrument) != n:
+            raise ValueError(
+                f"Instrument must have same length as treatment. Got {len(instrument)} vs {n}"
+            )
+
+        # Check for required nuisance estimates
+        missing_estimates = [
+            key for key in required_estimates if key not in nuisance_estimates
+        ]
+        if missing_estimates:
+            raise ValueError(
+                f"Missing required nuisance estimates: {missing_estimates}"
+            )
+
+        # Check nuisance estimate shapes
+        for key, estimates in nuisance_estimates.items():
+            if hasattr(estimates, "__len__") and len(estimates) != n:
+                raise ValueError(
+                    f"Nuisance estimate '{key}' has incorrect length. Expected {n}, got {len(estimates)}"
+                )
+
+        # Check for NaN/Inf values
+        if not np.isfinite(treatment).all():
+            raise ValueError("Treatment values contain NaN or infinite values")
+        if not np.isfinite(outcome).all():
+            raise ValueError("Outcome values contain NaN or infinite values")
+        if instrument is not None and not np.isfinite(instrument).all():
+            raise ValueError("Instrument values contain NaN or infinite values")
+
+        for key, estimates in nuisance_estimates.items():
+            if hasattr(estimates, "dtype") and np.issubdtype(
+                estimates.dtype, np.number
+            ):
+                if not np.isfinite(estimates).all():
+                    raise ValueError(
+                        f"Nuisance estimate '{key}' contains NaN or infinite values"
+                    )
 
     @staticmethod
     def aipw(
@@ -61,6 +139,11 @@ class OrthogonalMoments:
         Returns:
             Array of AIPW scores for each observation
         """
+        # Validate inputs
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates, treatment, outcome, ["mu1", "mu0", "propensity_scores"]
+        )
+
         mu1 = nuisance_estimates["mu1"]
         mu0 = nuisance_estimates["mu0"]
         g = nuisance_estimates["propensity_scores"]
@@ -99,6 +182,14 @@ class OrthogonalMoments:
         Returns:
             Array of orthogonal scores for each observation
         """
+        # Validate inputs
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates,
+            treatment,
+            outcome,
+            ["mu1_combined", "mu0_combined", "mu_observed", "propensity_scores"],
+        )
+
         mu1 = nuisance_estimates["mu1_combined"]
         mu0 = nuisance_estimates["mu0_combined"]
         mu_observed = nuisance_estimates["mu_observed"]
@@ -134,6 +225,11 @@ class OrthogonalMoments:
         Returns:
             Array of partialling out scores for each observation
         """
+        # Validate inputs
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates, treatment, outcome, ["propensity_scores", "mu_observed"]
+        )
+
         # Extract nuisance parameters
         g = nuisance_estimates["propensity_scores"]  # m(X) = E[D|X]
         mu_observed = nuisance_estimates["mu_observed"]  # l(X) = E[Y|X]
@@ -142,21 +238,29 @@ class OrthogonalMoments:
         treatment_residual = treatment - g
         outcome_residual = outcome - mu_observed
 
-        # Simple method: estimate θ using residualized variables
+        # Estimate θ using residualized variables
         # θ̂ = E[(Y - l(X))(D - m(X))] / E[(D - m(X))²]
+        numerator = np.mean(outcome_residual * treatment_residual)
         denominator = np.mean(treatment_residual**2)
 
-        if abs(denominator) < 1e-8:
+        # Use configurable numerical stability threshold
+        epsilon = (
+            np.finfo(float).eps * OrthogonalMoments.DEFAULT_NUMERICAL_EPSILON_MULTIPLIER
+        )
+        if abs(denominator) < epsilon:
             warnings.warn(
                 "Weak treatment variation after partialling out. "
                 "Partialling out method may be unreliable.",
                 UserWarning,
                 stacklevel=2,
             )
+            theta_hat = 0.0
+        else:
+            theta_hat = numerator / denominator
 
-        # Partialling out scores: θ̂(D - m(X)) + (Y - l(X)) - θ̂(D - m(X))
-        # This simplifies to: (Y - l(X))
-        partialling_out_scores = outcome_residual
+        # Correct partialling out scores: θ̂ * (D - m(X))
+        # This gives the treatment effect estimate weighted by treatment residuals
+        partialling_out_scores = theta_hat * treatment_residual
 
         return partialling_out_scores
 
@@ -187,6 +291,15 @@ class OrthogonalMoments:
         Returns:
             Array of interactive IV scores for each observation
         """
+        # Validate inputs
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates,
+            treatment,
+            outcome,
+            ["propensity_scores", "mu_observed"],
+            instrument=instrument,
+        )
+
         if instrument is None:
             # Fallback: use treatment as its own instrument (reduced to orthogonal)
             warnings.warn(
@@ -201,10 +314,22 @@ class OrthogonalMoments:
         g = nuisance_estimates["propensity_scores"]  # m(X) = E[D|X]
         mu_observed = nuisance_estimates["mu_observed"]  # μ(D,X) = E[Y|D,X]
 
-        # For instrument residualization, we'd need E[Z|X]
-        # As approximation, use mean of instrument by treatment/covariate groups
-        # This is a simplified implementation - in practice would need proper modeling
-        r_x = np.mean(instrument)  # Simple approximation: r(X) ≈ E[Z]
+        # Improved estimation of E[Z|X] using stratification by treatment groups
+        # This provides better conditional expectation modeling than global mean
+        if len(np.unique(treatment)) == 2:  # Binary treatment
+            # Stratify by treatment groups for better conditional expectation
+            treated_mask = treatment == 1
+            control_mask = treatment == 0
+
+            if np.sum(treated_mask) > 0 and np.sum(control_mask) > 0:
+                r_x = np.zeros_like(instrument, dtype=float)
+                r_x[treated_mask] = np.mean(instrument[treated_mask])
+                r_x[control_mask] = np.mean(instrument[control_mask])
+            else:
+                r_x = np.full_like(instrument, np.mean(instrument), dtype=float)
+        else:
+            # Fallback to global mean for non-binary treatments
+            r_x = np.full_like(instrument, np.mean(instrument), dtype=float)
 
         # Interactive IV scores
         instrument_residual = instrument - r_x
@@ -245,6 +370,11 @@ class OrthogonalMoments:
         Returns:
             Array of PLR scores for each observation
         """
+        # Validate inputs
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates, treatment, outcome, ["propensity_scores", "mu0"]
+        )
+
         # Extract nuisance parameters
         g = nuisance_estimates["propensity_scores"]  # m(X) = E[D|X]
         mu0 = nuisance_estimates["mu0"]  # μ₀(X) = E[Y|D=0,X]
@@ -258,7 +388,11 @@ class OrthogonalMoments:
         numerator = np.mean(y_residual * treatment_residual)
         denominator = np.mean(treatment_residual**2)
 
-        if abs(denominator) < 1e-8:
+        # Use configurable numerical stability threshold
+        epsilon = (
+            np.finfo(float).eps * OrthogonalMoments.DEFAULT_NUMERICAL_EPSILON_MULTIPLIER
+        )
+        if abs(denominator) < epsilon:
             warnings.warn(
                 "Weak treatment variation for PLR method. Estimate may be unreliable.",
                 UserWarning,
@@ -302,6 +436,15 @@ class OrthogonalMoments:
         Returns:
             Array of PLIV scores for each observation
         """
+        # Validate inputs
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates,
+            treatment,
+            outcome,
+            ["propensity_scores", "mu0"],
+            instrument=instrument,
+        )
+
         if instrument is None:
             # Fallback to PLR when no instrument available
             warnings.warn(
@@ -315,8 +458,22 @@ class OrthogonalMoments:
         g = nuisance_estimates["propensity_scores"]  # m(X) = E[D|X]
         mu0 = nuisance_estimates["mu0"]  # μ₀(X) = E[Y|D=0,X]
 
-        # Simple approximation for r(X) = E[Z|X]
-        r_x = np.mean(instrument)  # Would need proper modeling in practice
+        # Improved approximation for r(X) = E[Z|X] using stratification
+        # This provides better conditional expectation modeling than global mean
+        if len(np.unique(treatment)) == 2:  # Binary treatment
+            # Stratify by treatment groups for better conditional expectation
+            treated_mask = treatment == 1
+            control_mask = treatment == 0
+
+            if np.sum(treated_mask) > 0 and np.sum(control_mask) > 0:
+                r_x = np.zeros_like(instrument, dtype=float)
+                r_x[treated_mask] = np.mean(instrument[treated_mask])
+                r_x[control_mask] = np.mean(instrument[control_mask])
+            else:
+                r_x = np.full_like(instrument, np.mean(instrument), dtype=float)
+        else:
+            # Fallback to global mean for non-binary treatments
+            r_x = np.full_like(instrument, np.mean(instrument), dtype=float)
 
         # Residualize treatment and instrument
         treatment_residual = treatment - g
@@ -324,7 +481,11 @@ class OrthogonalMoments:
 
         # Two-stage estimation for θ using IV
         # First stage: D - m(X) = γ(Z - r(X)) + v
-        if np.var(instrument_residual) < 1e-8:
+        # Use configurable numerical stability threshold
+        epsilon = (
+            np.finfo(float).eps * OrthogonalMoments.DEFAULT_NUMERICAL_EPSILON_MULTIPLIER
+        )
+        if np.var(instrument_residual) < epsilon:
             warnings.warn(
                 "Weak instrument for PLIV method. Falling back to PLR.",
                 UserWarning,
@@ -339,7 +500,7 @@ class OrthogonalMoments:
 
         # Second stage: (Y - μ₀(X)) = θ * γ̂(Z - r(X)) + u
         y_residual = outcome - mu0
-        if abs(gamma_hat) < 1e-8:
+        if abs(gamma_hat) < epsilon:
             warnings.warn(
                 "Weak first stage for PLIV method. Falling back to PLR.",
                 UserWarning,
@@ -485,8 +646,8 @@ class OrthogonalMoments:
         outcome: NDArray[Any],
         covariates: NDArray[Any] | None = None,
         instrument: NDArray[Any] | None = None,
-        sample_size_threshold: int = 200,
-        dimensionality_threshold: int = 20,
+        sample_size_threshold: int = None,
+        dimensionality_threshold: int = None,
         **kwargs: Any,
     ) -> tuple[str, dict[str, Any]]:
         """Automatically select optimal orthogonal moment function.
@@ -513,6 +674,14 @@ class OrthogonalMoments:
         n = len(treatment)
         selection_rationale = {"criteria": {}, "decision_factors": []}
 
+        # Use default thresholds if not provided
+        if sample_size_threshold is None:
+            sample_size_threshold = OrthogonalMoments.DEFAULT_SAMPLE_SIZE_THRESHOLD
+        if dimensionality_threshold is None:
+            dimensionality_threshold = (
+                OrthogonalMoments.DEFAULT_DIMENSIONALITY_THRESHOLD
+            )
+
         # Analyze data characteristics
         is_small_sample = n < sample_size_threshold
         selection_rationale["criteria"]["small_sample"] = is_small_sample
@@ -527,14 +696,18 @@ class OrthogonalMoments:
 
         # Check treatment balance
         treatment_balance = min(np.mean(treatment), 1 - np.mean(treatment))
-        is_balanced = treatment_balance > 0.1
+        is_balanced = (
+            treatment_balance > OrthogonalMoments.DEFAULT_TREATMENT_BALANCE_THRESHOLD
+        )
         selection_rationale["criteria"]["balanced_treatment"] = is_balanced
 
         # Check propensity score overlap
         if "propensity_scores" in nuisance_estimates:
             g = nuisance_estimates["propensity_scores"]
             overlap_quality = min(np.min(g), 1 - np.max(g))
-            has_good_overlap = overlap_quality > 0.05
+            has_good_overlap = (
+                overlap_quality > OrthogonalMoments.DEFAULT_OVERLAP_THRESHOLD
+            )
         else:
             has_good_overlap = True
         selection_rationale["criteria"]["good_overlap"] = has_good_overlap
@@ -667,7 +840,7 @@ class OrthogonalMoments:
                     perf["ate_estimates"].append(float(np.mean(scores)))
                     perf["score_variance"].append(float(np.var(scores)))
 
-                except (ValueError, RuntimeWarning):
+                except (ValueError, Warning):
                     # Handle convergence issues
                     cv_results["method_performance"][method]["convergence_issues"] += 1
                     cv_results["method_performance"][method][
@@ -721,8 +894,3 @@ class OrthogonalMoments:
         )
 
         return cv_results
-
-
-MomentFunctionType = Literal[
-    "aipw", "orthogonal", "partialling_out", "interactive_iv", "plr", "pliv", "auto"
-]

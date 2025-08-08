@@ -477,11 +477,13 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         # Handle automatic method selection
         moment_method = self.moment_function
         if moment_method == "auto":
-            covariates = getattr(self, "covariate_data", None)
-            if covariates is not None:
-                covariates_array = np.array(covariates.values)
-            else:
-                covariates_array = None
+            # Use stored covariate data from fit process
+            covariates_array = None
+            if hasattr(self, "covariate_data_") and self.covariate_data_ is not None:
+                covariates_array = np.array(self.covariate_data_.values)
+            elif hasattr(self, "covariate_data") and self.covariate_data is not None:
+                # Fallback for backward compatibility
+                covariates_array = np.array(self.covariate_data.values)
 
             moment_method, selection_results = OrthogonalMoments.select_optimal_method(
                 nuisance_estimates, treatment, outcome, covariates_array
