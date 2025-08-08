@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import networkx as nx
 import numpy as np
@@ -38,10 +38,10 @@ class CausalDAG(BaseModel):
     variable_names: list[str] = Field(
         ..., description="Names of variables corresponding to matrix indices"
     )
-    edge_weights: NDArray[Any] | None = Field(
+    edge_weights: Optional[NDArray[Any]] = Field(
         default=None, description="Edge weights/strengths if applicable"
     )
-    confidence_scores: NDArray[Any] | None = Field(
+    confidence_scores: Optional[NDArray[Any]] = Field(
         default=None, description="Confidence scores for each edge"
     )
 
@@ -230,29 +230,29 @@ class DiscoveryResult:
     algorithm_parameters: dict[str, Any]
 
     # Discovery metrics
-    n_iterations: int | None = None
-    convergence_achieved: bool | None = None
-    computation_time: float | None = None
+    n_iterations: Optional[int] = None
+    convergence_achieved: Optional[bool] = None
+    computation_time: Optional[float] = None
 
     # Uncertainty quantification
-    bootstrap_dags: list[CausalDAG] | None = None
-    edge_probabilities: NDArray[Any] | None = None
-    stability_score: float | None = None
+    bootstrap_dags: Optional[list[CausalDAG]] = None
+    edge_probabilities: Optional[NDArray[Any]] = None
+    stability_score: Optional[float] = None
 
     # Validation metrics
-    likelihood_score: float | None = None
-    bic_score: float | None = None
-    aic_score: float | None = None
+    likelihood_score: Optional[float] = None
+    bic_score: Optional[float] = None
+    aic_score: Optional[float] = None
 
     # Algorithm-specific diagnostics
-    algorithm_diagnostics: dict[str, Any] | None = None
+    algorithm_diagnostics: Optional[dict[str, Any]] = None
 
     # Performance on known structure (if available)
-    true_dag: CausalDAG | None = None
-    structural_hamming_distance: int | None = None
-    precision: float | None = None
-    recall: float | None = None
-    f1_score: float | None = None
+    true_dag: Optional[CausalDAG] = None
+    structural_hamming_distance: Optional[int] = None
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1_score: Optional[float] = None
 
     def __post_init__(self) -> None:
         """Validate discovery result after initialization."""
