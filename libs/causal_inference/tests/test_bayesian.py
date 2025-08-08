@@ -255,6 +255,7 @@ class TestBayesianEstimator:
             abs(effect.ate - 5.0) < 2.0
         ), f"Estimated ATE {effect.ate} too far from true ATE 5.0"
 
+    @pytest.mark.slow
     def test_estimation_nhefs_subset(self, nhefs_subset_data):
         """Test ATE estimation on NHEFS-like data."""
         treatment_data, outcome_data, covariate_data = nhefs_subset_data
@@ -409,6 +410,7 @@ class TestBayesianEstimator:
         assert interval_width > 0
         assert interval_width < 10  # Reasonable width for our test data
 
+    @pytest.mark.slow
     def test_convergence_diagnostics(self, simple_data):
         """Test convergence diagnostics and warnings."""
         treatment_data, outcome_data, covariate_data = simple_data

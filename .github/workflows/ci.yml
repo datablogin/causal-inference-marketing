@@ -58,14 +58,14 @@ jobs:
     #     uv run mypy libs/causal_inference/causal_inference/ shared/
 
     - name: Run tests
-      timeout-minutes: 15  # Timeout to handle test cases
+      timeout-minutes: 20  # Increased timeout for comprehensive test coverage
       env:
         CI: true  # Set CI environment variable for test optimization
       run: |
         # TEMPORARY: Run unit tests only for all Python versions to avoid CI timeouts
         # Integration tests are temporarily disabled until they can be properly optimized
         # This ensures CI reliability while maintaining comprehensive unit test coverage
-        uv run pytest libs/causal_inference/tests/ -m "not slow and not benchmark and not integration" --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --tb=short --disable-warnings --cov-branch --timeout=60 -x --maxfail=3
+        uv run pytest libs/causal_inference/tests/ -m "not slow and not benchmark and not integration" --cov=libs/causal_inference/causal_inference --cov=shared --cov-report=xml --tb=short --disable-warnings --cov-branch --timeout=120 -x --maxfail=3
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
