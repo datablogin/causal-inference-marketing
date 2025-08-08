@@ -28,6 +28,7 @@ from ..core.base import (
 )
 from ..ml.cross_fitting import CrossFittingEstimator
 from ..ml.super_learner import SuperLearner
+from .orthogonal_moments import MomentFunctionType, OrthogonalMoments
 
 __all__ = ["DoublyRobustMLEstimator"]
 
@@ -57,7 +58,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         propensity_learner: SuperLearner | Any = None,
         cross_fitting: bool = True,
         cv_folds: int = 5,
-        moment_function: str = "aipw",
+        moment_function: MomentFunctionType = "aipw",
         regularization: bool = True,
         stratified: bool = True,
         compute_diagnostics: bool = True,
@@ -72,7 +73,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             propensity_learner: ML model for propensity score P(A=1|X)
             cross_fitting: Whether to use cross-fitting for bias reduction
             cv_folds: Number of cross-validation folds
-            moment_function: Type of moment function ('aipw' or 'orthogonal')
+            moment_function: Type of moment function ('aipw', 'orthogonal', 'partialling_out', 'interactive_iv', 'plr', 'pliv', 'auto')
             regularization: Whether to use regularized versions of learners
             stratified: Whether to use stratified cross-validation
             random_state: Random seed for reproducibility
@@ -125,9 +126,12 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self.propensity_clip_bounds = propensity_clip_bounds
 
         # Validate moment function
-        allowed_moments = {"aipw", "orthogonal"}
+        allowed_moments = set(OrthogonalMoments.get_available_methods()) | {"auto"}
         if moment_function not in allowed_moments:
             raise ValueError(f"moment_function must be one of {allowed_moments}")
+
+        # Storage for auto-selection results
+        self._moment_selection_results_: dict[str, Any] = {}
 
         # Storage for fitted models and estimates
         self.outcome_models_: list[Any] = []
@@ -470,57 +474,32 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         outcome: NDArray[Any],
     ) -> float:
         """Estimate the target causal parameter using doubly robust ML."""
-        if self.moment_function == "aipw":
-            return self._estimate_ate_aipw(nuisance_estimates, treatment, outcome)
-        elif self.moment_function == "orthogonal":
-            return self._estimate_ate_orthogonal(nuisance_estimates, treatment, outcome)
-        else:
-            raise ValueError(f"Unknown moment function: {self.moment_function}")
+        # Handle automatic method selection
+        moment_method = self.moment_function
+        if moment_method == "auto":
+            covariates = getattr(self, "covariate_data", None)
+            if covariates is not None:
+                covariates_array = np.array(covariates.values)
+            else:
+                covariates_array = None
 
-    def _estimate_ate_aipw(
-        self,
-        nuisance_estimates: dict[str, NDArray[Any]],
-        treatment: NDArray[Any],
-        outcome: NDArray[Any],
-    ) -> float:
-        """Estimate ATE using AIPW moment function."""
-        mu1 = nuisance_estimates["mu1"]
-        mu0 = nuisance_estimates["mu0"]
-        g = nuisance_estimates["propensity_scores"]
+            moment_method, selection_results = OrthogonalMoments.select_optimal_method(
+                nuisance_estimates, treatment, outcome, covariates_array
+            )
+            self._moment_selection_results_ = selection_results
 
-        # AIPW estimator: ψ(Y,A,X) = μ₁(X) - μ₀(X) + A(Y-μ₁(X))/g(X) - (1-A)(Y-μ₀(X))/(1-g(X))
-        aipw_scores = (
-            mu1
-            - mu0
-            + treatment * (outcome - mu1) / g
-            - (1 - treatment) * (outcome - mu0) / (1 - g)
+            if self.verbose:
+                print(f"Auto-selected moment function: {moment_method}")
+                print(f"Selection rationale: {selection_results['decision_factors']}")
+
+        # Compute orthogonal scores using selected method
+        scores = OrthogonalMoments.compute_scores(
+            moment_method, nuisance_estimates, treatment, outcome
         )
 
         # Store influence function for variance estimation
-        ate_estimate = np.mean(aipw_scores)
-        self.influence_function_ = aipw_scores - ate_estimate
-
-        return float(ate_estimate)
-
-    def _estimate_ate_orthogonal(
-        self,
-        nuisance_estimates: dict[str, NDArray[Any]],
-        treatment: NDArray[Any],
-        outcome: NDArray[Any],
-    ) -> float:
-        """Estimate ATE using orthogonal moment function."""
-        mu1 = nuisance_estimates["mu1_combined"]
-        mu0 = nuisance_estimates["mu0_combined"]
-        mu_observed = nuisance_estimates["mu_observed"]
-        g = nuisance_estimates["propensity_scores"]
-
-        # Orthogonal moment function (Neyman-orthogonal)
-        # ψ(Y,A,X) = (A-g(X))(Y-μ(A,X)) + μ₁(X) - μ₀(X)
-        orthogonal_scores = (treatment - g) * (outcome - mu_observed) + mu1 - mu0
-
-        # Store influence function for variance estimation
-        ate_estimate = np.mean(orthogonal_scores)
-        self.influence_function_ = orthogonal_scores - ate_estimate
+        ate_estimate = np.mean(scores)
+        self.influence_function_ = scores - ate_estimate
 
         return float(ate_estimate)
 
@@ -613,7 +592,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             ate_ci_upper=ate_ci_upper,
             potential_outcome_treated=potential_outcome_treated,
             potential_outcome_control=potential_outcome_control,
-            method=f"DoublyRobustML_{self.moment_function}",
+            method=f"DoublyRobustML_{self._moment_selection_results_.get('selected_method', self.moment_function)}",
             n_observations=len(A),
             n_treated=int(np.sum(A == 1)),
             n_control=int(np.sum(A == 0)),
@@ -1151,3 +1130,124 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         results["potential_issues"] = issues
 
         return results
+
+    def get_moment_selection_results(self) -> dict[str, Any]:
+        """Get results from automatic moment function selection.
+
+        Returns:
+            Dictionary containing selection criteria, decision factors, and data characteristics
+
+        Raises:
+            EstimationError: If moment function was not auto-selected
+        """
+        if not self.is_fitted:
+            raise EstimationError("Estimator must be fitted first")
+
+        if not self._moment_selection_results_:
+            raise EstimationError(
+                "No moment selection results available. "
+                "Use moment_function='auto' to enable automatic selection."
+            )
+
+        return self._moment_selection_results_
+
+    def validate_moment_function_choice(self) -> dict[str, Any]:
+        """Validate the chosen moment function using orthogonality tests.
+
+        Returns:
+            Dictionary containing orthogonality validation results
+
+        Raises:
+            EstimationError: If estimator has not been fitted
+        """
+        if not self.is_fitted:
+            raise EstimationError("Estimator must be fitted first")
+
+        if self.influence_function_ is None:
+            raise EstimationError("Influence function not available for validation")
+
+        # Get the actual method used
+        actual_method = self._moment_selection_results_.get(
+            "selected_method", self.moment_function
+        )
+
+        # Validate orthogonality using the influence function (which contains the scores)
+        A = np.array(self.treatment_data.values)  # type: ignore
+        validation_results = OrthogonalMoments.validate_orthogonality(
+            self.influence_function_, self.nuisance_estimates_, A
+        )
+
+        validation_results["moment_method"] = actual_method
+        validation_results["validation_passed"] = validation_results["is_orthogonal"]
+
+        return validation_results
+
+    def compare_moment_functions(
+        self, candidate_methods: list[str] | None = None, cv_folds: int = 3
+    ) -> dict[str, Any]:
+        """Compare different moment functions using cross-validation.
+
+        Args:
+            candidate_methods: List of methods to compare (default: all available)
+            cv_folds: Number of cross-validation folds for comparison
+
+        Returns:
+            Dictionary containing comparison results and method rankings
+
+        Raises:
+            EstimationError: If estimator has not been fitted
+        """
+        if not self.is_fitted:
+            raise EstimationError("Estimator must be fitted first")
+
+        if candidate_methods is None:
+            candidate_methods = OrthogonalMoments.get_available_methods()
+
+        # Get data
+        A = np.array(self.treatment_data.values)  # type: ignore
+        Y = np.array(self.outcome_data.values)  # type: ignore
+
+        # Perform cross-validation comparison
+        comparison_results = OrthogonalMoments.cross_validate_methods(
+            candidate_methods, self.nuisance_estimates_, A, Y, cv_folds=cv_folds
+        )
+
+        comparison_results["current_method"] = self._moment_selection_results_.get(
+            "selected_method", self.moment_function
+        )
+
+        return comparison_results
+
+    def select_moment_function(
+        self,
+        covariates: CovariateData | None = None,
+        instrument: NDArray[Any] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
+        """Select optimal moment function for the current data.
+
+        Args:
+            covariates: Covariate data for selection criteria
+            instrument: Optional instrumental variable
+
+        Returns:
+            Tuple of (selected_method, selection_rationale)
+
+        Raises:
+            EstimationError: If estimator has not been fitted
+        """
+        if not self.is_fitted:
+            raise EstimationError("Estimator must be fitted first")
+
+        # Get data
+        A = np.array(self.treatment_data.values)  # type: ignore
+        Y = np.array(self.outcome_data.values)  # type: ignore
+
+        covariates_array = None
+        if covariates is not None:
+            covariates_array = np.array(covariates.values)
+        elif hasattr(self, "covariate_data") and self.covariate_data is not None:
+            covariates_array = np.array(self.covariate_data.values)
+
+        return OrthogonalMoments.select_optimal_method(
+            self.nuisance_estimates_, A, Y, covariates_array, instrument
+        )
