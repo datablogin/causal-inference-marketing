@@ -58,7 +58,7 @@ jobs:
     #     uv run mypy libs/causal_inference/causal_inference/ shared/
 
     - name: Run tests
-      timeout-minutes: 20  # Increased timeout for comprehensive test coverage
+      timeout-minutes: 25  # Extended timeout to allow for coverage processing after tests
       env:
         CI: true  # Set CI environment variable for test optimization
       run: |
