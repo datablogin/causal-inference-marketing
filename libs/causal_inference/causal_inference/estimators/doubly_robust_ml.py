@@ -60,6 +60,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         moment_function: str = "aipw",
         regularization: bool = True,
         stratified: bool = True,
+        compute_diagnostics: bool = True,
+        propensity_clip_bounds: tuple[float, float] = (0.01, 0.99),
         random_state: int | None = None,
         verbose: bool = False,
     ) -> None:
@@ -119,6 +121,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self.cross_fitting = cross_fitting
         self.moment_function = moment_function
         self.regularization = regularization
+        self.compute_diagnostics = compute_diagnostics
+        self.propensity_clip_bounds = propensity_clip_bounds
 
         # Validate moment function
         allowed_moments = {"aipw", "orthogonal"}
@@ -136,6 +140,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self._diagnostic_data: dict[str, Any] = {}
         self._residuals_: dict[str, NDArray[Any]] = {}
         self._fold_performance_: list[dict[str, float]] = []
+        self._cross_fit_residuals_: dict[str, list[NDArray[Any]]] = {}
 
     def _fit_implementation(
         self,
@@ -161,6 +166,9 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         if self.cross_fitting:
             # Perform cross-fitting
             self._perform_cross_fitting(X, Y, A)
+            # Aggregate residuals from cross-fitting folds
+            if self.compute_diagnostics:
+                self._aggregate_cross_fit_residuals()
         else:
             # Fit on full data (no cross-fitting)
             self._fit_full_data(X, Y, A)
@@ -185,7 +193,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             try:
                 outcome_model_treated = clone(self.outcome_learner)
                 outcome_model_treated.fit(X_train[treated_mask], y_train[treated_mask])
-            except Exception as e:
+            except (ValueError, RuntimeError) as e:
                 import warnings
 
                 warnings.warn(
@@ -210,7 +218,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             try:
                 outcome_model_control = clone(self.outcome_learner)
                 outcome_model_control.fit(X_train[control_mask], y_train[control_mask])
-            except Exception as e:
+            except (ValueError, RuntimeError) as e:
                 import warnings
 
                 warnings.warn(
@@ -235,14 +243,14 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         try:
             outcome_model_combined = clone(self.outcome_learner)
             outcome_model_combined.fit(X_with_treatment, y_train)
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             raise EstimationError(f"Failed to fit combined outcome model: {str(e)}")
 
         # Fit propensity score model: P(A=1|X)
         try:
             propensity_model = clone(self.propensity_learner)
             propensity_model.fit(X_train, treatment_train)
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             raise EstimationError(f"Failed to fit propensity score model: {str(e)}")
 
         return {
@@ -300,10 +308,14 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             propensity_scores = models["propensity_model"].predict(X_val)
 
         # Clip propensity scores to ensure overlap
-        predictions["propensity_scores"] = np.clip(propensity_scores, 0.01, 0.99)
+        predictions["propensity_scores"] = np.clip(
+            propensity_scores,
+            self.propensity_clip_bounds[0],
+            self.propensity_clip_bounds[1],
+        )
 
         # Compute residuals for diagnostic purposes if we have observed outcomes
-        if y_val is not None:
+        if y_val is not None and self.compute_diagnostics:
             self._compute_residuals(predictions, treatment_val, y_val)
 
         return predictions
@@ -321,9 +333,119 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         # Treatment residuals: A - g(X)
         treatment_residuals = treatment - predictions["propensity_scores"]
 
-        # Store residuals for later analysis
-        self._residuals_["outcome"] = outcome_residuals
-        self._residuals_["treatment"] = treatment_residuals
+        # Store residuals - handle cross-fitting case
+        if self.cross_fitting:
+            # Store fold-wise residuals for cross-fitting aggregation
+            if "outcome" not in self._cross_fit_residuals_:
+                self._cross_fit_residuals_["outcome"] = []
+            if "treatment" not in self._cross_fit_residuals_:
+                self._cross_fit_residuals_["treatment"] = []
+
+            self._cross_fit_residuals_["outcome"].append(outcome_residuals)
+            self._cross_fit_residuals_["treatment"].append(treatment_residuals)
+        else:
+            # Store directly for non-cross-fitting case
+            self._residuals_["outcome"] = outcome_residuals
+            self._residuals_["treatment"] = treatment_residuals
+
+    def _perform_cross_fitting(
+        self,
+        X: NDArray[Any],
+        y: NDArray[Any],
+        treatment: NDArray[Any] | None = None,
+    ) -> dict[str, NDArray[Any]]:
+        """Override to handle residual computation during cross-fitting."""
+        # Create cross-fitting splits
+        self.cross_fit_data_ = self._create_cross_fit_splits(X, y, treatment)
+
+        # Initialize storage for nuisance estimates
+        n_samples = X.shape[0]
+        nuisance_estimates = {}
+
+        # Perform cross-fitting for each fold
+        for fold_idx in range(self.cv_folds):
+            # Get training and validation data for this fold
+            X_train = self.cross_fit_data_.X_train_folds[fold_idx]
+            y_train = self.cross_fit_data_.y_train_folds[fold_idx]
+            X_val = self.cross_fit_data_.X_val_folds[fold_idx]
+            y_val = self.cross_fit_data_.y_val_folds[fold_idx]
+
+            treatment_train = None
+            treatment_val = None
+            if (
+                treatment is not None
+                and self.cross_fit_data_.treatment_train_folds is not None
+            ):
+                treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
+            if (
+                treatment is not None
+                and self.cross_fit_data_.treatment_val_folds is not None
+            ):
+                treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+
+            # Fit nuisance models on training data
+            fitted_models = self._fit_nuisance_models(X_train, y_train, treatment_train)
+
+            # Predict nuisance parameters on validation data (with y_val for residuals)
+            fold_predictions = self._predict_nuisance_parameters(
+                fitted_models, X_val, treatment_val, y_val
+            )
+
+            # Store predictions for validation indices
+            val_indices = self.cross_fit_data_.val_indices[fold_idx]
+            for param_name, predictions in fold_predictions.items():
+                if param_name not in nuisance_estimates:
+                    nuisance_estimates[param_name] = np.full(n_samples, np.nan)
+                nuisance_estimates[param_name][val_indices] = predictions
+
+        # Check that all samples have nuisance estimates
+        for param_name, estimates in nuisance_estimates.items():
+            if np.any(np.isnan(estimates)):
+                raise ValueError(
+                    f"Some samples missing nuisance estimates for {param_name}"
+                )
+
+        self.nuisance_estimates_ = nuisance_estimates
+
+        # Store propensity scores and outcome predictions for compatibility
+        if "propensity_scores" in nuisance_estimates:
+            self.propensity_scores_ = nuisance_estimates["propensity_scores"]
+        if "mu1" in nuisance_estimates and "mu0" in nuisance_estimates:
+            self.outcome_predictions_ = {
+                "mu1": nuisance_estimates["mu1"],
+                "mu0": nuisance_estimates["mu0"],
+            }
+
+        return nuisance_estimates
+
+    def _aggregate_cross_fit_residuals(self) -> None:
+        """Aggregate residuals from cross-fitting folds for diagnostic analysis."""
+        if not self._cross_fit_residuals_:
+            return
+
+        # Aggregate residuals from all folds using the cross-fit indices
+        if self.cross_fit_data_ is not None:
+            n_samples = sum(
+                len(indices) for indices in self.cross_fit_data_.val_indices
+            )
+
+            if "outcome" in self._cross_fit_residuals_:
+                outcome_residuals_full = np.full(n_samples, np.nan)
+                for fold_idx, residuals in enumerate(
+                    self._cross_fit_residuals_["outcome"]
+                ):
+                    val_indices = self.cross_fit_data_.val_indices[fold_idx]
+                    outcome_residuals_full[val_indices] = residuals
+                self._residuals_["outcome"] = outcome_residuals_full
+
+            if "treatment" in self._cross_fit_residuals_:
+                treatment_residuals_full = np.full(n_samples, np.nan)
+                for fold_idx, residuals in enumerate(
+                    self._cross_fit_residuals_["treatment"]
+                ):
+                    val_indices = self.cross_fit_data_.val_indices[fold_idx]
+                    treatment_residuals_full[val_indices] = residuals
+                self._residuals_["treatment"] = treatment_residuals_full
 
     def _fit_full_data(self, X: NDArray[Any], Y: NDArray[Any], A: NDArray[Any]) -> None:
         """Fit on full data without cross-fitting."""
@@ -454,33 +576,35 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             "cv_folds": self.cv_folds,
         }
 
-        # Add orthogonality check
-        try:
-            orthogonality_result = self.check_orthogonality()
-            diagnostics["orthogonality_check"] = orthogonality_result
-        except Exception as e:
-            diagnostics["orthogonality_check"] = {"error": str(e)}
+        # Add diagnostic computations if enabled
+        if self.compute_diagnostics:
+            # Add orthogonality check
+            try:
+                orthogonality_result = self.check_orthogonality()
+                diagnostics["orthogonality_check"] = orthogonality_result
+            except EstimationError as e:
+                diagnostics["orthogonality_check"] = {"error": str(e)}
 
-        # Add enhanced learner performance
-        try:
-            learner_performance = self.get_learner_performance()
-            diagnostics["learner_performance"] = learner_performance
-        except Exception as e:
-            diagnostics["learner_performance"] = {"error": str(e)}
+            # Add enhanced learner performance
+            try:
+                learner_performance = self.get_learner_performance()
+                diagnostics["learner_performance"] = learner_performance
+            except EstimationError as e:
+                diagnostics["learner_performance"] = {"error": str(e)}
 
-        # Add residual analysis
-        try:
-            residual_analysis = self.analyze_residuals()
-            diagnostics["residual_analysis"] = residual_analysis
-        except Exception as e:
-            diagnostics["residual_analysis"] = {"error": str(e)}
+            # Add residual analysis
+            try:
+                residual_analysis = self.analyze_residuals()
+                diagnostics["residual_analysis"] = residual_analysis
+            except EstimationError as e:
+                diagnostics["residual_analysis"] = {"error": str(e)}
 
-        # Add cross-fitting validation
-        try:
-            cf_validation = self.validate_cross_fitting()
-            diagnostics["cross_fitting_validation"] = cf_validation
-        except Exception as e:
-            diagnostics["cross_fitting_validation"] = {"error": str(e)}
+            # Add cross-fitting validation
+            try:
+                cf_validation = self.validate_cross_fitting()
+                diagnostics["cross_fitting_validation"] = cf_validation
+            except EstimationError as e:
+                diagnostics["cross_fitting_validation"] = {"error": str(e)}
 
         return CausalEffect(
             ate=ate,
@@ -720,7 +844,11 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
                 ll_null = np.sum(A * np.log(p_null) + (1 - A) * np.log(1 - p_null))
 
                 # Compute log-likelihood for fitted model
-                p_fitted = np.clip(self.propensity_scores_, 1e-8, 1 - 1e-8)
+                p_fitted = np.clip(
+                    self.propensity_scores_,
+                    max(1e-8, self.propensity_clip_bounds[0]),
+                    min(1 - 1e-8, self.propensity_clip_bounds[1]),
+                )
                 ll_fitted = np.sum(
                     A * np.log(p_fitted) + (1 - A) * np.log(1 - p_fitted)
                 )
@@ -805,32 +933,71 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         results["residual_statistics"] = residual_stats
 
-        # Test for heteroscedasticity (Breusch-Pagan test approximation)
+        # Test for heteroscedasticity (Breusch-Pagan test)
         if "outcome" in self._residuals_:
             outcome_residuals = self._residuals_["outcome"]
-
-            # Simple test: correlation between squared residuals and fitted values
             if "mu_observed" in self.nuisance_estimates_:
                 fitted_values = self.nuisance_estimates_["mu_observed"]
-                squared_residuals = outcome_residuals**2
-
                 try:
-                    het_corr, het_p = pearsonr(fitted_values, squared_residuals)
+                    # Breusch-Pagan test implementation
+                    squared_residuals = outcome_residuals**2
+                    n = len(outcome_residuals)
+
+                    # Regression of squared residuals on fitted values
+                    X_het = np.column_stack([np.ones(n), fitted_values])
+
+                    # Compute coefficients using normal equations: (X'X)^(-1)X'y
+                    XtX_inv = np.linalg.pinv(X_het.T @ X_het)
+                    coeffs = XtX_inv @ X_het.T @ squared_residuals
+
+                    # Predicted values from auxiliary regression
+                    y_pred_het = X_het @ coeffs
+
+                    # Sum of squares
+                    ss_total = np.sum(
+                        (squared_residuals - np.mean(squared_residuals)) ** 2
+                    )
+                    ss_residual = np.sum((squared_residuals - y_pred_het) ** 2)
+                    ss_regression = ss_total - ss_residual
+
+                    # R-squared from auxiliary regression
+                    r_squared = ss_regression / ss_total if ss_total > 0 else 0
+
+                    # Lagrange Multiplier (LM) test statistic: n * R²
+                    lm_statistic = n * r_squared
+
+                    # Chi-square test with 1 degree of freedom
+                    from scipy.stats import chi2
+
+                    p_value = 1 - chi2.cdf(lm_statistic, df=1)
+
                     results["heteroscedasticity_test"] = {
-                        "correlation": float(het_corr),
-                        "p_value": float(het_p),
-                        "is_homoscedastic": bool(
-                            abs(het_corr) < 0.1
-                        ),  # Simple threshold
+                        "test": "breusch_pagan",
+                        "lm_statistic": float(lm_statistic),
+                        "p_value": float(p_value),
+                        "r_squared_aux": float(r_squared),
+                        "is_homoscedastic": bool(p_value > 0.05),
                         "interpretation": (
-                            "Homoscedasticity assumption satisfied"
-                            if abs(het_corr) < 0.1
-                            else "Evidence of heteroscedasticity detected"
+                            "Homoscedasticity assumption satisfied (fail to reject null)"
+                            if p_value > 0.05
+                            else "Evidence of heteroscedasticity detected (reject null)"
                         ),
                     }
-                except Exception:
+                except (ValueError, RuntimeError, ImportError):
+                    # Fall back to simple correlation test if scipy unavailable
+                    squared_residuals = outcome_residuals**2
+                    het_corr, het_p = pearsonr(fitted_values, squared_residuals)
                     results["heteroscedasticity_test"] = {
-                        "error": "Could not compute heteroscedasticity test"
+                        "test": "correlation_fallback",
+                        "correlation": float(het_corr),
+                        "p_value": float(het_p),
+                        "is_homoscedastic": bool(abs(het_corr) < 0.1),
+                        "interpretation": (
+                            "Homoscedasticity assumption satisfied (simple test)"
+                            if abs(het_corr) < 0.1
+                            else "Evidence of heteroscedasticity detected (simple test)"
+                        ),
+                        "note": "Using correlation fallback - install scipy for proper Breusch-Pagan test",
                     }
 
         # Test for residual normality (if scipy available)
@@ -875,7 +1042,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
                                 self._residuals_[key1], self._residuals_[key2]
                             )
                             corr_matrix[i, j] = corr
-                        except Exception:
+                        except (ValueError, RuntimeError):
                             corr_matrix[i, j] = np.nan
 
             results["residual_correlation_matrix"] = {

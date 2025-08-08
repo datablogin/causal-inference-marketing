@@ -163,10 +163,13 @@ class TestDMLDiagnostics:
             and "error" not in result["heteroscedasticity_test"]
         ):
             het_test = result["heteroscedasticity_test"]
-            assert "correlation" in het_test
+            # Should have p_value and is_homoscedastic regardless of test type
             assert "p_value" in het_test
             assert "is_homoscedastic" in het_test
             assert isinstance(het_test["is_homoscedastic"], bool)
+
+            # May have either correlation (fallback) or lm_statistic (Breusch-Pagan)
+            assert "correlation" in het_test or "lm_statistic" in het_test
 
         # Check for normality tests
         if "normality_test_shapiro" in result:
@@ -380,6 +383,191 @@ class TestDMLDiagnostics:
         assert hasattr(estimator, "predict_potential_outcomes")
         assert hasattr(estimator, "get_variable_importance")
         assert hasattr(estimator, "get_influence_function")
+
+
+class TestDMLDiagnosticsNewFeatures:
+    """Test the new features added in response to the Claude review."""
+
+    @pytest.fixture
+    def synthetic_data(self):
+        """Generate synthetic data for testing."""
+        np.random.seed(42)
+        n = 100
+        p = 3
+
+        X = np.random.randn(n, p)
+        treatment_coef = np.array([0.5, -0.3, 0.4])
+        logit_p = X @ treatment_coef
+        treatment_prob = 1 / (1 + np.exp(-logit_p))
+        treatment = np.random.binomial(1, treatment_prob)
+
+        outcome_coef = np.array([0.3, -0.4, 0.2])
+        true_ate = 1.5
+        outcome = X @ outcome_coef + true_ate * treatment + np.random.normal(0, 1, n)
+
+        return X, treatment, outcome, true_ate
+
+    def test_cross_fitting_residual_aggregation(self, synthetic_data):
+        """Test that residuals are properly aggregated from cross-fitting folds."""
+        X, treatment, outcome, _ = synthetic_data
+
+        # Test with cross-fitting enabled (default)
+        estimator = DoublyRobustMLEstimator(
+            cross_fitting=True, cv_folds=3, compute_diagnostics=True, random_state=42
+        )
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=X, names=[f"X{i}" for i in range(X.shape[1])]
+        )
+
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+
+        # Check that residuals are available after cross-fitting
+        orthogonality_result = estimator.check_orthogonality()
+        assert orthogonality_result["correlation"] is not None
+        assert orthogonality_result["p_value"] is not None
+        assert "is_orthogonal" in orthogonality_result
+
+        # Check that residuals have the right length
+        assert len(estimator._residuals_["outcome"]) == len(outcome)
+        assert len(estimator._residuals_["treatment"]) == len(treatment)
+
+    def test_compute_diagnostics_parameter(self, synthetic_data):
+        """Test that diagnostics can be turned off for performance."""
+        X, treatment, outcome, _ = synthetic_data
+
+        # Test with diagnostics disabled
+        estimator = DoublyRobustMLEstimator(compute_diagnostics=False, random_state=42)
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=X, names=[f"X{i}" for i in range(X.shape[1])]
+        )
+
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+        result = estimator.estimate_ate()
+
+        # Check that diagnostic fields are not present or minimal
+        diagnostics = result.diagnostics
+        assert "orthogonality_check" not in diagnostics
+        assert "learner_performance" not in diagnostics
+        assert "residual_analysis" not in diagnostics
+
+    def test_configurable_propensity_clipping(self, synthetic_data):
+        """Test that propensity score clipping bounds are configurable."""
+        X, treatment, outcome, _ = synthetic_data
+
+        # Test with custom clipping bounds
+        custom_bounds = (0.1, 0.9)
+        estimator = DoublyRobustMLEstimator(
+            propensity_clip_bounds=custom_bounds, random_state=42
+        )
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=X, names=[f"X{i}" for i in range(X.shape[1])]
+        )
+
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+
+        # Check that propensity scores are within bounds
+        propensity_scores = estimator.propensity_scores_
+        assert np.all(propensity_scores >= custom_bounds[0])
+        assert np.all(propensity_scores <= custom_bounds[1])
+
+    def test_improved_heteroscedasticity_test(self, synthetic_data):
+        """Test the enhanced Breusch-Pagan heteroscedasticity test."""
+        X, treatment, outcome, _ = synthetic_data
+
+        estimator = DoublyRobustMLEstimator(compute_diagnostics=True, random_state=42)
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=X, names=[f"X{i}" for i in range(X.shape[1])]
+        )
+
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+        residual_analysis = estimator.analyze_residuals()
+
+        # Check that the test includes proper Breusch-Pagan statistics
+        het_test = residual_analysis["heteroscedasticity_test"]
+
+        # Should have either the full Breusch-Pagan test or correlation fallback
+        if "test" in het_test and het_test["test"] == "breusch_pagan":
+            assert "lm_statistic" in het_test
+            assert "r_squared_aux" in het_test
+            assert "p_value" in het_test
+            assert "is_homoscedastic" in het_test
+        else:
+            # Fallback test should have correlation info
+            assert "correlation" in het_test
+            assert "p_value" in het_test
+
+    def test_specific_error_handling(self, synthetic_data):
+        """Test that specific exception types are used instead of broad Exception catches."""
+        X, treatment, outcome, _ = synthetic_data
+
+        # Create an estimator with a problematic learner to trigger specific errors
+
+        class ProblematicLearner:
+            def fit(self, x, y):
+                raise ValueError("Specific fitting error")
+
+            def predict(self, x):
+                return np.zeros(len(x))
+
+        estimator = DoublyRobustMLEstimator(
+            outcome_learner=ProblematicLearner(), cross_fitting=False, random_state=42
+        )
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=X, names=[f"X{i}" for i in range(X.shape[1])]
+        )
+
+        # Should raise EstimationError (not generic Exception)
+        with pytest.raises(EstimationError):
+            estimator.fit(treatment_data, outcome_data, covariate_data)
+
+    def test_cross_fitting_vs_no_cross_fitting_diagnostics(self, synthetic_data):
+        """Test that diagnostics work both with and without cross-fitting."""
+        X, treatment, outcome, _ = synthetic_data
+
+        treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+        outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+        covariate_data = CovariateData(
+            values=X, names=[f"X{i}" for i in range(X.shape[1])]
+        )
+
+        # Test with cross-fitting
+        estimator_cf = DoublyRobustMLEstimator(
+            cross_fitting=True, cv_folds=3, compute_diagnostics=True, random_state=42
+        )
+        estimator_cf.fit(treatment_data, outcome_data, covariate_data)
+        result_cf = estimator_cf.estimate_ate()
+
+        # Test without cross-fitting
+        estimator_no_cf = DoublyRobustMLEstimator(
+            cross_fitting=False, compute_diagnostics=True, random_state=42
+        )
+        estimator_no_cf.fit(treatment_data, outcome_data, covariate_data)
+        result_no_cf = estimator_no_cf.estimate_ate()
+
+        # Both should have diagnostic information
+        assert "orthogonality_check" in result_cf.diagnostics
+        assert "orthogonality_check" in result_no_cf.diagnostics
+
+        # Both orthogonality checks should have valid results
+        assert result_cf.diagnostics["orthogonality_check"]["correlation"] is not None
+        assert (
+            result_no_cf.diagnostics["orthogonality_check"]["correlation"] is not None
+        )
 
 
 class TestDMLDiagnosticsEdgeCases:
