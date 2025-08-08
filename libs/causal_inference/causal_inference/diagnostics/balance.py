@@ -7,7 +7,7 @@ treatment groups, which is crucial for valid causal inference.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -30,13 +30,13 @@ class BalanceResults:
     imbalanced_covariates: list[str]
     overall_balance_met: bool
     sample_sizes: dict[str, int]
-    ks_test_results: Optional[dict[str, dict[str, Any]]] = None
-    prognostic_score_balance: Optional[dict[str, Any]] = None
+    ks_test_results: dict[str, dict[str, Any]] | None = None
+    prognostic_score_balance: dict[str, Any] | None = None
 
 
 def calculate_standardized_mean_difference(
-    covariate_values: Union[NDArray[Any], pd.Series],
-    treatment_values: Union[NDArray[Any], pd.Series],
+    covariate_values: NDArray[Any] | pd.Series,
+    treatment_values: NDArray[Any] | pd.Series,
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> float:
@@ -91,8 +91,8 @@ def calculate_standardized_mean_difference(
 
 
 def calculate_variance_ratio(
-    covariate_values: Union[NDArray[Any], pd.Series],
-    treatment_values: Union[NDArray[Any], pd.Series],
+    covariate_values: NDArray[Any] | pd.Series,
+    treatment_values: NDArray[Any] | pd.Series,
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> float:
@@ -136,8 +136,8 @@ def calculate_variance_ratio(
 
 
 def calculate_distributional_balance(
-    covariate_values: Union[NDArray[Any], pd.Series],
-    treatment_values: Union[NDArray[Any], pd.Series],
+    covariate_values: NDArray[Any] | pd.Series,
+    treatment_values: NDArray[Any] | pd.Series,
     treatment_level_1: Any = 1,
     treatment_level_0: Any = 0,
 ) -> dict[str, Any]:
@@ -305,7 +305,7 @@ class BalanceDiagnostics:
         self,
         treatment: TreatmentData,
         covariates: CovariateData,
-        outcome: Optional[OutcomeData] = None,
+        outcome: OutcomeData | None = None,
         treatment_level_1: Any = 1,
         treatment_level_0: Any = 0,
     ) -> BalanceResults:
@@ -398,7 +398,7 @@ class BalanceDiagnostics:
     def _statistical_test(
         self,
         covariate_values: pd.Series,
-        treatment_values: Union[NDArray[Any], pd.Series],
+        treatment_values: NDArray[Any] | pd.Series,
         treatment_level_1: Any,
         treatment_level_0: Any,
     ) -> float:

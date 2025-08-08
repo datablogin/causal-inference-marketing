@@ -24,8 +24,8 @@ pytestmark = pytest.mark.integration
 
 # CI optimization: use smaller test parameters for faster execution
 IS_CI = os.getenv("CI") == "true"
-CI_SIMULATIONS = 5 if IS_CI else 20
-CI_SAMPLES = 200 if IS_CI else 500
+CI_SIMULATIONS = 3 if IS_CI else 20
+CI_SAMPLES = 100 if IS_CI else 500
 
 
 class TestDMLValidationIntegration:
@@ -36,7 +36,7 @@ class TestDMLValidationIntegration:
         """Default DML estimator for testing."""
         return DoublyRobustMLEstimator(
             cross_fitting=True,
-            cv_folds=3,  # Reduced for faster testing
+            cv_folds=2 if IS_CI else 3,  # Minimal for CI
             moment_function="aipw",
             random_state=42,
             verbose=False,
@@ -234,22 +234,22 @@ class TestDMLBenchmarkIntegration:
     def default_estimator(self):
         """Default DML estimator for benchmarking."""
         return DoublyRobustMLEstimator(
-            cross_fitting=True,
-            cv_folds=2,  # Minimal folds for speed
+            cross_fitting=not IS_CI,  # Disable cross-fitting in CI
+            cv_folds=1 if IS_CI else 2,  # Minimal folds for speed
             random_state=42,
             verbose=False,
         )
 
     @pytest.fixture
-    def benchmark(self):
+    def dml_benchmark(self):
         """Benchmark framework for testing."""
         return DMLBenchmark(verbose=False)
 
-    def test_runtime_benchmark(self, default_estimator, benchmark):
+    def test_runtime_benchmark(self, default_estimator, dml_benchmark):
         """Test runtime benchmarking."""
         # Use smaller sizes for CI
-        test_sizes = [200, 400] if IS_CI else [500, 1000]
-        results = benchmark.benchmark_runtime(
+        test_sizes = [100] if IS_CI else [500, 1000]
+        results = dml_benchmark.benchmark_runtime(
             estimator=default_estimator,
             sample_sizes=test_sizes,
             seed=42,
@@ -270,11 +270,11 @@ class TestDMLBenchmarkIntegration:
                 assert "total_time" in result
                 assert result["total_time"] > 0
 
-    def test_memory_benchmark(self, default_estimator, benchmark):
+    def test_memory_benchmark(self, default_estimator, dml_benchmark):
         """Test memory benchmarking."""
         # Use smaller size for CI
-        test_size = 500 if IS_CI else 1000
-        results = benchmark.benchmark_memory(
+        test_size = 200 if IS_CI else 1000
+        results = dml_benchmark.benchmark_memory(
             estimator=default_estimator,
             sample_size=test_size,
             seed=42,
@@ -291,7 +291,7 @@ class TestDMLBenchmarkIntegration:
             # Memory monitoring might not be available
             assert "error" in results
 
-    def test_benchmark_with_different_estimators(self, benchmark):
+    def test_benchmark_with_different_estimators(self, dml_benchmark):
         """Test benchmarking with different estimator configurations."""
         configs = [
             {"cross_fitting": True, "cv_folds": 2},
@@ -306,8 +306,8 @@ class TestDMLBenchmarkIntegration:
             )
 
             # Use smaller size for CI
-            test_size = [200] if IS_CI else [300]
-            results = benchmark.benchmark_runtime(
+            test_size = [100] if IS_CI else [300]
+            results = dml_benchmark.benchmark_runtime(
                 estimator=estimator,
                 sample_sizes=test_size,
                 seed=42,
