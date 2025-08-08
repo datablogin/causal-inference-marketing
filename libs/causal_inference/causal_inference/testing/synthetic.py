@@ -11,7 +11,12 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-__all__ = ["generate_synthetic_dml_data"]
+__all__ = [
+    "generate_synthetic_dml_data",
+    "generate_heterogeneous_ate_data",
+    "generate_instrumental_variable_data",
+    "generate_time_series_dml_data",
+]
 
 
 def generate_synthetic_dml_data(
@@ -64,6 +69,16 @@ def generate_synthetic_dml_data(
         Newey, W., & Robins, J. (2018). Double/debiased machine learning for
         treatment and structural parameters. The Econometrics Journal, 21(1), C1-C68.
     """
+    # Input validation
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if n_features <= 0:
+        raise ValueError("n_features must be positive")
+    if noise_level < 0:
+        raise ValueError("noise_level must be non-negative")
+    if confounding_strength < 0:
+        raise ValueError("confounding_strength must be non-negative")
+
     # Set random seed for reproducibility
     np.random.seed(seed)
 
@@ -82,6 +97,8 @@ def generate_synthetic_dml_data(
             propensity_logits += 0.3 * X[:, 2]
 
     # Convert to probabilities using logistic function
+    # Clip logits to prevent overflow
+    propensity_logits = np.clip(propensity_logits, -10, 10)
     e = 1 / (1 + np.exp(-propensity_logits))
 
     # Generate binary treatment assignment D ~ Bernoulli(e(X))
@@ -139,6 +156,16 @@ def generate_heterogeneous_ate_data(
     Returns:
         Tuple of (X, D, Y, average_ate) where average_ate is the population average
     """
+    # Input validation
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if n_features <= 0:
+        raise ValueError("n_features must be positive")
+    if noise_level < 0:
+        raise ValueError("noise_level must be non-negative")
+    if heterogeneity_strength < 0:
+        raise ValueError("heterogeneity_strength must be non-negative")
+
     # Set random seed
     np.random.seed(seed)
 
@@ -150,6 +177,8 @@ def generate_heterogeneous_ate_data(
     if n_features > 1:
         propensity_logits += 0.3 * X[:, 1]
 
+    # Clip logits to prevent overflow
+    propensity_logits = np.clip(propensity_logits, -10, 10)
     e = 1 / (1 + np.exp(-propensity_logits))
     D = np.random.binomial(1, e)
 
@@ -213,6 +242,18 @@ def generate_instrumental_variable_data(
     Returns:
         Tuple of (X, D, Y, Z, true_ate) where Z is the instrumental variable
     """
+    # Input validation
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if n_features <= 0:
+        raise ValueError("n_features must be positive")
+    if noise_level < 0:
+        raise ValueError("noise_level must be non-negative")
+    if confounding_strength < 0:
+        raise ValueError("confounding_strength must be non-negative")
+    if instrument_strength <= 0:
+        raise ValueError("instrument_strength must be positive")
+
     np.random.seed(seed)
 
     # Generate covariates and unobserved confounder
@@ -231,6 +272,8 @@ def generate_instrumental_variable_data(
         treatment_logits += 0.3 * X[:, 1]
 
     # Binary treatment
+    # Clip logits to prevent overflow
+    treatment_logits = np.clip(treatment_logits, -10, 10)
     treatment_probs = 1 / (1 + np.exp(-treatment_logits))
     D = np.random.binomial(1, treatment_probs)
 
@@ -278,6 +321,18 @@ def generate_time_series_dml_data(
     Returns:
         Tuple of (X, D, Y, unit_ids, time_ids, true_ate) for panel DML
     """
+    # Input validation
+    if n_time_periods <= 0:
+        raise ValueError("n_time_periods must be positive")
+    if n_units <= 0:
+        raise ValueError("n_units must be positive")
+    if noise_level < 0:
+        raise ValueError("noise_level must be non-negative")
+    if time_trend_strength < 0:
+        raise ValueError("time_trend_strength must be non-negative")
+    if unit_effects_strength < 0:
+        raise ValueError("unit_effects_strength must be non-negative")
+
     np.random.seed(seed)
 
     n_obs = n_time_periods * n_units
@@ -299,6 +354,8 @@ def generate_time_series_dml_data(
 
     # Treatment assignment (depends on lagged outcomes and covariates)
     treatment_logits = 0.5 * X[:, 0] + 0.3 * X[:, 1] + 0.2 * time_trend
+    # Clip logits to prevent overflow
+    treatment_logits = np.clip(treatment_logits, -10, 10)
     treatment_probs = 1 / (1 + np.exp(-treatment_logits))
     D = np.random.binomial(1, treatment_probs)
 

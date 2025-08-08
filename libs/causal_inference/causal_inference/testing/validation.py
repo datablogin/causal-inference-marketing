@@ -72,9 +72,25 @@ class DMLValidator:
             - bias_pass_rate: Proportion of simulations within bias threshold
             - individual_estimates: List of ATE estimates from each simulation
         """
+        # Memory efficiency warning for large simulations
+        estimated_memory_mb = (n_simulations * n_samples * n_features * 8) / (
+            1024 * 1024
+        )  # 8 bytes per float
+        if estimated_memory_mb > 1000:  # > 1GB
+            import warnings
+
+            warnings.warn(
+                f"Large simulation may use ~{estimated_memory_mb:.1f} MB memory. "
+                f"Consider reducing n_simulations ({n_simulations}) or n_samples ({n_samples}).",
+                UserWarning,
+                stacklevel=2,
+            )
+
         if self.verbose:
             print(f"Validating bias with {n_simulations} simulations...")
             print(f"Target bias threshold: < {bias_threshold}")
+            if estimated_memory_mb > 100:  # Show memory estimate for moderate usage
+                print(f"Estimated memory usage: ~{estimated_memory_mb:.1f} MB")
 
         ate_estimates: list[float] = []
         np.random.seed(seed)
@@ -186,9 +202,25 @@ class DMLValidator:
         Returns:
             Dictionary with coverage validation results
         """
+        # Memory efficiency warning for large simulations
+        estimated_memory_mb = (n_simulations * n_samples * n_features * 8) / (
+            1024 * 1024
+        )  # 8 bytes per float
+        if estimated_memory_mb > 1000:  # > 1GB
+            import warnings
+
+            warnings.warn(
+                f"Large simulation may use ~{estimated_memory_mb:.1f} MB memory. "
+                f"Consider reducing n_simulations ({n_simulations}) or n_samples ({n_samples}).",
+                UserWarning,
+                stacklevel=2,
+            )
+
         if self.verbose:
             print(f"Validating coverage with {n_simulations} simulations...")
             print(f"Target coverage: {nominal_coverage:.1%} ± {coverage_tolerance:.1%}")
+            if estimated_memory_mb > 100:  # Show memory estimate for moderate usage
+                print(f"Estimated memory usage: ~{estimated_memory_mb:.1f} MB")
 
         coverage_results: list[bool | float] = []
         ci_widths: list[float] = []
@@ -591,12 +623,12 @@ class DMLBenchmark:
                     )
 
             except Exception as e:
-                runtime_results[n_samples] = {
+                runtime_results[n_samples] = {  # type: ignore[misc]
                     "error": str(e),
                     "success": False,
-                    "fit_time": 0.0,  # type: ignore[dict-item]
-                    "estimate_time": 0.0,  # type: ignore[dict-item]
-                    "total_time": 0.0,  # type: ignore[dict-item]
+                    "fit_time": 0.0,
+                    "estimate_time": 0.0,
+                    "total_time": 0.0,
                 }
                 if self.verbose:
                     print(f"    Failed: {e}")
