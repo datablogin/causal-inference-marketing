@@ -408,14 +408,15 @@ class TestValidateCausalDataConvenienceFunction:
 
     def test_validate_causal_data_with_errors(self):
         """Test validation with errors."""
-        bad_treatment = TreatmentData(
-            values=pd.Series([0, 1, 2, 3]),  # Wrong values for binary
-            name="treatment",
-            treatment_type="binary",
-        )
-
-        with pytest.raises(DataValidationError):
-            validate_causal_data(bad_treatment, self.good_outcome, verbose=False)
+        # Test that creating invalid TreatmentData fails at construction time
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(
+                values=pd.Series([0, 1, 2, 3]),  # Wrong values for binary
+                name="treatment",
+                treatment_type="binary",
+            )
 
     def test_validate_causal_data_without_covariates(self):
         """Test validation without covariates."""
