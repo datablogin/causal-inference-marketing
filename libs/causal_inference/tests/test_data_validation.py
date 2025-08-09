@@ -114,21 +114,15 @@ class TestCausalDataValidator:
 
     def test_validate_treatment_too_many_binary_values(self):
         """Test validation of binary treatment with too many unique values."""
-        # Test case 2: Binary treatment with too many unique values (should error)
-        wrong_binary_treatment = TreatmentData(
-            values=pd.Series([0, 1, 2, 0, 1, 2] * 20),
-            name="treatment",
-            treatment_type="binary",
-        )
-
-        self.validator.warnings.clear()
-        self.validator.errors.clear()
-        self.validator.validate_treatment_data(wrong_binary_treatment)
-
-        # Should have errors about wrong number of unique values
-        assert any(
-            "exactly 2 unique values" in error for error in self.validator.errors
-        )
+        # Test case 2: Binary treatment with too many unique values (should error at construction time)
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(
+                values=pd.Series([0, 1, 2, 0, 1, 2] * 20),
+                name="treatment",
+                treatment_type="binary",
+            )
 
     def test_validate_treatment_non_standard_binary(self):
         """Test validation of binary treatment with non-0/1 values."""
@@ -328,11 +322,19 @@ class TestCausalDataValidator:
 
     def test_validate_all_with_errors_raises_exception(self):
         """Test that validation raises exception when errors are found."""
-        # Create data with errors
-        bad_treatment = TreatmentData(
-            values=pd.Series([0, 1, 2, 3]),  # Wrong values for binary
-            name="treatment",
-            treatment_type="binary",
+        # Test that creating invalid TreatmentData fails at construction time
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(
+                values=pd.Series([0, 1, 2, 3]),  # Wrong values for binary
+                name="treatment",
+                treatment_type="binary",
+            )
+
+        # Test with mismatched data lengths (should still cause validation error)
+        valid_treatment = TreatmentData(
+            values=pd.Series([0, 1, 0, 1]), name="treatment", treatment_type="binary"
         )
 
         bad_outcome = OutcomeData(
@@ -342,7 +344,7 @@ class TestCausalDataValidator:
         )
 
         with pytest.raises(DataValidationError):
-            self.validator.validate_all(bad_treatment, bad_outcome)
+            self.validator.validate_all(valid_treatment, bad_outcome)
 
     def test_validate_overlap_warning(self):
         """Test overlap validation warning."""
