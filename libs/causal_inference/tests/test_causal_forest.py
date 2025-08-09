@@ -118,7 +118,9 @@ class TestCausalForest:
     def test_prepare_data_non_binary_treatment(self):
         """Test error with non-binary treatment."""
         treatment_data = TreatmentData(
-            values=np.array([0, 1, 2]), treatment_type="categorical"
+            values=np.array([0, 1, 2]),
+            treatment_type="categorical",
+            categories=[0, 1, 2],
         )
         outcome_data = OutcomeData(values=np.array([1.0, 2.0, 3.0]))
 
