@@ -54,6 +54,7 @@ class ParallelCrossFittingConfig:
     max_memory_gb: float = 4.0
     chunk_size: int = 10000
     enable_caching: bool = True
+    cache_size: int = 100
     timeout_per_fold_minutes: float = 10.0
     enable_gc_per_fold: bool = True
     memory_monitoring: bool = False
@@ -313,8 +314,15 @@ class CrossFittingEstimator(ABC):
             fold_start_time = time.perf_counter()
 
             # Memory monitoring
+            fold_start_memory = None
             if self.parallel_config.memory_monitoring and PSUTIL_AVAILABLE:
-                fold_start_memory = process.memory_info().rss / 1024 / 1024  # MB
+                try:
+                    fold_start_memory = process.memory_info().rss / 1024 / 1024  # MB
+                except (OSError, AttributeError) as e:
+                    warnings.warn(
+                        f"Memory monitoring failed for fold {fold_idx}: {str(e)}"
+                    )
+                    fold_start_memory = None
 
             # Get training and validation data for this fold
             X_train = self.cross_fit_data_.X_train_folds[fold_idx]
@@ -353,9 +361,20 @@ class CrossFittingEstimator(ABC):
             fold_end_time = time.perf_counter()
             self._fold_timings_.append(fold_end_time - fold_start_time)
 
-            if self.parallel_config.memory_monitoring and PSUTIL_AVAILABLE:
-                fold_end_memory = process.memory_info().rss / 1024 / 1024  # MB
-                self._fold_memory_usage_.append(fold_end_memory - fold_start_memory)
+            if (
+                self.parallel_config.memory_monitoring
+                and PSUTIL_AVAILABLE
+                and fold_start_memory is not None
+            ):
+                try:
+                    fold_end_memory = process.memory_info().rss / 1024 / 1024  # MB
+                    self._fold_memory_usage_.append(fold_end_memory - fold_start_memory)
+                except (OSError, AttributeError) as e:
+                    warnings.warn(
+                        f"Memory monitoring failed at end of fold {fold_idx}: {str(e)}"
+                    )
+                    # Add zero to maintain list consistency
+                    self._fold_memory_usage_.append(0.0)
 
             # Optional garbage collection per fold
             if self.parallel_config.enable_gc_per_fold:
@@ -392,10 +411,37 @@ class CrossFittingEstimator(ABC):
             )
 
             # Define the delayed function for each fold
-            delayed_tasks = [
-                delayed(self._fit_single_fold)(fold_idx, X, y, treatment)
-                for fold_idx in range(self.cv_folds)
-            ]
+            delayed_tasks = []
+            for fold_idx in range(self.cv_folds):
+                X_train = self.cross_fit_data_.X_train_folds[fold_idx]
+                y_train = self.cross_fit_data_.y_train_folds[fold_idx]
+                X_val = self.cross_fit_data_.X_val_folds[fold_idx]
+
+                treatment_train = None
+                treatment_val = None
+                if (
+                    treatment is not None
+                    and self.cross_fit_data_.treatment_train_folds is not None
+                ):
+                    treatment_train = self.cross_fit_data_.treatment_train_folds[
+                        fold_idx
+                    ]
+                if (
+                    treatment is not None
+                    and self.cross_fit_data_.treatment_val_folds is not None
+                ):
+                    treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+
+                delayed_tasks.append(
+                    delayed(self._fit_single_fold)(
+                        fold_idx,
+                        X_train,
+                        y_train,
+                        X_val,
+                        treatment_train,
+                        treatment_val,
+                    )
+                )
 
             # Execute parallel jobs
             fold_results = parallel_jobs(delayed_tasks)
@@ -445,11 +491,21 @@ class CrossFittingEstimator(ABC):
     def _fit_single_fold(
         self,
         fold_idx: int,
-        X: NDArray[Any],
-        y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        X_train: NDArray[Any],
+        y_train: NDArray[Any],
+        X_val: NDArray[Any],
+        treatment_train: NDArray[Any] | None = None,
+        treatment_val: NDArray[Any] | None = None,
     ) -> tuple[dict[str, NDArray[Any]] | None, float]:
         """Fit a single fold - designed to be called in parallel.
+
+        Args:
+            fold_idx: Fold index for identification
+            X_train: Training features for this fold
+            y_train: Training outcomes for this fold
+            X_val: Validation features for this fold
+            treatment_train: Training treatment assignments for this fold
+            treatment_val: Validation treatment assignments for this fold
 
         Returns:
             Tuple of (fold_predictions, fold_timing)
@@ -457,24 +513,6 @@ class CrossFittingEstimator(ABC):
         fold_start_time = time.perf_counter()
 
         try:
-            # Get training and validation data for this fold
-            X_train = self.cross_fit_data_.X_train_folds[fold_idx]
-            y_train = self.cross_fit_data_.y_train_folds[fold_idx]
-            X_val = self.cross_fit_data_.X_val_folds[fold_idx]
-
-            treatment_train = None
-            treatment_val = None
-            if (
-                treatment is not None
-                and self.cross_fit_data_.treatment_train_folds is not None
-            ):
-                treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
-            if (
-                treatment is not None
-                and self.cross_fit_data_.treatment_val_folds is not None
-            ):
-                treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
-
             # Fit nuisance models on training data
             fitted_models = self._fit_nuisance_models(X_train, y_train, treatment_train)
 
@@ -531,94 +569,136 @@ class CrossFittingEstimator(ABC):
         )
 
         n_samples = X.shape[0]
-        chunk_size = self.parallel_config.chunk_size
-
-        # Initialize storage for nuisance estimates
         nuisance_estimates = {}
 
         # Process each fold with chunking
         for fold_idx in range(self.cv_folds):
             fold_start_time = time.perf_counter()
 
-            # Get full fold data first
-            X_train = self.cross_fit_data_.X_train_folds[fold_idx]
-            y_train = self.cross_fit_data_.y_train_folds[fold_idx]
-            X_val = self.cross_fit_data_.X_val_folds[fold_idx]
-            val_indices = self.cross_fit_data_.val_indices[fold_idx]
+            fold_predictions = self._process_chunked_fold(fold_idx, treatment)
 
-            treatment_train = None
-            treatment_val = None
-            if (
-                treatment is not None
-                and self.cross_fit_data_.treatment_train_folds is not None
-            ):
-                treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
-            if (
-                treatment is not None
-                and self.cross_fit_data_.treatment_val_folds is not None
-            ):
-                treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
-
-            # Fit models on full training data (this is the expensive part)
-            fitted_models = self._fit_nuisance_models_cached(
-                X_train, y_train, treatment_train, fold_idx
+            self._store_fold_predictions(
+                fold_predictions, nuisance_estimates, n_samples, fold_idx
             )
 
-            # Process validation data in chunks to manage memory
-            val_chunks_predictions = {}
-
-            for chunk_start in range(0, len(X_val), chunk_size):
-                chunk_end = min(chunk_start + chunk_size, len(X_val))
-
-                X_val_chunk = X_val[chunk_start:chunk_end]
-                treatment_val_chunk = (
-                    treatment_val[chunk_start:chunk_end]
-                    if treatment_val is not None
-                    else None
-                )
-
-                # Predict on chunk
-                chunk_predictions = self._predict_nuisance_parameters(
-                    fitted_models, X_val_chunk, treatment_val_chunk
-                )
-
-                # Store chunk predictions
-                for param_name, predictions in chunk_predictions.items():
-                    if param_name not in val_chunks_predictions:
-                        val_chunks_predictions[param_name] = []
-                    val_chunks_predictions[param_name].append(predictions)
-
-            # Concatenate chunk predictions
-            fold_predictions = {}
-            for param_name, chunk_list in val_chunks_predictions.items():
-                fold_predictions[param_name] = np.concatenate(chunk_list)
-
-            # Store predictions for validation indices
-            for param_name, predictions in fold_predictions.items():
-                if param_name not in nuisance_estimates:
-                    nuisance_estimates[param_name] = np.full(n_samples, np.nan)
-                nuisance_estimates[param_name][val_indices] = predictions
-
-            # Performance tracking
-            fold_end_time = time.perf_counter()
-            if not hasattr(self, "_fold_timings_"):
-                self._fold_timings_ = []
-            self._fold_timings_.append(fold_end_time - fold_start_time)
+            self._track_fold_performance(fold_start_time)
 
             # Cleanup after each fold
             if self.parallel_config.enable_gc_per_fold:
-                del fitted_models
                 gc.collect()
 
-        # Check that all samples have nuisance estimates
+        self._validate_nuisance_estimates(nuisance_estimates)
+        self.nuisance_estimates_ = nuisance_estimates
+        return nuisance_estimates
+
+    def _process_chunked_fold(
+        self, fold_idx: int, treatment: NDArray[Any] | None
+    ) -> dict[str, NDArray[Any]]:
+        """Process a single fold using chunked validation data."""
+        # Get fold data
+        X_train = self.cross_fit_data_.X_train_folds[fold_idx]
+        y_train = self.cross_fit_data_.y_train_folds[fold_idx]
+        X_val = self.cross_fit_data_.X_val_folds[fold_idx]
+
+        treatment_train = None
+        treatment_val = None
+        if (
+            treatment is not None
+            and self.cross_fit_data_.treatment_train_folds is not None
+        ):
+            treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
+        if (
+            treatment is not None
+            and self.cross_fit_data_.treatment_val_folds is not None
+        ):
+            treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+
+        # Fit models on full training data
+        fitted_models = self._fit_nuisance_models_cached(
+            X_train, y_train, treatment_train, fold_idx
+        )
+
+        # Process validation data in chunks
+        val_chunks_predictions = self._predict_validation_chunks(
+            fitted_models, X_val, treatment_val
+        )
+
+        # Concatenate chunk predictions
+        return self._concatenate_chunk_predictions(val_chunks_predictions)
+
+    def _predict_validation_chunks(
+        self,
+        fitted_models: dict[str, Any],
+        X_val: NDArray[Any],
+        treatment_val: NDArray[Any] | None,
+    ) -> dict[str, list[NDArray[Any]]]:
+        """Predict on validation data in chunks to manage memory."""
+        chunk_size = self.parallel_config.chunk_size
+        val_chunks_predictions = {}
+
+        for chunk_start in range(0, len(X_val), chunk_size):
+            chunk_end = min(chunk_start + chunk_size, len(X_val))
+
+            X_val_chunk = X_val[chunk_start:chunk_end]
+            treatment_val_chunk = (
+                treatment_val[chunk_start:chunk_end]
+                if treatment_val is not None
+                else None
+            )
+
+            # Predict on chunk
+            chunk_predictions = self._predict_nuisance_parameters(
+                fitted_models, X_val_chunk, treatment_val_chunk
+            )
+
+            # Store chunk predictions
+            for param_name, predictions in chunk_predictions.items():
+                if param_name not in val_chunks_predictions:
+                    val_chunks_predictions[param_name] = []
+                val_chunks_predictions[param_name].append(predictions)
+
+        return val_chunks_predictions
+
+    def _concatenate_chunk_predictions(
+        self, val_chunks_predictions: dict[str, list[NDArray[Any]]]
+    ) -> dict[str, NDArray[Any]]:
+        """Concatenate predictions from all chunks."""
+        fold_predictions = {}
+        for param_name, chunk_list in val_chunks_predictions.items():
+            fold_predictions[param_name] = np.concatenate(chunk_list)
+        return fold_predictions
+
+    def _store_fold_predictions(
+        self,
+        fold_predictions: dict[str, NDArray[Any]],
+        nuisance_estimates: dict[str, NDArray[Any]],
+        n_samples: int,
+        fold_idx: int,
+    ) -> None:
+        """Store fold predictions in the global nuisance estimates."""
+        val_indices = self.cross_fit_data_.val_indices[fold_idx]
+
+        for param_name, predictions in fold_predictions.items():
+            if param_name not in nuisance_estimates:
+                nuisance_estimates[param_name] = np.full(n_samples, np.nan)
+            nuisance_estimates[param_name][val_indices] = predictions
+
+    def _track_fold_performance(self, fold_start_time: float) -> None:
+        """Track performance metrics for the current fold."""
+        fold_end_time = time.perf_counter()
+        if not hasattr(self, "_fold_timings_"):
+            self._fold_timings_ = []
+        self._fold_timings_.append(fold_end_time - fold_start_time)
+
+    def _validate_nuisance_estimates(
+        self, nuisance_estimates: dict[str, NDArray[Any]]
+    ) -> None:
+        """Validate that all samples have nuisance estimates."""
         for param_name, estimates in nuisance_estimates.items():
             if np.any(np.isnan(estimates)):
                 raise ValueError(
                     f"Some samples missing nuisance estimates for {param_name}"
                 )
-
-        self.nuisance_estimates_ = nuisance_estimates
-        return nuisance_estimates
 
     def get_cross_validation_performance(self) -> dict[str, Any]:
         """Get cross-validation performance metrics.
@@ -751,7 +831,7 @@ class CrossFittingEstimator(ABC):
         fitted_models = self._fit_nuisance_models(X_train, y_train, treatment_train)
 
         # Store in cache (clone to avoid state modification)
-        if len(self._model_cache_) < 100:  # Limit cache size
+        if len(self._model_cache_) < self.parallel_config.cache_size:
             self._model_cache_[cache_key] = {
                 key: clone(model) for key, model in fitted_models.items()
             }

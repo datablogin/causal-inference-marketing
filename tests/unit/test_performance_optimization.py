@@ -59,6 +59,7 @@ class TestParallelCrossFittingConfig:
         assert config.max_memory_gb == 4.0
         assert config.chunk_size == 10000
         assert config.enable_caching
+        assert config.cache_size == 100
         assert config.timeout_per_fold_minutes == 10.0
         assert config.enable_gc_per_fold
         assert not config.memory_monitoring
@@ -71,6 +72,7 @@ class TestParallelCrossFittingConfig:
             max_memory_gb=8.0,
             chunk_size=5000,
             enable_caching=False,
+            cache_size=50,
             timeout_per_fold_minutes=5.0,
             enable_gc_per_fold=False,
             memory_monitoring=True,
@@ -81,6 +83,7 @@ class TestParallelCrossFittingConfig:
         assert config.max_memory_gb == 8.0
         assert config.chunk_size == 5000
         assert not config.enable_caching
+        assert config.cache_size == 50
         assert config.timeout_per_fold_minutes == 5.0
         assert not config.enable_gc_per_fold
         assert config.memory_monitoring
