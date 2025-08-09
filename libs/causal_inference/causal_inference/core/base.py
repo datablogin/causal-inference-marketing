@@ -53,6 +53,14 @@ class TreatmentData(BaseModel):
     categories: Union[list[Union[str, int, float]], None] = Field(
         default=None, description="For categorical treatments, the possible categories"
     )
+    n_categories: Union[int, None] = Field(
+        default=None,
+        description="Number of treatment categories for categorical treatments",
+    )
+    dose_range: Union[tuple[float, float], None] = Field(
+        default=None,
+        description="Valid dose range for continuous treatments (min, max)",
+    )
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -74,6 +82,135 @@ class TreatmentData(BaseModel):
         if len(v) == 0:
             raise ValueError("Treatment values cannot be empty")
         return v
+
+    def __init__(self, **data: Any) -> None:
+        """Initialize treatment data with comprehensive validation."""
+        super().__init__(**data)
+
+        # Convert to numpy array for validation
+        values_array = np.array(self.values)
+
+        # Validate based on treatment type
+        if self.treatment_type == "binary":
+            self._validate_binary_treatment(values_array)
+        elif self.treatment_type == "categorical":
+            self._validate_categorical_treatment(values_array)
+        elif self.treatment_type == "continuous":
+            self._validate_continuous_treatment(values_array)
+
+    def _validate_binary_treatment(self, values: NDArray[Any]) -> None:
+        """Validate binary treatment values."""
+        unique_values = np.unique(
+            values[~np.isnan(values.astype(float, errors="ignore"))]
+        )
+
+        # Check if values are binary (0/1 or two distinct values)
+        if len(unique_values) != 2:
+            raise ValueError(
+                f"Binary treatment must have exactly 2 unique values, got {len(unique_values)}: {unique_values}"
+            )
+
+        # Standardize to 0/1 if not already
+        if not np.array_equal(sorted(unique_values), [0, 1]):
+            # Allow other binary encodings but warn user
+            import warnings
+
+            warnings.warn(
+                f"Binary treatment values {unique_values} will be mapped to [0, 1] internally",
+                UserWarning,
+            )
+
+    def _validate_categorical_treatment(self, values: NDArray[Any]) -> None:
+        """Validate categorical treatment values."""
+        unique_values = np.unique(values[~pd.isna(values)])
+        n_unique = len(unique_values)
+
+        if n_unique < 2:
+            raise ValueError(
+                f"Categorical treatment must have at least 2 categories, got {n_unique}"
+            )
+
+        # Validate n_categories if provided
+        if self.n_categories is not None:
+            if self.n_categories != n_unique:
+                raise ValueError(
+                    f"n_categories ({self.n_categories}) doesn't match actual number of categories ({n_unique})"
+                )
+        else:
+            # Set n_categories automatically
+            object.__setattr__(self, "n_categories", n_unique)
+
+        # Validate categories if provided
+        if self.categories is not None:
+            if len(self.categories) != n_unique:
+                raise ValueError(
+                    f"Number of provided categories ({len(self.categories)}) doesn't match unique values ({n_unique})"
+                )
+
+            # Check if all unique values are in provided categories
+            for val in unique_values:
+                if val not in self.categories:
+                    raise ValueError(
+                        f"Value {val} not found in provided categories {self.categories}"
+                    )
+        else:
+            # Set categories automatically
+            object.__setattr__(self, "categories", sorted(unique_values.tolist()))
+
+    def _validate_continuous_treatment(self, values: NDArray[Any]) -> None:
+        """Validate continuous treatment values."""
+        # Convert to float, handling potential string values
+        try:
+            numeric_values = pd.to_numeric(values, errors="coerce")
+            non_missing = numeric_values[~pd.isna(numeric_values)]
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Continuous treatment values must be numeric: {e}")
+
+        if len(non_missing) == 0:
+            raise ValueError("Continuous treatment has no valid numeric values")
+
+        # Check for sufficient variation (not all same value)
+        if np.var(non_missing) == 0:
+            raise ValueError(
+                "Continuous treatment must have variation (all values are identical)"
+            )
+
+        # Validate dose_range if provided
+        if self.dose_range is not None:
+            min_dose, max_dose = self.dose_range
+            if min_dose >= max_dose:
+                raise ValueError(
+                    f"Invalid dose_range: min ({min_dose}) must be less than max ({max_dose})"
+                )
+
+            # Check if values fall within specified range
+            if np.any(non_missing < min_dose) or np.any(non_missing > max_dose):
+                out_of_range = np.sum(
+                    (non_missing < min_dose) | (non_missing > max_dose)
+                )
+                raise ValueError(
+                    f"Found {out_of_range} values outside specified dose_range [{min_dose}, {max_dose}]"
+                )
+        else:
+            # Set dose_range automatically based on observed values
+            min_val, max_val = float(np.min(non_missing)), float(np.max(non_missing))
+            object.__setattr__(self, "dose_range", (min_val, max_val))
+
+    def get_unique_values(self) -> NDArray[Any]:
+        """Get unique treatment values, excluding missing values."""
+        values_array = np.array(self.values)
+        if self.treatment_type == "continuous":
+            numeric_values = pd.to_numeric(values_array, errors="coerce")
+            return np.array(numeric_values[~pd.isna(numeric_values)])
+        else:
+            return np.array(values_array[~pd.isna(values_array)])
+
+    def is_binary_encoded_as_01(self) -> bool:
+        """Check if binary treatment is encoded as 0/1."""
+        if self.treatment_type != "binary":
+            return False
+        unique_vals = self.get_unique_values()
+        return np.array_equal(sorted(unique_vals), [0, 1])
 
 
 class OutcomeData(BaseModel):
