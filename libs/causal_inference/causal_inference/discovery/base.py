@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -38,10 +38,10 @@ class CausalDAG(BaseModel):
     variable_names: list[str] = Field(
         ..., description="Names of variables corresponding to matrix indices"
     )
-    edge_weights: Optional[NDArray[Any]] = Field(
+    edge_weights: NDArray[Any] | None = Field(
         default=None, description="Edge weights/strengths if applicable"
     )
-    confidence_scores: Optional[NDArray[Any]] = Field(
+    confidence_scores: NDArray[Any] | None = Field(
         default=None, description="Confidence scores for each edge"
     )
 
@@ -124,7 +124,7 @@ class CausalDAG(BaseModel):
         max_edges = n * (n - 1)  # Maximum edges in DAG
         return self.n_edges / max_edges if max_edges > 0 else 0.0
 
-    def get_parents(self, variable: Union[str, int]) -> list[str]:
+    def get_parents(self, variable: str | int) -> list[str]:
         """Get parent variables of a given variable."""
         if isinstance(variable, str):
             if variable not in self.variable_names:
@@ -136,7 +136,7 @@ class CausalDAG(BaseModel):
         parent_indices = np.where(self.adjacency_matrix[:, var_idx] == 1)[0]
         return [self.variable_names[i] for i in parent_indices]
 
-    def get_children(self, variable: Union[str, int]) -> list[str]:
+    def get_children(self, variable: str | int) -> list[str]:
         """Get child variables of a given variable."""
         if isinstance(variable, str):
             if variable not in self.variable_names:
@@ -148,7 +148,7 @@ class CausalDAG(BaseModel):
         child_indices = np.where(self.adjacency_matrix[var_idx, :] == 1)[0]
         return [self.variable_names[i] for i in child_indices]
 
-    def has_edge(self, from_var: Union[str, int], to_var: Union[str, int]) -> bool:
+    def has_edge(self, from_var: str | int, to_var: str | int) -> bool:
         """Check if there's an edge from one variable to another."""
         if isinstance(from_var, str):
             from_idx = self.variable_names.index(from_var)
@@ -186,7 +186,7 @@ class CausalDAG(BaseModel):
 
         return G
 
-    def get_markov_blanket(self, variable: Union[str, int]) -> list[str]:
+    def get_markov_blanket(self, variable: str | int) -> list[str]:
         """Get the Markov blanket of a variable (parents, children, and co-parents)."""
         if isinstance(variable, str):
             var_name = variable
@@ -230,29 +230,29 @@ class DiscoveryResult:
     algorithm_parameters: dict[str, Any]
 
     # Discovery metrics
-    n_iterations: Optional[int] = None
-    convergence_achieved: Optional[bool] = None
-    computation_time: Optional[float] = None
+    n_iterations: int | None = None
+    convergence_achieved: bool | None = None
+    computation_time: float | None = None
 
     # Uncertainty quantification
-    bootstrap_dags: Optional[list[CausalDAG]] = None
-    edge_probabilities: Optional[NDArray[Any]] = None
-    stability_score: Optional[float] = None
+    bootstrap_dags: list[CausalDAG] | None = None
+    edge_probabilities: NDArray[Any] | None = None
+    stability_score: float | None = None
 
     # Validation metrics
-    likelihood_score: Optional[float] = None
-    bic_score: Optional[float] = None
-    aic_score: Optional[float] = None
+    likelihood_score: float | None = None
+    bic_score: float | None = None
+    aic_score: float | None = None
 
     # Algorithm-specific diagnostics
-    algorithm_diagnostics: Optional[dict[str, Any]] = None
+    algorithm_diagnostics: dict[str, Any] | None = None
 
     # Performance on known structure (if available)
-    true_dag: Optional[CausalDAG] = None
-    structural_hamming_distance: Optional[int] = None
-    precision: Optional[float] = None
-    recall: Optional[float] = None
-    f1_score: Optional[float] = None
+    true_dag: CausalDAG | None = None
+    structural_hamming_distance: int | None = None
+    precision: float | None = None
+    recall: float | None = None
+    f1_score: float | None = None
 
     def __post_init__(self) -> None:
         """Validate discovery result after initialization."""
@@ -357,7 +357,7 @@ class BaseDiscoveryAlgorithm(abc.ABC):
 
     def __init__(
         self,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         verbose: bool = False,
         max_iterations: int = 1000,
     ) -> None:
@@ -374,11 +374,11 @@ class BaseDiscoveryAlgorithm(abc.ABC):
         self.is_fitted = False
 
         # Data containers
-        self.data: Optional[pd.DataFrame] = None
-        self.variable_names: Optional[list[str]] = None
+        self.data: pd.DataFrame | None = None
+        self.variable_names: list[str] | None = None
 
         # Results cache
-        self._discovery_result: Optional[DiscoveryResult] = None
+        self._discovery_result: DiscoveryResult | None = None
 
         # Set random state
         if random_state is not None:

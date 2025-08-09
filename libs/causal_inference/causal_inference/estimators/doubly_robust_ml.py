@@ -26,7 +26,7 @@ from ..core.base import (
     OutcomeData,
     TreatmentData,
 )
-from ..ml.cross_fitting import CrossFittingEstimator
+from ..ml.cross_fitting import CrossFittingEstimator, ParallelCrossFittingConfig
 from ..ml.super_learner import SuperLearner
 from .orthogonal_moments import MomentFunctionType, OrthogonalMoments
 
@@ -63,6 +63,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         stratified: bool = True,
         compute_diagnostics: bool = True,
         propensity_clip_bounds: tuple[float, float] = (0.01, 0.99),
+        performance_config: ParallelCrossFittingConfig | None = None,
         random_state: int | None = None,
         verbose: bool = False,
     ) -> None:
@@ -76,12 +77,29 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             moment_function: Type of moment function ('aipw', 'orthogonal', 'partialling_out', 'interactive_iv', 'plr', 'pliv', 'auto')
             regularization: Whether to use regularized versions of learners
             stratified: Whether to use stratified cross-validation
+            compute_diagnostics: Whether to compute diagnostic information
+            propensity_clip_bounds: Bounds for clipping propensity scores
+            performance_config: Configuration for parallel processing and performance optimization
             random_state: Random seed for reproducibility
             verbose: Whether to print verbose output
         """
+        # Set up performance configuration with sensible defaults for DML
+        if performance_config is None:
+            performance_config = ParallelCrossFittingConfig(
+                n_jobs=-1,  # Use all available cores by default
+                parallel_backend="threading",  # Threading is often better for ML models
+                max_memory_gb=4.0,
+                chunk_size=10000,
+                enable_caching=True,
+                timeout_per_fold_minutes=10.0,
+                enable_gc_per_fold=True,
+                memory_monitoring=True,
+            )
+
         super().__init__(
             cv_folds=cv_folds if cross_fitting else 1,
             stratified=stratified,
+            parallel_config=performance_config,
             random_state=random_state,
             verbose=verbose,
         )
@@ -124,6 +142,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self.regularization = regularization
         self.compute_diagnostics = compute_diagnostics
         self.propensity_clip_bounds = propensity_clip_bounds
+        self.performance_config = performance_config
 
         # Validate moment function
         allowed_moments = set(OrthogonalMoments.get_available_methods()) | {"auto"}
