@@ -43,7 +43,17 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
     - Cross-fitting to handle overfitting bias from ML methods
     - Efficient influence function-based inference
 
-    The estimator supports both AIPW-style and orthogonal moment-based estimation.
+    The estimator supports multiple treatment types:
+
+    **Binary Treatments**: Traditional ATE between treated (A=1) and control (A=0) groups.
+
+    **Categorical Treatments**: For K categories, ATE compares extreme categories
+    (highest vs lowest category values). Use predict_potential_outcomes() for
+    pairwise comparisons between specific categories.
+
+    **Continuous Treatments**: ATE represents the average marginal effect across
+    the dose range. Use the dose-response function in diagnostics for detailed
+    dose-effect relationships.
 
     Attributes:
         outcome_learner: Machine learning model for outcome regression
@@ -182,6 +192,21 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
                 treatment.categories or treatment.get_unique_values()
             )
             self.n_treatment_categories_ = len(self.treatment_categories_)
+
+            # Warn about memory usage for high-cardinality treatments
+            if self.n_treatment_categories_ > 10:
+                warnings.warn(
+                    f"High-cardinality categorical treatment detected ({self.n_treatment_categories_} categories). "
+                    f"This will create {self.n_treatment_categories_} separate outcome models, "
+                    f"which may consume significant memory. Consider grouping categories or using continuous treatment.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            elif self.n_treatment_categories_ > 50:
+                raise EstimationError(
+                    f"Too many treatment categories ({self.n_treatment_categories_}). "
+                    f"Maximum supported is 50 categories. Consider using continuous treatment or grouping categories."
+                )
         elif treatment.treatment_type == "continuous":
             self.treatment_dose_range_ = treatment.dose_range
 
@@ -814,7 +839,11 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         # Compute orthogonal scores using selected method
         scores = OrthogonalMoments.compute_scores(
-            moment_method, nuisance_estimates, treatment, outcome
+            moment_method,
+            nuisance_estimates,
+            treatment,
+            outcome,
+            treatment_type=self.treatment_type_,
         )
 
         # Store influence function for variance estimation

@@ -535,5 +535,96 @@ class TestTreatmentTypeIntegration:
         assert any("continuous" in name for name in method_names)
 
 
+class TestOrthogonalMomentsIntegration:
+    """Test OrthogonalMoments integration with different treatment types."""
+
+    def test_orthogonal_moments_binary_integration(self):
+        """Test OrthogonalMoments integration with binary treatments."""
+        np.random.seed(42)
+        n = 200
+
+        X = np.random.randn(n, 3)
+        A = np.random.choice([0, 1], n)
+        Y = 1.0 + 0.5 * X[:, 0] + 2.0 * A + np.random.normal(0, 0.5, n)
+
+        treatment = TreatmentData(values=A, treatment_type="binary")
+        outcome = OutcomeData(values=Y)
+        covariates = CovariateData(values=pd.DataFrame(X))
+
+        estimator = DoublyRobustMLEstimator(
+            outcome_learner=LinearRegression(),
+            propensity_learner=LogisticRegression(max_iter=1000),
+            cv_folds=2,
+            random_state=42,
+        )
+
+        # This should not raise any errors about unsupported treatment types
+        estimator.fit(treatment, outcome, covariates)
+        result = estimator.estimate_ate()
+
+        assert result.ate is not None
+        assert "binary" in result.method
+
+    def test_orthogonal_moments_categorical_integration(self):
+        """Test OrthogonalMoments integration with categorical treatments."""
+        np.random.seed(42)
+        n = 300
+
+        X = np.random.randn(n, 3)
+        A = np.random.choice([0, 1, 2], n)
+        treatment_effects = {0: 0.0, 1: 1.5, 2: 3.0}
+        Y = (
+            1.0
+            + 0.5 * X[:, 0]
+            + np.array([treatment_effects[a] for a in A])
+            + np.random.normal(0, 0.5, n)
+        )
+
+        treatment = TreatmentData(values=A, treatment_type="categorical")
+        outcome = OutcomeData(values=Y)
+        covariates = CovariateData(values=pd.DataFrame(X))
+
+        estimator = DoublyRobustMLEstimator(
+            outcome_learner=LinearRegression(),
+            propensity_learner=LogisticRegression(max_iter=1000),
+            cv_folds=2,
+            random_state=42,
+        )
+
+        # This should not raise any errors about unsupported treatment types
+        estimator.fit(treatment, outcome, covariates)
+        result = estimator.estimate_ate()
+
+        assert result.ate is not None
+        assert "categorical" in result.method
+
+    def test_orthogonal_moments_continuous_integration(self):
+        """Test OrthogonalMoments integration with continuous treatments."""
+        np.random.seed(42)
+        n = 250
+
+        X = np.random.randn(n, 3)
+        A = np.random.uniform(0.5, 2.5, n)
+        Y = 1.0 + 0.5 * X[:, 0] + 1.5 * A + np.random.normal(0, 0.5, n)
+
+        treatment = TreatmentData(values=A, treatment_type="continuous")
+        outcome = OutcomeData(values=Y)
+        covariates = CovariateData(values=pd.DataFrame(X))
+
+        estimator = DoublyRobustMLEstimator(
+            outcome_learner=LinearRegression(),
+            propensity_learner=LinearRegression(),  # For continuous treatment
+            cv_folds=2,
+            random_state=42,
+        )
+
+        # This should not raise any errors about unsupported treatment types
+        estimator.fit(treatment, outcome, covariates)
+        result = estimator.estimate_ate()
+
+        assert result.ate is not None
+        assert "continuous" in result.method
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

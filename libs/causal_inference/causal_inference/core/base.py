@@ -100,9 +100,17 @@ class TreatmentData(BaseModel):
 
     def _validate_binary_treatment(self, values: NDArray[Any]) -> None:
         """Validate binary treatment values."""
-        unique_values = np.unique(
-            values[~np.isnan(values.astype(float, errors="ignore"))]
-        )
+        # Handle different data types safely
+        try:
+            # Try to convert to float for NaN detection
+            float_values = values.astype(float)
+            unique_values = np.unique(float_values[~np.isnan(float_values)])
+        except (ValueError, TypeError):
+            # For non-numeric types (strings, etc.), use pandas for missing value detection
+            unique_values = np.unique(values[~pd.isna(values)])
+
+        if len(unique_values) == 0:
+            raise ValueError("Binary treatment contains only missing values")
 
         # Check if values are binary (0/1 or two distinct values)
         if len(unique_values) != 2:

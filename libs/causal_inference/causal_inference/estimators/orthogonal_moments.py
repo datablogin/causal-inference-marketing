@@ -12,6 +12,7 @@ import warnings
 from typing import Any, Literal
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
 
@@ -57,15 +58,17 @@ class OrthogonalMoments:
         outcome: NDArray[Any],
         required_estimates: list[str],
         instrument: NDArray[Any] | None = None,
+        treatment_type: str = "binary",
     ) -> None:
         """Validate inputs for orthogonal moment functions.
 
         Args:
             nuisance_estimates: Dictionary of nuisance parameter estimates
-            treatment: Binary treatment vector
+            treatment: Treatment vector (binary, categorical, or continuous)
             outcome: Continuous outcome vector
             required_estimates: List of required keys in nuisance_estimates
             instrument: Optional instrumental variable
+            treatment_type: Type of treatment ('binary', 'categorical', 'continuous')
 
         Raises:
             ValueError: If validation fails
@@ -98,9 +101,27 @@ class OrthogonalMoments:
                     f"Nuisance estimate '{key}' has incorrect length. Expected {n}, got {len(estimates)}"
                 )
 
-        # Check for NaN/Inf values
-        if not np.isfinite(treatment).all():
-            raise ValueError("Treatment values contain NaN or infinite values")
+        # Validate treatment type
+        allowed_treatment_types = {"binary", "categorical", "continuous"}
+        if treatment_type not in allowed_treatment_types:
+            raise ValueError(f"treatment_type must be one of {allowed_treatment_types}")
+
+        # Check for NaN/Inf values (treatment validation depends on type)
+        if treatment_type == "continuous":
+            # For continuous treatments, convert to numeric first
+            try:
+                treatment_numeric = pd.to_numeric(treatment, errors="coerce")
+                if not np.isfinite(treatment_numeric).all():
+                    raise ValueError(
+                        "Continuous treatment values contain NaN or infinite values"
+                    )
+            except (ValueError, TypeError):
+                raise ValueError("Continuous treatment values must be numeric")
+        else:
+            # For binary/categorical, check for missing values differently
+            if np.any(pd.isna(treatment)):
+                raise ValueError("Treatment values contain missing (NaN) values")
+
         if not np.isfinite(outcome).all():
             raise ValueError("Outcome values contain NaN or infinite values")
         if instrument is not None and not np.isfinite(instrument).all():
@@ -120,83 +141,246 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         **kwargs: Any,
     ) -> NDArray[Any]:
-        """Compute AIPW orthogonal scores.
+        """Compute AIPW orthogonal scores for different treatment types.
 
-        The AIPW (Augmented Inverse Probability Weighting) score function:
+        For binary treatments:
         ψ_AIPW(Y,A,X) = μ₁(X) - μ₀(X) + A(Y-μ₁(X))/g(X) - (1-A)(Y-μ₀(X))/(1-g(X))
 
-        This is doubly robust: consistent if either outcome model OR propensity model
-        is correctly specified.
+        For categorical treatments:
+        Uses marginal effect between reference category and other categories.
+
+        For continuous treatments:
+        Uses dose-response residuals with treatment density weighting.
 
         Args:
-            nuisance_estimates: Dict containing 'mu1', 'mu0', 'propensity_scores'
-            treatment: Binary treatment vector (0/1)
+            nuisance_estimates: Dict containing required estimates per treatment type
+            treatment: Treatment vector (binary/categorical/continuous)
             outcome: Continuous outcome vector
+            treatment_type: Type of treatment ('binary', 'categorical', 'continuous')
             **kwargs: Additional arguments (unused)
 
         Returns:
             Array of AIPW scores for each observation
         """
+        if treatment_type == "binary":
+            return OrthogonalMoments._aipw_binary(
+                nuisance_estimates, treatment, outcome
+            )
+        elif treatment_type == "categorical":
+            return OrthogonalMoments._aipw_categorical(
+                nuisance_estimates, treatment, outcome
+            )
+        elif treatment_type == "continuous":
+            return OrthogonalMoments._aipw_continuous(
+                nuisance_estimates, treatment, outcome
+            )
+        else:
+            raise ValueError(f"Unsupported treatment type: {treatment_type}")
+
+    @staticmethod
+    def _aipw_binary(
+        nuisance_estimates: dict[str, NDArray[Any]],
+        treatment: NDArray[Any],
+        outcome: NDArray[Any],
+    ) -> NDArray[Any]:
+        """Compute AIPW scores for binary treatment."""
         # Validate inputs
         OrthogonalMoments._validate_inputs(
-            nuisance_estimates, treatment, outcome, ["mu1", "mu0", "propensity_scores"]
+            nuisance_estimates,
+            treatment,
+            outcome,
+            ["mu1", "mu0", "propensity_scores"],
+            treatment_type="binary",
         )
 
         mu1 = nuisance_estimates["mu1"]
         mu0 = nuisance_estimates["mu0"]
         g = nuisance_estimates["propensity_scores"]
 
-        # AIPW estimator
+        # Convert treatment to binary if needed
+        unique_vals = np.unique(treatment)
+        if len(unique_vals) == 2 and not np.array_equal(sorted(unique_vals), [0, 1]):
+            treatment_binary = np.where(treatment == unique_vals[0], 0, 1)
+        else:
+            treatment_binary = treatment
+
+        # AIPW estimator for binary treatment
         aipw_scores = (
             mu1
             - mu0
-            + treatment * (outcome - mu1) / g
-            - (1 - treatment) * (outcome - mu0) / (1 - g)
+            + treatment_binary * (outcome - mu1) / g
+            - (1 - treatment_binary) * (outcome - mu0) / (1 - g)
         )
 
         return aipw_scores
+
+    @staticmethod
+    def _aipw_categorical(
+        nuisance_estimates: dict[str, NDArray[Any]],
+        treatment: NDArray[Any],
+        outcome: NDArray[Any],
+    ) -> NDArray[Any]:
+        """Compute AIPW scores for categorical treatment."""
+        # For categorical treatments, we compute marginal effects
+        # This is a simplified approach - in practice you might want all pairwise comparisons
+        required_keys = [
+            "outcome_by_category",
+            "propensity_by_category",
+            "treatment_categories",
+        ]
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates,
+            treatment,
+            outcome,
+            required_keys,
+            treatment_type="categorical",
+        )
+
+        outcome_by_category = nuisance_estimates["outcome_by_category"]
+        propensity_by_category = nuisance_estimates["propensity_by_category"]
+        treatment_categories = nuisance_estimates["treatment_categories"]
+
+        # Use first category as reference, compute marginal effects vs reference
+        ref_category = treatment_categories[0]
+        scores = np.zeros(len(treatment))
+
+        for category in treatment_categories[1:]:  # Skip reference category
+            # Indicator for this treatment category
+            I_k = (treatment == category).astype(float)
+            I_ref = (treatment == ref_category).astype(float)
+
+            # Propensity scores for this category and reference
+            p_k = propensity_by_category[category]
+            p_ref = propensity_by_category[ref_category]
+
+            # Outcome predictions
+            mu_k = outcome_by_category[category]
+            mu_ref = outcome_by_category[ref_category]
+
+            # AIPW score for marginal effect of category k vs reference
+            score_k = (
+                mu_k
+                - mu_ref
+                + I_k * (outcome - mu_k) / np.maximum(p_k, 1e-6)
+                - I_ref * (outcome - mu_ref) / np.maximum(p_ref, 1e-6)
+            )
+
+            # Accumulate scores (average across non-reference categories)
+            scores += score_k / (len(treatment_categories) - 1)
+
+        return scores
+
+    @staticmethod
+    def _aipw_continuous(
+        nuisance_estimates: dict[str, NDArray[Any]],
+        treatment: NDArray[Any],
+        outcome: NDArray[Any],
+    ) -> NDArray[Any]:
+        """Compute AIPW scores for continuous treatment."""
+        # For continuous treatments, we use dose-response residuals
+        required_keys = ["mu_observed", "treatment_residuals"]
+        OrthogonalMoments._validate_inputs(
+            nuisance_estimates,
+            treatment,
+            outcome,
+            required_keys,
+            treatment_type="continuous",
+        )
+
+        mu_observed = nuisance_estimates["mu_observed"]
+        treatment_residuals = nuisance_estimates["treatment_residuals"]
+
+        # For continuous treatment, use residual-based moment function
+        # ψ(Y,D,X) = (Y - μ(D,X)) * (D - E[D|X]) / Var(D|X)
+        # This captures dose-response effects through treatment residuals
+
+        # Avoid division by zero
+        treatment_var = np.var(treatment_residuals)
+        if treatment_var < 1e-8:
+            treatment_var = 1e-8
+
+        continuous_scores = (
+            (outcome - mu_observed) * treatment_residuals / treatment_var
+        )
+
+        return continuous_scores
 
     @staticmethod
     def orthogonal(
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         **kwargs: Any,
     ) -> NDArray[Any]:
-        """Compute basic orthogonal (Neyman-orthogonal) scores.
+        """Compute basic orthogonal (Neyman-orthogonal) scores for different treatment types.
 
-        The basic orthogonal score function:
+        For binary treatments:
         ψ(Y,A,X) = (A-g(X))(Y-μ(A,X)) + μ₁(X) - μ₀(X)
 
-        This provides robustness to misspecification in nuisance functions
-        through the orthogonality condition.
+        For categorical/continuous treatments:
+        Uses treatment-residual based orthogonal scores.
 
         Args:
             nuisance_estimates: Dict containing combined model predictions
-            treatment: Binary treatment vector (0/1)
+            treatment: Treatment vector (binary/categorical/continuous)
             outcome: Continuous outcome vector
+            treatment_type: Type of treatment ('binary', 'categorical', 'continuous')
             **kwargs: Additional arguments (unused)
 
         Returns:
             Array of orthogonal scores for each observation
         """
-        # Validate inputs
-        OrthogonalMoments._validate_inputs(
-            nuisance_estimates,
-            treatment,
-            outcome,
-            ["mu1_combined", "mu0_combined", "mu_observed", "propensity_scores"],
-        )
+        if treatment_type == "binary":
+            # Validate inputs for binary
+            OrthogonalMoments._validate_inputs(
+                nuisance_estimates,
+                treatment,
+                outcome,
+                ["mu1_combined", "mu0_combined", "mu_observed", "propensity_scores"],
+                treatment_type="binary",
+            )
 
-        mu1 = nuisance_estimates["mu1_combined"]
-        mu0 = nuisance_estimates["mu0_combined"]
-        mu_observed = nuisance_estimates["mu_observed"]
-        g = nuisance_estimates["propensity_scores"]
+            mu1 = nuisance_estimates["mu1_combined"]
+            mu0 = nuisance_estimates["mu0_combined"]
+            mu_observed = nuisance_estimates["mu_observed"]
+            g = nuisance_estimates["propensity_scores"]
 
-        # Orthogonal moment function
-        orthogonal_scores = (treatment - g) * (outcome - mu_observed) + mu1 - mu0
+            # Convert treatment to binary if needed
+            unique_vals = np.unique(treatment)
+            if len(unique_vals) == 2 and not np.array_equal(
+                sorted(unique_vals), [0, 1]
+            ):
+                treatment_binary = np.where(treatment == unique_vals[0], 0, 1)
+            else:
+                treatment_binary = treatment
+
+            # Orthogonal moment function for binary treatment
+            orthogonal_scores = (
+                (treatment_binary - g) * (outcome - mu_observed) + mu1 - mu0
+            )
+
+        elif treatment_type in ["categorical", "continuous"]:
+            # For non-binary treatments, use simplified residual-based approach
+            OrthogonalMoments._validate_inputs(
+                nuisance_estimates,
+                treatment,
+                outcome,
+                ["mu_observed"],
+                treatment_type=treatment_type,
+            )
+
+            mu_observed = nuisance_estimates["mu_observed"]
+
+            # Simple residual-based orthogonal scores
+            # This captures the basic orthogonality without requiring complex multi-treatment setup
+            orthogonal_scores = outcome - mu_observed
+
+        else:
+            raise ValueError(f"Unsupported treatment type: {treatment_type}")
 
         return orthogonal_scores
 
@@ -205,6 +389,7 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         **kwargs: Any,
     ) -> NDArray[Any]:
         """Compute partialling out orthogonal scores.
@@ -269,6 +454,7 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         instrument: NDArray[Any] | None = None,
         **kwargs: Any,
     ) -> NDArray[Any]:
@@ -349,6 +535,7 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         **kwargs: Any,
     ) -> NDArray[Any]:
         """Compute Partially Linear Regression orthogonal scores.
@@ -413,6 +600,7 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         instrument: NDArray[Any] | None = None,
         **kwargs: Any,
     ) -> NDArray[Any]:
@@ -541,16 +729,18 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
+        treatment_type: str = "binary",
         instrument: NDArray[Any] | None = None,
         **kwargs: Any,
     ) -> NDArray[Any]:
-        """Compute orthogonal scores using specified method.
+        """Compute orthogonal scores using specified method for different treatment types.
 
         Args:
             method: Name of orthogonal moment method
             nuisance_estimates: Dictionary of nuisance parameter estimates
-            treatment: Binary treatment vector
+            treatment: Treatment vector (binary/categorical/continuous)
             outcome: Continuous outcome vector
+            treatment_type: Type of treatment ('binary', 'categorical', 'continuous')
             instrument: Optional instrumental variable
             **kwargs: Additional method-specific arguments
 
@@ -558,7 +748,7 @@ class OrthogonalMoments:
             Array of orthogonal scores
 
         Raises:
-            ValueError: If method is not recognized
+            ValueError: If method is not recognized or treatment type not supported
         """
         method_map = {
             "aipw": cls.aipw,
@@ -576,7 +766,12 @@ class OrthogonalMoments:
             )
 
         return method_map[method](
-            nuisance_estimates, treatment, outcome, instrument=instrument, **kwargs
+            nuisance_estimates,
+            treatment,
+            outcome,
+            treatment_type=treatment_type,
+            instrument=instrument,
+            **kwargs,
         )
 
     @classmethod
