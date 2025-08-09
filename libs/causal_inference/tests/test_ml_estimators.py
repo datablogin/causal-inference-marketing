@@ -227,8 +227,9 @@ class TestHighDimensionalData:
             values=pd.DataFrame(X), names=[f"X{i}" for i in range(X.shape[1])]
         )
 
-        # Test both AIPW and orthogonal moment functions
-        for moment_function in ["aipw", "orthogonal"]:
+        # Test multiple moment functions including new ones
+        moment_functions = ["aipw", "orthogonal", "partialling_out", "plr", "auto"]
+        for moment_function in moment_functions:
             estimator = DoublyRobustMLEstimator(
                 outcome_learner=SuperLearner(
                     ["linear_regression", "ridge", "lasso", "random_forest"]
@@ -251,7 +252,19 @@ class TestHighDimensionalData:
                 abs(effect.ate - true_ate) < 10.0
             )  # Very relaxed tolerance for small samples
             assert effect.ate_ci_lower < effect.ate_ci_upper
-            assert effect.method == f"DoublyRobustML_{moment_function}"
+
+            # Check method name reflects actual method used (important for auto)
+            assert effect.method.startswith("DoublyRobustML_")
+            if moment_function == "auto":
+                # For auto, check that a valid method was selected
+                selected_method = effect.method.split("_")[-1]
+                from causal_inference.estimators.orthogonal_moments import (
+                    OrthogonalMoments,
+                )
+
+                assert selected_method in OrthogonalMoments.get_available_methods()
+            else:
+                assert effect.method == f"DoublyRobustML_{moment_function}"
 
     def test_super_learner_performance_comparison(self, high_dim_confounded_data):
         """Test that Super Learner outperforms individual learners."""
