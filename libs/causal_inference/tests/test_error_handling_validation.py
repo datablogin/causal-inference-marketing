@@ -238,18 +238,13 @@ class TestInputValidationEnhancements:
 
     def test_treatment_data_validation(self):
         """Test comprehensive treatment data validation."""
-        # Test categorical treatment without categories
+        # Test categorical treatment without categories - this should fail at TreatmentData construction
         with pytest.raises(
-            DataValidationError, match="Categorical treatment must specify categories"
+            ValueError, match="Categorical treatment must specify categories"
         ):
-            treatment = TreatmentData(
+            TreatmentData(
                 values=np.array([0, 1, 2, 1, 0]), treatment_type="categorical"
             )
-            outcome = OutcomeData(
-                values=np.random.normal(0, 1, 5), outcome_type="continuous"
-            )
-            estimator = GComputationEstimator()
-            estimator.fit(treatment, outcome)
 
     def test_categorical_treatment_valid(self):
         """Test that categorical treatment with valid categories works correctly."""

@@ -115,7 +115,8 @@ class TreatmentData(BaseModel):
         # Check if values are binary (0/1 or two distinct values)
         if len(unique_values) != 2:
             raise ValueError(
-                f"Binary treatment must have exactly 2 unique values, got {len(unique_values)}: {unique_values}"
+                f"Binary treatment must have exactly 2 unique values, got {len(unique_values)}: {unique_values}. "
+                "Ensure you have both treated and control units in your data."
             )
 
         # Standardize to 0/1 if not already
@@ -148,6 +149,10 @@ class TreatmentData(BaseModel):
             # Set n_categories automatically
             object.__setattr__(self, "n_categories", n_unique)
 
+        # Require explicit categories for categorical treatment
+        if self.categories is None:
+            raise ValueError("Categorical treatment must specify categories")
+
         # Validate categories if provided
         if self.categories is not None:
             if len(self.categories) != n_unique:
@@ -161,9 +166,7 @@ class TreatmentData(BaseModel):
                     raise ValueError(
                         f"Value {val} not found in provided categories {self.categories}"
                     )
-        else:
-            # Set categories automatically
-            object.__setattr__(self, "categories", sorted(unique_values.tolist()))
+        # Categories are now required for categorical treatment
 
     def _validate_continuous_treatment(self, values: NDArray[Any]) -> None:
         """Validate continuous treatment values."""

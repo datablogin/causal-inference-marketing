@@ -431,22 +431,17 @@ class TestGComputationEstimator:
 
     def test_edge_case_no_treatment_variation(self):
         """Test handling of edge case with no treatment variation."""
-        # Create treatment with no variation (all treated)
-        treatment_no_var = TreatmentData(
-            values=pd.Series([1] * 100), treatment_type="binary"
-        )
-
-        outcome_no_var = OutcomeData(
-            values=pd.Series(np.random.randn(100)), outcome_type="continuous"
-        )
-
-        estimator = GComputationEstimator(bootstrap_samples=0, random_state=42)
-
-        # This should raise an error during validation in the base class
+        # Test that creating TreatmentData with no variation fails at construction time
         with pytest.raises(
-            Exception
-        ):  # Could be DataValidationError or EstimationError
-            estimator.fit(treatment_no_var, outcome_no_var)
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=pd.Series([1] * 100), treatment_type="binary")
+
+        # Also test with all zeros
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=pd.Series([0] * 100), treatment_type="binary")
 
     def test_summary_output(self):
         """Test summary output formatting."""
