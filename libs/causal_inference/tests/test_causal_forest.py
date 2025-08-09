@@ -6,7 +6,6 @@ import pytest
 
 from causal_inference.core.base import (
     CovariateData,
-    DataValidationError,
     EstimationError,
     OutcomeData,
     TreatmentData,
@@ -118,7 +117,11 @@ class TestCausalForest:
 
     def test_prepare_data_non_binary_treatment(self):
         """Test error with non-binary treatment."""
-        treatment_data = TreatmentData(values=np.array([0, 1, 2]))
+        treatment_data = TreatmentData(
+            values=np.array([0, 1, 2]),
+            treatment_type="categorical",
+            categories=[0, 1, 2],
+        )
         outcome_data = OutcomeData(values=np.array([1.0, 2.0, 3.0]))
 
         cf = CausalForest()
@@ -302,23 +305,15 @@ class TestCausalForest:
 
     def test_no_trees_fitted_error(self):
         """Test error when no trees could be fitted."""
-        # Create data where tree fitting will consistently fail
+        # Test that creating TreatmentData with no variation fails at construction time
         n = 20  # Very small dataset
-        X = np.random.randn(n, 2)
         treatment = np.ones(n)  # All treated, no variation
-        outcome = np.random.randn(n)
 
-        treatment_data = TreatmentData(values=treatment)
-        outcome_data = OutcomeData(values=outcome)
-        covariate_data = CovariateData(values=X)
-
-        cf = CausalForest(
-            n_estimators=10, min_samples_split=50
-        )  # Impossible requirements
-
-        # This should raise a DataValidationError due to all-treated data
-        with pytest.raises((EstimationError, ValueError, DataValidationError)):
-            cf.fit(treatment_data, outcome_data, covariate_data)
+        # This should raise a ValueError due to all-treated data (no variation) at construction time
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=treatment, treatment_type="binary")
 
 
 @pytest.fixture

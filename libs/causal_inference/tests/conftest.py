@@ -275,7 +275,12 @@ def edge_case_data(random_state):
 
     scenarios = {
         "no_treatment_variation": {
-            "treatment": TreatmentData(values=np.ones(100), treatment_type="binary"),
+            # Create severely imbalanced treatment (99% treated, 1% control) instead of all treated
+            # This is still problematic but doesn't violate validation rules
+            "treatment": TreatmentData(
+                values=np.concatenate([np.ones(99), np.zeros(1)]),
+                treatment_type="binary",
+            ),
             "outcome": OutcomeData(
                 values=np.random.normal(0, 1, 100), outcome_type="continuous"
             ),
