@@ -408,7 +408,7 @@ class OptimalPolicyTree:
 
     def fit(
         self,
-        X: NDArray[Any],
+        x: NDArray[Any],
         outcomes: NDArray[Any],
         treatments: NDArray[Any],
         cate_estimates: NDArray[Any],
@@ -416,7 +416,7 @@ class OptimalPolicyTree:
         """Fit optimal policy tree (placeholder).
 
         Args:
-            X: Covariates
+            x: Covariates
             outcomes: Observed outcomes
             treatments: Treatment assignments
             cate_estimates: Estimated individual treatment effects
@@ -429,19 +429,19 @@ class OptimalPolicyTree:
         self.tree_ = DecisionTreeRegressor(
             max_depth=self.max_depth, min_samples_leaf=self.min_samples_leaf
         )
-        self.tree_.fit(X, cate_estimates)
+        self.tree_.fit(x, cate_estimates)
         return self
 
-    def predict_policy(self, X: NDArray[Any]) -> NDArray[Any]:
+    def predict_policy(self, x: NDArray[Any]) -> NDArray[Any]:
         """Predict treatment policy (treat if CATE > 0).
 
         Args:
-            X: Covariates for prediction
+            x: Covariates for prediction
 
         Returns:
             Binary treatment recommendations
         """
-        cate_pred = self.tree_.predict(X)
+        cate_pred = self.tree_.predict(x)
         return (cate_pred > 0).astype(int)
 
 
@@ -481,7 +481,7 @@ class SIDES:
 
     def discover_subgroups(
         self,
-        X: NDArray[Any],
+        x: NDArray[Any],
         outcomes: NDArray[Any],
         treatments: NDArray[Any],
         cate_estimates: NDArray[Any],
@@ -505,7 +505,7 @@ class SIDES:
         from sklearn.preprocessing import StandardScaler
 
         # Cluster observations based on CATE estimates and covariates
-        features = np.column_stack([X, cate_estimates.reshape(-1, 1)])
+        features = np.column_stack([x, cate_estimates.reshape(-1, 1)])
 
         # Standardize features for clustering
         scaler = StandardScaler()

@@ -93,21 +93,21 @@ class HonestTree:
 
     def fit(
         self,
-        X: NDArray[Any],
+        x: NDArray[Any],
         y: NDArray[Any],
         treatment: NDArray[Any],
     ) -> HonestTree:
         """Fit honest tree for causal effect estimation.
 
         Args:
-            X: Feature matrix
+            x: Feature matrix
             y: Outcomes
             treatment: Treatment assignments (binary)
 
         Returns:
             Self for chaining
         """
-        n_samples = len(X)
+        n_samples = len(x)
 
         if n_samples < 2 * self.min_samples_split:
             raise ValueError(
@@ -126,12 +126,12 @@ class HonestTree:
         estimate_mask = ~split_mask
 
         # Use splitting sample to build tree structure
-        X_split = X[split_mask]
+        X_split = x[split_mask]
         y_split = y[split_mask]
         treatment_split = treatment[split_mask]
 
         # Store estimation sample for leaf value computation
-        self.X_estimate = X[estimate_mask]
+        self.X_estimate = x[estimate_mask]
         self.y_estimate = y[estimate_mask]
         self.treatment_estimate = treatment[estimate_mask]
 
@@ -170,11 +170,11 @@ class HonestTree:
 
         return self
 
-    def predict(self, X: NDArray[Any]) -> tuple[NDArray[Any], NDArray[Any]]:
+    def predict(self, x: NDArray[Any]) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict treatment effects and standard errors.
 
         Args:
-            X: Feature matrix for prediction
+            x: Feature matrix for prediction
 
         Returns:
             Tuple of (treatment_effects, standard_errors)
@@ -182,7 +182,7 @@ class HonestTree:
         if not self.is_fitted_:
             raise ValueError("Tree not fitted. Call fit() first.")
 
-        n_predict = len(X)
+        n_predict = len(x)
         effects = np.zeros(n_predict)
         std_errors = np.zeros(n_predict)
 
@@ -197,7 +197,7 @@ class HonestTree:
                 std_errors.fill(1.0)  # High uncertainty for small samples
         else:
             # For each prediction point, find corresponding leaf
-            leaf_indices = self.tree_.apply(X)
+            leaf_indices = self.tree_.apply(x)
 
             # Compute estimation sample leaf assignments once (efficiency fix)
             estimation_leaf_indices = self.tree_.apply(self.X_estimate)
@@ -488,12 +488,12 @@ class CausalForest(BaseEstimator):
         return T, Y, X
 
     def predict_cate(
-        self, X: pd.DataFrame | NDArray[Any]
+        self, x: pd.DataFrame | NDArray[Any]
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict CATE with confidence intervals.
 
         Args:
-            X: Covariate matrix for prediction
+            x: Covariate matrix for prediction
 
         Returns:
             Tuple of (cate_estimates, confidence_intervals)
@@ -506,10 +506,10 @@ class CausalForest(BaseEstimator):
             raise EstimationError("No trees available for prediction.")
 
         # Convert to array if needed
-        if isinstance(X, pd.DataFrame):
-            X_array = X.values
+        if isinstance(x, pd.DataFrame):
+            X_array = x.values
         else:
-            X_array = np.asarray(X)
+            X_array = np.asarray(x)
 
         n_samples = len(X_array)
         n_trees = len(self.trees_)
@@ -586,7 +586,7 @@ class CausalForest(BaseEstimator):
         return self.feature_importances_
 
     def variable_importance(
-        self, X: pd.DataFrame | NDArray[Any] | None = None
+        self, x: pd.DataFrame | NDArray[Any] | None = None
     ) -> NDArray[Any]:
         """Compute variable importance for effect modification.
 
@@ -602,12 +602,12 @@ class CausalForest(BaseEstimator):
         if not self.is_fitted:
             raise EstimationError("Model not fitted.")
 
-        if X is None:
+        if x is None:
             if self._training_covariates is None:
                 raise ValueError("No data provided and no training data available.")
             X_array = self._training_covariates
         else:
-            X_array = X.values if isinstance(X, pd.DataFrame) else np.asarray(X)
+            X_array = x.values if isinstance(x, pd.DataFrame) else np.asarray(x)
 
         n_features = X_array.shape[1]
         importances = np.zeros(n_features)
