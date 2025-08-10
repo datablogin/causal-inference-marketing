@@ -7,7 +7,6 @@ import pytest
 from causal_inference.core.base import (
     CovariateData,
     DataValidationError,
-    EstimationError,
     OutcomeData,
     TreatmentData,
 )
@@ -350,19 +349,16 @@ class TestRDDEstimator:
 
     def test_input_validation(self):
         """Test input validation for forcing variables."""
-        # Test non-numeric forcing variable - use enough data to pass minimum sample size
-        bad_treatment = TreatmentData(
-            values=pd.Series(
-                ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
-            ),
-            treatment_type="continuous",
-        )
-        bad_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
-
-        estimator = RDDEstimator(cutoff=2.5)
-
-        with pytest.raises(EstimationError, match="must be numeric"):
-            estimator.fit(bad_treatment, bad_outcome)
+        # Test non-numeric forcing variable - should fail at TreatmentData construction
+        with pytest.raises(
+            ValueError, match="Continuous treatment has no valid numeric values"
+        ):
+            TreatmentData(
+                values=pd.Series(
+                    ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
+                ),
+                treatment_type="continuous",
+            )
 
         # Test forcing variable with NaN values - use enough data to pass minimum sample size
         nan_treatment = TreatmentData(
@@ -371,6 +367,7 @@ class TestRDDEstimator:
         )
         nan_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
 
+        estimator = RDDEstimator(cutoff=2.5)
         with pytest.raises(DataValidationError, match="cannot contain missing data"):
             estimator.fit(nan_treatment, nan_outcome)
 

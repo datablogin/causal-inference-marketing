@@ -96,7 +96,9 @@ class TestDataModelCreation:
 
         # Categorical treatment
         categorical_treatment = TreatmentData(
-            values=np.array([0, 1, 2, 1]), treatment_type="categorical"
+            values=np.array([0, 1, 2, 1]),
+            treatment_type="categorical",
+            categories=[0, 1, 2],
         )
         assert categorical_treatment.treatment_type == "categorical"
 
