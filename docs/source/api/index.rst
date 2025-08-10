@@ -175,15 +175,20 @@ Quick Reference
 Module Index
 ============
 
-.. autosummary::
-   :toctree: _autosummary
-   :template: module.rst
-   :recursive:
+.. note::
+   Full API reference for all modules will be available once the library is fully integrated.
+   For now, see the individual sections above for available functionality.
 
-   causal_inference.core
-   causal_inference.estimators
-   causal_inference.diagnostics
-   causal_inference.data
-   causal_inference.utils
-   causal_inference.ml
-   causal_inference.discovery
+.. Raw autosummary disabled temporarily due to build issues
+.. .. autosummary::
+..    :toctree: _autosummary
+..    :template: module.rst
+..    :recursive:
+..
+..    causal_inference.core
+..    causal_inference.estimators
+..    causal_inference.diagnostics
+..    causal_inference.data
+..    causal_inference.utils
+..    causal_inference.ml
+..    causal_inference.discovery
