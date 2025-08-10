@@ -292,17 +292,13 @@ class TestRDDEstimator:
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""
-        # All observations exactly at cutoff
+        # All observations exactly at cutoff - should fail at TreatmentData construction
         cutoff_values = np.full(50, self.cutoff)
-        cutoff_treatment = TreatmentData(
-            values=cutoff_values, treatment_type="continuous"
-        )
-        cutoff_outcome = OutcomeData(values=np.random.normal(0, 1, 50))
 
-        estimator = RDDEstimator(cutoff=self.cutoff)
-
-        with pytest.raises(Exception):  # Should fail due to no variation
-            estimator.fit(cutoff_treatment, cutoff_outcome)
+        with pytest.raises(
+            ValueError, match="Continuous treatment must have variation"
+        ):
+            TreatmentData(values=cutoff_values, treatment_type="continuous")
 
     def test_with_covariates(self):
         """Test RDD with additional covariates."""
@@ -420,9 +416,9 @@ class TestRDDWithNHEFS:
         error_tolerance = 0.1 * abs(self.true_effect)
         actual_error = abs(result.ate - self.true_effect)
 
-        assert actual_error <= error_tolerance + 0.5, (
-            f"RDD estimate {result.ate:.3f} vs true effect {self.true_effect:.3f}, error {actual_error:.3f}"
-        )
+        assert (
+            actual_error <= error_tolerance + 0.5
+        ), f"RDD estimate {result.ate:.3f} vs true effect {self.true_effect:.3f}, error {actual_error:.3f}"
 
         # Should have reasonable sample sizes on both sides
         assert result.n_left > 50

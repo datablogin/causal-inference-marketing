@@ -257,7 +257,15 @@ class TestHighDimensionalData:
             assert effect.method.startswith("DoublyRobustML_")
             if moment_function == "auto":
                 # For auto, check that a valid method was selected
-                selected_method = effect.method.split("_")[-1]
+                # Method format is "DoublyRobustML_{moment_function}_binary"
+                method_parts = effect.method.split("_")
+                if len(method_parts) >= 3:
+                    # Extract the moment function part (second-to-last)
+                    selected_method = method_parts[-2]
+                else:
+                    # Fallback if format is different
+                    selected_method = method_parts[-1]
+
                 from causal_inference.estimators.orthogonal_moments import (
                     OrthogonalMoments,
                 )
