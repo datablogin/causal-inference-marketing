@@ -48,7 +48,7 @@ This structure mirrors the analytics-backend-monorepo patterns, enabling seamles
 
 ### Requirements
 
-- Python 3.11, 3.12, or 3.13
+- Python 3.9, 3.10, 3.11, 3.12, or 3.13
 - uv package manager (optional but recommended)
 
 ### Development Installation
