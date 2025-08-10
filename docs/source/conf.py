@@ -3,9 +3,12 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../../src"))
+# Add paths to the Python modules
+sys.path.insert(0, os.path.abspath("../../libs/causal_inference"))
+sys.path.insert(0, os.path.abspath("../../shared"))
+sys.path.insert(0, os.path.abspath("../../services"))
 
-project = "Causal Inference Marketing"
+project = "Causal Inference Marketing Tools"
 copyright = "2024, Causal Inference Marketing Team"
 author = "Causal Inference Marketing Team"
 release = "0.1.0"
@@ -16,8 +19,10 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.doctest",
     "sphinx_autodoc_typehints",
     "myst_parser",
+    "nbsphinx",
 ]
 
 templates_path = ["_templates"]

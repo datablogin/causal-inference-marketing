@@ -51,6 +51,10 @@ install:
 install-dev:
 	$(UV) pip install -e ".[dev,test,ml]"
 
+.PHONY: install-docs
+install-docs:
+	$(UV) pip install -e ".[docs]"
+
 # Code quality targets
 .PHONY: format
 format:
@@ -119,6 +123,19 @@ review-file:
 	@echo "Running Claude review of current PR and saving to file..."
 	./claude-review.sh --save-file --focus causal-inference
 
+# Documentation targets
+.PHONY: docs
+docs:
+	cd docs && $(UV) run make html
+
+.PHONY: docs-clean
+docs-clean:
+	cd docs && $(UV) run make clean
+
+.PHONY: docs-serve
+docs-serve:
+	cd docs/build/html && python -m http.server 8080
+
 # Clean targets
 .PHONY: clean
 clean:
@@ -130,5 +147,6 @@ clean:
 	rm -rf .pytest_cache/
 	rm -rf .mypy_cache/
 	rm -rf .ruff_cache/
+	rm -rf docs/build/
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
