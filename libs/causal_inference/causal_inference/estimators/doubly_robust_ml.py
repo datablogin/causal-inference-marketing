@@ -43,7 +43,17 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
     - Cross-fitting to handle overfitting bias from ML methods
     - Efficient influence function-based inference
 
-    The estimator supports both AIPW-style and orthogonal moment-based estimation.
+    The estimator supports multiple treatment types:
+
+    **Binary Treatments**: Traditional ATE between treated (A=1) and control (A=0) groups.
+
+    **Categorical Treatments**: For K categories, ATE compares extreme categories
+    (highest vs lowest category values). Use predict_potential_outcomes() for
+    pairwise comparisons between specific categories.
+
+    **Continuous Treatments**: ATE represents the average marginal effect across
+    the dose range. Use the dose-response function in diagnostics for detailed
+    dose-effect relationships.
 
     Attributes:
         outcome_learner: Machine learning model for outcome regression
@@ -175,10 +185,37 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         if covariates is None:
             raise EstimationError("DoublyRobustMLEstimator requires covariates")
 
-        # Validate binary treatment for now
-        if treatment.treatment_type != "binary":
+        # Store treatment information for use in estimation
+        self.treatment_type_ = treatment.treatment_type
+        if treatment.treatment_type == "categorical":
+            self.treatment_categories_ = (
+                treatment.categories or treatment.get_unique_values()
+            )
+            self.n_treatment_categories_ = len(self.treatment_categories_)
+
+            # Warn about memory usage for high-cardinality treatments
+            if self.n_treatment_categories_ > 10:
+                warnings.warn(
+                    f"High-cardinality categorical treatment detected ({self.n_treatment_categories_} categories). "
+                    f"This will create {self.n_treatment_categories_} separate outcome models, "
+                    f"which may consume significant memory. Consider grouping categories or using continuous treatment.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            elif self.n_treatment_categories_ > 50:
+                raise EstimationError(
+                    f"Too many treatment categories ({self.n_treatment_categories_}). "
+                    f"Maximum supported is 50 categories. Consider using continuous treatment or grouping categories."
+                )
+        elif treatment.treatment_type == "continuous":
+            self.treatment_dose_range_ = treatment.dose_range
+
+        # Validate treatment type is supported
+        supported_types = {"binary", "categorical", "continuous"}
+        if treatment.treatment_type not in supported_types:
             raise EstimationError(
-                "DoublyRobustMLEstimator currently supports only binary treatments"
+                f"Treatment type '{treatment.treatment_type}' not supported. "
+                f"Supported types: {supported_types}"
             )
 
         # Convert data to numpy arrays
@@ -202,85 +239,193 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         y_train: NDArray[Any],
         treatment_train: NDArray[Any] | None = None,
     ) -> dict[str, Any]:
-        """Fit nuisance parameter models on training data."""
+        """Fit nuisance parameter models on training data for different treatment types."""
         if treatment_train is None:
             raise ValueError("Treatment data required for DoublyRobustML")
 
-        # Fit outcome regression models
-        # Separate models for treated and control units (for AIPW-style estimation)
-        treated_mask = treatment_train == 1
-        control_mask = treatment_train == 0
+        models = {}
+
+        # Fit models based on treatment type
+        if self.treatment_type_ == "binary":
+            models = self._fit_binary_treatment_models(
+                X_train, y_train, treatment_train
+            )
+        elif self.treatment_type_ == "categorical":
+            models = self._fit_categorical_treatment_models(
+                X_train, y_train, treatment_train
+            )
+        elif self.treatment_type_ == "continuous":
+            models = self._fit_continuous_treatment_models(
+                X_train, y_train, treatment_train
+            )
+        else:
+            raise EstimationError(f"Unsupported treatment type: {self.treatment_type_}")
+
+        return models
+
+    def _fit_binary_treatment_models(
+        self,
+        X_train: NDArray[Any],
+        y_train: NDArray[Any],
+        treatment_train: NDArray[Any],
+    ) -> dict[str, Any]:
+        """Fit models for binary treatment."""
+        # Convert to 0/1 encoding if needed
+        unique_vals = np.unique(treatment_train)
+        if len(unique_vals) != 2:
+            raise ValueError(
+                f"Binary treatment must have exactly 2 values, got {len(unique_vals)}"
+            )
+
+        # Create binary mask (map to 0/1 if needed)
+        if not np.array_equal(sorted(unique_vals), [0, 1]):
+            treatment_binary = np.where(treatment_train == unique_vals[0], 0, 1)
+        else:
+            treatment_binary = treatment_train.copy()
+
+        treated_mask = treatment_binary == 1
+        control_mask = treatment_binary == 0
 
         # Outcome model for treated units: E[Y|A=1,X]
+        outcome_model_treated = None
         if np.sum(treated_mask) > 0:
             try:
                 outcome_model_treated = clone(self.outcome_learner)
                 outcome_model_treated.fit(X_train[treated_mask], y_train[treated_mask])
             except (ValueError, RuntimeError) as e:
-                import warnings
-
                 warnings.warn(
                     f"Failed to fit outcome model for treated units: {str(e)}. "
                     f"Using zero predictions for treated outcome model.",
                     UserWarning,
                     stacklevel=2,
                 )
-                outcome_model_treated = None
-        else:
-            import warnings
-
-            warnings.warn(
-                "No treated units in training data. Using zero predictions for treated outcome model.",
-                UserWarning,
-                stacklevel=2,
-            )
-            outcome_model_treated = None
 
         # Outcome model for control units: E[Y|A=0,X]
+        outcome_model_control = None
         if np.sum(control_mask) > 0:
             try:
                 outcome_model_control = clone(self.outcome_learner)
                 outcome_model_control.fit(X_train[control_mask], y_train[control_mask])
             except (ValueError, RuntimeError) as e:
-                import warnings
-
                 warnings.warn(
                     f"Failed to fit outcome model for control units: {str(e)}. "
                     f"Using zero predictions for control outcome model.",
                     UserWarning,
                     stacklevel=2,
                 )
-                outcome_model_control = None
-        else:
-            import warnings
 
-            warnings.warn(
-                "No control units in training data. Using zero predictions for control outcome model.",
-                UserWarning,
-                stacklevel=2,
-            )
-            outcome_model_control = None
+        # Combined outcome model: E[Y|A,X]
+        X_with_treatment = np.column_stack([X_train, treatment_binary])
+        outcome_model_combined = clone(self.outcome_learner)
+        outcome_model_combined.fit(X_with_treatment, y_train)
 
-        # Combined outcome model: E[Y|A,X] (for orthogonal moments)
-        X_with_treatment = np.column_stack([X_train, treatment_train])
-        try:
-            outcome_model_combined = clone(self.outcome_learner)
-            outcome_model_combined.fit(X_with_treatment, y_train)
-        except (ValueError, RuntimeError) as e:
-            raise EstimationError(f"Failed to fit combined outcome model: {str(e)}")
-
-        # Fit propensity score model: P(A=1|X)
-        try:
-            propensity_model = clone(self.propensity_learner)
-            propensity_model.fit(X_train, treatment_train)
-        except (ValueError, RuntimeError) as e:
-            raise EstimationError(f"Failed to fit propensity score model: {str(e)}")
+        # Propensity score model: P(A=1|X)
+        propensity_model = clone(self.propensity_learner)
+        propensity_model.fit(X_train, treatment_binary)
 
         return {
             "outcome_model_treated": outcome_model_treated,
             "outcome_model_control": outcome_model_control,
             "outcome_model_combined": outcome_model_combined,
             "propensity_model": propensity_model,
+            "treatment_encoding": treatment_binary,
+        }
+
+    def _fit_categorical_treatment_models(
+        self,
+        X_train: NDArray[Any],
+        y_train: NDArray[Any],
+        treatment_train: NDArray[Any],
+    ) -> dict[str, Any]:
+        """Fit models for categorical (multi-valued) treatment."""
+        # Get treatment categories
+        unique_treatments = np.unique(treatment_train)
+        n_categories = len(unique_treatments)
+
+        if n_categories < 2:
+            raise ValueError("Categorical treatment must have at least 2 categories")
+
+        # Fit separate outcome models for each treatment category
+        outcome_models_by_category = {}
+        for treatment_val in unique_treatments:
+            mask = treatment_train == treatment_val
+            if np.sum(mask) > 0:
+                try:
+                    model = clone(self.outcome_learner)
+                    model.fit(X_train[mask], y_train[mask])
+                    outcome_models_by_category[treatment_val] = model
+                except (ValueError, RuntimeError) as e:
+                    warnings.warn(
+                        f"Failed to fit outcome model for treatment {treatment_val}: {str(e)}. "
+                        f"Using zero predictions for this treatment level.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    outcome_models_by_category[treatment_val] = None
+
+        # Combined outcome model with treatment as feature
+        # Use label encoding for treatment
+        treatment_encoded = np.searchsorted(unique_treatments, treatment_train)
+        X_with_treatment = np.column_stack([X_train, treatment_encoded])
+        outcome_model_combined = clone(self.outcome_learner)
+        outcome_model_combined.fit(X_with_treatment, y_train)
+
+        # Multinomial propensity score model: P(A=k|X) for k in categories
+        propensity_model = clone(self.propensity_learner)
+        # For categorical treatment, propensity learner should be classification-capable
+        propensity_model.fit(X_train, treatment_train)
+
+        return {
+            "outcome_models_by_category": outcome_models_by_category,
+            "outcome_model_combined": outcome_model_combined,
+            "propensity_model": propensity_model,
+            "treatment_categories": unique_treatments,
+            "treatment_encoding": treatment_encoded,
+        }
+
+    def _fit_continuous_treatment_models(
+        self,
+        X_train: NDArray[Any],
+        y_train: NDArray[Any],
+        treatment_train: NDArray[Any],
+    ) -> dict[str, Any]:
+        """Fit models for continuous treatment."""
+        # Validate that treatment is indeed continuous/numeric
+        try:
+            treatment_numeric = pd.to_numeric(treatment_train, errors="coerce")
+            if np.any(pd.isna(treatment_numeric)):
+                raise ValueError("Continuous treatment contains non-numeric values")
+        except (ValueError, TypeError) as e:
+            raise EstimationError(f"Invalid continuous treatment values: {e}")
+
+        # For continuous treatments, we need dose-response functions
+        # Combined outcome model: E[Y|D=d,X] where D is dose
+        X_with_treatment = np.column_stack([X_train, treatment_numeric])
+        outcome_model_combined = clone(self.outcome_learner)
+        outcome_model_combined.fit(X_with_treatment, y_train)
+
+        # Propensity density model: p(D|X) - density estimation for continuous treatment
+        # For simplicity, we'll use a regression approach to model the density
+        # In practice, you might want kernel density estimation or other methods
+        propensity_model = clone(self.outcome_learner)  # Use regression for density
+        propensity_model.fit(X_train, treatment_numeric)
+
+        # Store treatment statistics for dose-response functions
+        treatment_min, treatment_max = (
+            float(np.min(treatment_numeric)),
+            float(np.max(treatment_numeric)),
+        )
+        treatment_mean, treatment_std = (
+            float(np.mean(treatment_numeric)),
+            float(np.std(treatment_numeric)),
+        )
+
+        return {
+            "outcome_model_combined": outcome_model_combined,
+            "propensity_model": propensity_model,  # Really a treatment prediction model
+            "treatment_range": (treatment_min, treatment_max),
+            "treatment_stats": {"mean": treatment_mean, "std": treatment_std},
+            "treatment_values": treatment_numeric,
         }
 
     def _predict_nuisance_parameters(
@@ -290,11 +435,43 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         treatment_val: NDArray[Any] | None = None,
         y_val: NDArray[Any] | None = None,
     ) -> dict[str, NDArray[Any]]:
-        """Predict nuisance parameters on validation data."""
+        """Predict nuisance parameters on validation data for different treatment types."""
         if treatment_val is None:
             raise ValueError("Treatment data required for DoublyRobustML predictions")
 
+        # Dispatch based on treatment type
+        if self.treatment_type_ == "binary":
+            return self._predict_binary_parameters(models, X_val, treatment_val, y_val)
+        elif self.treatment_type_ == "categorical":
+            return self._predict_categorical_parameters(
+                models, X_val, treatment_val, y_val
+            )
+        elif self.treatment_type_ == "continuous":
+            return self._predict_continuous_parameters(
+                models, X_val, treatment_val, y_val
+            )
+        else:
+            raise EstimationError(f"Unsupported treatment type: {self.treatment_type_}")
+
+    def _predict_binary_parameters(
+        self,
+        models: dict[str, Any],
+        X_val: NDArray[Any],
+        treatment_val: NDArray[Any],
+        y_val: NDArray[Any] | None = None,
+    ) -> dict[str, NDArray[Any]]:
+        """Predict nuisance parameters for binary treatment."""
         predictions = {}
+
+        # Convert treatment to binary if needed
+        treatment_binary = models.get("treatment_encoding", treatment_val)
+        if treatment_binary is None:
+            # Handle encoding on the fly
+            unique_vals = np.unique(treatment_val)
+            if not np.array_equal(sorted(unique_vals), [0, 1]):
+                treatment_binary = np.where(treatment_val == unique_vals[0], 0, 1)
+            else:
+                treatment_binary = treatment_val
 
         # Predict potential outcomes μ₁(X) = E[Y|A=1,X] and μ₀(X) = E[Y|A=0,X]
         if models["outcome_model_treated"] is not None:
@@ -319,12 +496,12 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         )
 
         # Predict observed outcome
-        X_with_observed_treatment = np.column_stack([X_val, treatment_val])
+        X_with_observed_treatment = np.column_stack([X_val, treatment_binary])
         predictions["mu_observed"] = models["outcome_model_combined"].predict(
             X_with_observed_treatment
         )
 
-        # Predict propensity scores
+        # Predict propensity scores P(A=1|X)
         if hasattr(models["propensity_model"], "predict_proba"):
             propensity_scores = models["propensity_model"].predict_proba(X_val)[:, 1]
         else:
@@ -339,7 +516,154 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         # Compute residuals for diagnostic purposes if we have observed outcomes
         if y_val is not None and self.compute_diagnostics:
+            self._compute_residuals(predictions, treatment_binary, y_val)
+
+        return predictions
+
+    def _predict_categorical_parameters(
+        self,
+        models: dict[str, Any],
+        X_val: NDArray[Any],
+        treatment_val: NDArray[Any],
+        y_val: NDArray[Any] | None = None,
+    ) -> dict[str, NDArray[Any]]:
+        """Predict nuisance parameters for categorical treatment."""
+        predictions = {}
+        treatment_categories = models["treatment_categories"]
+
+        # Predict outcome for each treatment category
+        outcome_predictions_by_category = {}
+        for treatment_cat in treatment_categories:
+            if models["outcome_models_by_category"].get(treatment_cat) is not None:
+                outcome_predictions_by_category[treatment_cat] = models[
+                    "outcome_models_by_category"
+                ][treatment_cat].predict(X_val)
+            else:
+                outcome_predictions_by_category[treatment_cat] = np.zeros(len(X_val))
+
+        # Store predictions for all categories (for pairwise comparisons)
+        predictions["outcome_by_category"] = outcome_predictions_by_category
+
+        # Predict observed outcome using combined model
+        treatment_encoded = np.searchsorted(treatment_categories, treatment_val)
+        X_with_observed_treatment = np.column_stack([X_val, treatment_encoded])
+        predictions["mu_observed"] = models["outcome_model_combined"].predict(
+            X_with_observed_treatment
+        )
+
+        # Predict propensity scores P(A=k|X) for each category
+        if hasattr(models["propensity_model"], "predict_proba"):
+            propensity_probs = models["propensity_model"].predict_proba(X_val)
+            predictions["propensity_by_category"] = {}
+            for idx, treatment_cat in enumerate(treatment_categories):
+                predictions["propensity_by_category"][treatment_cat] = propensity_probs[
+                    :, idx
+                ]
+        else:
+            # Fallback for models without predict_proba
+            predictions["propensity_by_category"] = {}
+            propensity_pred = models["propensity_model"].predict(X_val)
+            for treatment_cat in treatment_categories:
+                predictions["propensity_by_category"][treatment_cat] = (
+                    propensity_pred == treatment_cat
+                ).astype(float)
+
+        # Create propensity scores for observed treatments
+        propensity_scores = np.zeros(len(X_val))
+        for i, treatment_obs in enumerate(treatment_val):
+            if treatment_obs in predictions["propensity_by_category"]:
+                propensity_scores[i] = predictions["propensity_by_category"][
+                    treatment_obs
+                ][i]
+
+        # Clip for stability
+        predictions["propensity_scores"] = np.clip(
+            propensity_scores,
+            self.propensity_clip_bounds[0],
+            self.propensity_clip_bounds[1],
+        )
+
+        # Store treatment categories and encoding for later use
+        predictions["treatment_categories"] = treatment_categories
+        predictions["treatment_encoding"] = treatment_encoded
+
+        # Compute residuals for diagnostics
+        if y_val is not None and self.compute_diagnostics:
             self._compute_residuals(predictions, treatment_val, y_val)
+
+        return predictions
+
+    def _predict_continuous_parameters(
+        self,
+        models: dict[str, Any],
+        X_val: NDArray[Any],
+        treatment_val: NDArray[Any],
+        y_val: NDArray[Any] | None = None,
+    ) -> dict[str, NDArray[Any]]:
+        """Predict nuisance parameters for continuous treatment."""
+        predictions = {}
+
+        # Convert treatment to numeric
+        treatment_numeric = pd.to_numeric(treatment_val, errors="coerce")
+        if np.any(pd.isna(treatment_numeric)):
+            raise EstimationError(
+                "Continuous treatment contains non-numeric values during prediction"
+            )
+
+        # Predict observed outcome using dose-response function E[Y|D=d,X]
+        X_with_observed_treatment = np.column_stack([X_val, treatment_numeric])
+        predictions["mu_observed"] = models["outcome_model_combined"].predict(
+            X_with_observed_treatment
+        )
+
+        # For continuous treatments, we need to estimate dose-response at different levels
+        # Create a grid of dose values for dose-response function
+        dose_min, dose_max = models["treatment_range"]
+        dose_grid = np.linspace(
+            dose_min, dose_max, num=min(50, int((dose_max - dose_min) * 10) + 1)
+        )
+
+        # Predict outcome at each dose level for ADRF (Average Dose-Response Function)
+        dose_response_predictions = {}
+        for dose in dose_grid:
+            X_with_dose = np.column_stack([X_val, np.full(len(X_val), dose)])
+            dose_response_predictions[dose] = models["outcome_model_combined"].predict(
+                X_with_dose
+            )
+
+        predictions["dose_response_function"] = dose_response_predictions
+        predictions["dose_grid"] = dose_grid
+
+        # Propensity density estimation p(D|X)
+        # For continuous treatment, this is really treatment prediction, not probability
+        propensity_pred = models["propensity_model"].predict(X_val)
+
+        # For continuous treatment, we use treatment residuals instead of propensity scores
+        # This represents how far the observed treatment is from the predicted treatment
+        treatment_residuals = treatment_numeric - propensity_pred
+        predictions["treatment_residuals"] = treatment_residuals
+        predictions["propensity_scores"] = propensity_pred  # Treatment predictions
+
+        # Store treatment statistics
+        predictions["treatment_range"] = models["treatment_range"]
+        predictions["treatment_stats"] = models["treatment_stats"]
+
+        # Compute residuals for diagnostics
+        if y_val is not None and self.compute_diagnostics:
+            # For continuous treatment, we use treatment residuals directly
+            outcome_residuals = y_val - predictions["mu_observed"]
+
+            if self.cross_fitting:
+                if "outcome" not in self._cross_fit_residuals_:
+                    self._cross_fit_residuals_["outcome"] = []
+                if "treatment" not in self._cross_fit_residuals_:
+                    self._cross_fit_residuals_["treatment"] = []
+
+                self._cross_fit_residuals_["outcome"].append(outcome_residuals)
+                self._cross_fit_residuals_["treatment"].append(treatment_residuals)
+            else:
+                self._residuals_["outcome"] = outcome_residuals
+                self._residuals_["treatment"] = treatment_residuals
 
         return predictions
 
@@ -515,7 +839,11 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         # Compute orthogonal scores using selected method
         scores = OrthogonalMoments.compute_scores(
-            moment_method, nuisance_estimates, treatment, outcome
+            moment_method,
+            nuisance_estimates,
+            treatment,
+            outcome,
+            treatment_type=self.treatment_type_,
         )
 
         # Store influence function for variance estimation
@@ -553,20 +881,50 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             ate_ci_lower = None
             ate_ci_upper = None
 
-        # Calculate potential outcome means
-        if "mu1" in self.nuisance_estimates_ and "mu0" in self.nuisance_estimates_:
-            potential_outcome_treated = np.mean(self.nuisance_estimates_["mu1"])
-            potential_outcome_control = np.mean(self.nuisance_estimates_["mu0"])
-        elif "mu1_combined" in self.nuisance_estimates_:
-            potential_outcome_treated = np.mean(
-                self.nuisance_estimates_["mu1_combined"]
-            )
-            potential_outcome_control = np.mean(
-                self.nuisance_estimates_["mu0_combined"]
-            )
-        else:
-            potential_outcome_treated = None
-            potential_outcome_control = None
+        # Calculate potential outcome means based on treatment type
+        potential_outcome_treated = None
+        potential_outcome_control = None
+
+        if self.treatment_type_ == "binary":
+            if "mu1" in self.nuisance_estimates_ and "mu0" in self.nuisance_estimates_:
+                potential_outcome_treated = np.mean(self.nuisance_estimates_["mu1"])
+                potential_outcome_control = np.mean(self.nuisance_estimates_["mu0"])
+            elif "mu1_combined" in self.nuisance_estimates_:
+                potential_outcome_treated = np.mean(
+                    self.nuisance_estimates_["mu1_combined"]
+                )
+                potential_outcome_control = np.mean(
+                    self.nuisance_estimates_["mu0_combined"]
+                )
+        elif self.treatment_type_ == "categorical":
+            # For categorical treatments, report outcomes by category
+            if "outcome_by_category" in self.nuisance_estimates_:
+                potential_outcome_by_category = {}
+                for cat, outcomes in self.nuisance_estimates_[
+                    "outcome_by_category"
+                ].items():
+                    potential_outcome_by_category[cat] = np.mean(outcomes)
+                # For ATE reporting, use first vs last category as reference
+                categories = sorted(
+                    self.nuisance_estimates_.get("treatment_categories", [])
+                )
+                if len(categories) >= 2:
+                    potential_outcome_control = potential_outcome_by_category.get(
+                        categories[0]
+                    )
+                    potential_outcome_treated = potential_outcome_by_category.get(
+                        categories[-1]
+                    )
+        elif self.treatment_type_ == "continuous":
+            # For continuous treatments, report mean outcome across dose range
+            if "dose_response_function" in self.nuisance_estimates_:
+                dose_responses = self.nuisance_estimates_["dose_response_function"]
+                all_responses = []
+                for dose_outcomes in dose_responses.values():
+                    all_responses.extend(dose_outcomes)
+                potential_outcome_treated = (
+                    np.mean(all_responses) if all_responses else None
+                )
 
         # Collect comprehensive diagnostics
         diagnostics = {
@@ -606,6 +964,9 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             except EstimationError as e:
                 diagnostics["cross_fitting_validation"] = {"error": str(e)}
 
+        # Calculate treatment counts based on treatment type
+        n_treated, n_control = self._calculate_treatment_counts(A)
+
         return CausalEffect(
             ate=ate,
             ate_se=ate_se,
@@ -613,12 +974,38 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             ate_ci_upper=ate_ci_upper,
             potential_outcome_treated=potential_outcome_treated,
             potential_outcome_control=potential_outcome_control,
-            method=f"DoublyRobustML_{self._moment_selection_results_.get('selected_method', self.moment_function)}",
+            method=f"DoublyRobustML_{self._moment_selection_results_.get('selected_method', self.moment_function)}_{self.treatment_type_}",
             n_observations=len(A),
-            n_treated=int(np.sum(A == 1)),
-            n_control=int(np.sum(A == 0)),
+            n_treated=n_treated,
+            n_control=n_control,
             diagnostics=diagnostics,
         )
+
+    def _calculate_treatment_counts(self, A: NDArray[Any]) -> tuple[int, int]:
+        """Calculate treatment and control counts based on treatment type."""
+        if self.treatment_type_ == "binary":
+            # Convert to binary if needed
+            unique_vals = np.unique(A)
+            if len(unique_vals) == 2 and not np.array_equal(
+                sorted(unique_vals), [0, 1]
+            ):
+                A_binary = np.where(A == unique_vals[0], 0, 1)
+            else:
+                A_binary = A
+            n_treated = int(np.sum(A_binary == 1))
+            n_control = int(np.sum(A_binary == 0))
+        elif self.treatment_type_ == "categorical":
+            # For categorical, consider the most common category as "control" and others as "treated"
+            unique_vals, counts = np.unique(A, return_counts=True)
+            most_common_idx = np.argmax(counts)
+            n_control = int(counts[most_common_idx])
+            n_treated = int(len(A) - n_control)
+        else:  # continuous
+            # For continuous, all observations are considered "treated" with different doses
+            n_treated = len(A)
+            n_control = 0
+
+        return n_treated, n_control
 
     def predict_potential_outcomes(
         self,

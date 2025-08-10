@@ -257,14 +257,22 @@ class TestHighDimensionalData:
             assert effect.method.startswith("DoublyRobustML_")
             if moment_function == "auto":
                 # For auto, check that a valid method was selected
-                selected_method = effect.method.split("_")[-1]
+                # Method format is "DoublyRobustML_{moment_function}_binary"
+                method_parts = effect.method.split("_")
+                if len(method_parts) >= 3:
+                    # Extract the moment function part (second-to-last)
+                    selected_method = method_parts[-2]
+                else:
+                    # Fallback if format is different
+                    selected_method = method_parts[-1]
+
                 from causal_inference.estimators.orthogonal_moments import (
                     OrthogonalMoments,
                 )
 
                 assert selected_method in OrthogonalMoments.get_available_methods()
             else:
-                assert effect.method == f"DoublyRobustML_{moment_function}"
+                assert effect.method == f"DoublyRobustML_{moment_function}_binary"
 
     def test_super_learner_performance_comparison(self, high_dim_confounded_data):
         """Test that Super Learner outperforms individual learners."""
@@ -528,7 +536,7 @@ class TestCrossValidationPerformance:
         covariate_data = CovariateData(values=pd.DataFrame(np.random.randn(10, 3)))
 
         estimator_drml = DoublyRobustMLEstimator()
-        with pytest.raises(EstimationError, match="binary treatments"):
+        with pytest.raises(EstimationError, match="Got 'continuous' instead"):
             estimator_drml.fit(treatment_data_cont, outcome_data_cont, covariate_data)
 
 

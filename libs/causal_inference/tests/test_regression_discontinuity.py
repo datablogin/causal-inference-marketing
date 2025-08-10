@@ -7,7 +7,6 @@ import pytest
 from causal_inference.core.base import (
     CovariateData,
     DataValidationError,
-    EstimationError,
     OutcomeData,
     TreatmentData,
 )
@@ -292,17 +291,13 @@ class TestRDDEstimator:
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""
-        # All observations exactly at cutoff
+        # All observations exactly at cutoff - should fail at TreatmentData construction
         cutoff_values = np.full(50, self.cutoff)
-        cutoff_treatment = TreatmentData(
-            values=cutoff_values, treatment_type="continuous"
-        )
-        cutoff_outcome = OutcomeData(values=np.random.normal(0, 1, 50))
 
-        estimator = RDDEstimator(cutoff=self.cutoff)
-
-        with pytest.raises(Exception):  # Should fail due to no variation
-            estimator.fit(cutoff_treatment, cutoff_outcome)
+        with pytest.raises(
+            ValueError, match="Continuous treatment must have variation"
+        ):
+            TreatmentData(values=cutoff_values, treatment_type="continuous")
 
     def test_with_covariates(self):
         """Test RDD with additional covariates."""
@@ -354,19 +349,16 @@ class TestRDDEstimator:
 
     def test_input_validation(self):
         """Test input validation for forcing variables."""
-        # Test non-numeric forcing variable - use enough data to pass minimum sample size
-        bad_treatment = TreatmentData(
-            values=pd.Series(
-                ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
-            ),
-            treatment_type="continuous",
-        )
-        bad_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
-
-        estimator = RDDEstimator(cutoff=2.5)
-
-        with pytest.raises(EstimationError, match="must be numeric"):
-            estimator.fit(bad_treatment, bad_outcome)
+        # Test non-numeric forcing variable - should fail at TreatmentData construction
+        with pytest.raises(
+            ValueError, match="Continuous treatment has no valid numeric values"
+        ):
+            TreatmentData(
+                values=pd.Series(
+                    ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"]
+                ),
+                treatment_type="continuous",
+            )
 
         # Test forcing variable with NaN values - use enough data to pass minimum sample size
         nan_treatment = TreatmentData(
@@ -375,6 +367,7 @@ class TestRDDEstimator:
         )
         nan_outcome = OutcomeData(values=np.random.normal(0, 1, 12))
 
+        estimator = RDDEstimator(cutoff=2.5)
         with pytest.raises(DataValidationError, match="cannot contain missing data"):
             estimator.fit(nan_treatment, nan_outcome)
 
@@ -420,9 +413,9 @@ class TestRDDWithNHEFS:
         error_tolerance = 0.1 * abs(self.true_effect)
         actual_error = abs(result.ate - self.true_effect)
 
-        assert actual_error <= error_tolerance + 0.5, (
-            f"RDD estimate {result.ate:.3f} vs true effect {self.true_effect:.3f}, error {actual_error:.3f}"
-        )
+        assert (
+            actual_error <= error_tolerance + 0.5
+        ), f"RDD estimate {result.ate:.3f} vs true effect {self.true_effect:.3f}, error {actual_error:.3f}"
 
         # Should have reasonable sample sizes on both sides
         assert result.n_left > 50

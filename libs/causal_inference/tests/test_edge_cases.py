@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from sklearn.exceptions import ConvergenceWarning
 
+from causal_inference.core.base import TreatmentData
 from causal_inference.estimators.aipw import AIPWEstimator
 from causal_inference.estimators.g_computation import GComputationEstimator
 from causal_inference.estimators.ipw import IPWEstimator
@@ -39,9 +40,9 @@ class TestPerfectSeparation:
                     effect = estimator.estimate_ate()
 
                     # If successful, result should be finite
-                    assert np.isfinite(effect.ate), (
-                        f"{name} produced non-finite ATE with perfect separation"
-                    )
+                    assert np.isfinite(
+                        effect.ate
+                    ), f"{name} produced non-finite ATE with perfect separation"
 
                 # Check if convergence warnings were raised (expected)
                 # Convergence warnings are expected but not required
@@ -61,9 +62,9 @@ class TestPerfectSeparation:
                     "ill-conditioned",
                     "overflow",
                 ]
-                assert any(keyword in error_message for keyword in expected_keywords), (
-                    f"{name} failed with unexpected error: {e}"
-                )
+                assert any(
+                    keyword in error_message for keyword in expected_keywords
+                ), f"{name} failed with unexpected error: {e}"
 
 
 class TestMulticollinearity:
@@ -85,18 +86,18 @@ class TestMulticollinearity:
                 effect = estimator.estimate_ate()
 
                 # Should produce finite results
-                assert np.isfinite(effect.ate), (
-                    f"{name} produced non-finite ATE with multicollinearity"
-                )
+                assert np.isfinite(
+                    effect.ate
+                ), f"{name} produced non-finite ATE with multicollinearity"
 
                 # Confidence intervals should be finite (though potentially wide)
                 if effect.confidence_interval is not None:
-                    assert np.isfinite(effect.confidence_interval[0]), (
-                        f"{name} CI lower bound not finite"
-                    )
-                    assert np.isfinite(effect.confidence_interval[1]), (
-                        f"{name} CI upper bound not finite"
-                    )
+                    assert np.isfinite(
+                        effect.confidence_interval[0]
+                    ), f"{name} CI lower bound not finite"
+                    assert np.isfinite(
+                        effect.confidence_interval[1]
+                    ), f"{name} CI upper bound not finite"
 
             except (ValueError, np.linalg.LinAlgError) as e:
                 # Some estimators may fail with severe multicollinearity
@@ -107,9 +108,9 @@ class TestMulticollinearity:
                     "multicollinearity",
                     "rank deficient",
                 ]
-                assert any(keyword in error_message for keyword in expected_keywords), (
-                    f"{name} failed with unexpected error: {e}"
-                )
+                assert any(
+                    keyword in error_message for keyword in expected_keywords
+                ), f"{name} failed with unexpected error: {e}"
 
 
 class TestRankDeficiency:
@@ -131,9 +132,9 @@ class TestRankDeficiency:
                 effect = estimator.estimate_ate()
 
                 # If estimation succeeds, results should be finite
-                assert np.isfinite(effect.ate), (
-                    f"{name} produced non-finite ATE with rank deficiency"
-                )
+                assert np.isfinite(
+                    effect.ate
+                ), f"{name} produced non-finite ATE with rank deficiency"
 
             except (ValueError, np.linalg.LinAlgError) as e:
                 # Rank deficiency should cause predictable linear algebra errors
@@ -145,36 +146,36 @@ class TestRankDeficiency:
                     "ill-conditioned",
                     "inversion",
                 ]
-                assert any(keyword in error_message for keyword in expected_keywords), (
-                    f"{name} failed with unexpected error for rank deficiency: {e}"
-                )
+                assert any(
+                    keyword in error_message for keyword in expected_keywords
+                ), f"{name} failed with unexpected error for rank deficiency: {e}"
 
 
 class TestNoTreatmentVariation:
     """Test estimator behavior when there's no variation in treatment."""
 
     def test_no_treatment_variation_error(self, edge_case_data):
-        """Test that estimators appropriately handle no treatment variation."""
+        """Test that treatment data with no variation fails at construction time."""
+        # Test that creating TreatmentData with no variation fails at construction time
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=np.ones(100), treatment_type="binary")
+
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=np.zeros(100), treatment_type="binary")
+
+        # The edge_case_data now has valid but severely imbalanced data that should still work
+        # but may produce warnings or poor results - test that it doesn't crash
         data = edge_case_data["no_treatment_variation"]
+        estimator = GComputationEstimator()
 
-        estimators = [
-            ("G-computation", GComputationEstimator()),
-            ("IPW", IPWEstimator()),
-            ("AIPW", AIPWEstimator(cross_fitting=False, bootstrap_samples=0)),
-        ]
-
-        for name, estimator in estimators:
-            # All estimators should fail gracefully when no treatment variation exists
-            with pytest.raises((ValueError, RuntimeError, Exception)) as exc_info:
-                estimator.fit(data["treatment"], data["outcome"], data["covariates"])
-                estimator.estimate_ate()
-
-            # Error message should be informative
-            error_message = str(exc_info.value).lower()
-            expected_keywords = ["variation", "treatment", "constant", "binary"]
-            assert any(keyword in error_message for keyword in expected_keywords), (
-                f"{name} error message not informative: {exc_info.value}"
-            )
+        # Should not raise an exception with valid (though imbalanced) data
+        estimator.fit(data["treatment"], data["outcome"], data["covariates"])
+        result = estimator.estimate_ate()
+        assert result.ate is not None  # Should return some result
 
 
 class TestExtremePropensity:
@@ -202,17 +203,17 @@ class TestExtremePropensity:
                     f"IPW weights are very large (max: {max_weight:.2f}), indicating extreme propensities"
                 )
 
-            assert np.isfinite(effect.ate), (
-                "IPW ATE should be finite even with extreme propensities"
-            )
+            assert np.isfinite(
+                effect.ate
+            ), "IPW ATE should be finite even with extreme propensities"
 
         except (ValueError, RuntimeWarning) as e:
             # IPW may fail with extreme propensities - this is acceptable
             error_message = str(e).lower()
             expected_keywords = ["propensity", "extreme", "weight", "overflow", "inf"]
-            assert any(keyword in error_message for keyword in expected_keywords), (
-                f"IPW failed with unexpected error: {e}"
-            )
+            assert any(
+                keyword in error_message for keyword in expected_keywords
+            ), f"IPW failed with unexpected error: {e}"
 
         # G-computation and AIPW should be more robust
         robust_estimators = [
@@ -224,9 +225,9 @@ class TestExtremePropensity:
             try:
                 estimator.fit(data["treatment"], data["outcome"], data["covariates"])
                 effect = estimator.estimate_ate()
-                assert np.isfinite(effect.ate), (
-                    f"{name} should handle extreme propensities"
-                )
+                assert np.isfinite(
+                    effect.ate
+                ), f"{name} should handle extreme propensities"
 
             except Exception as e:
                 # Even robust estimators may struggle with extreme cases
@@ -255,9 +256,9 @@ class TestSmallSample:
                 effect = estimator.estimate_ate()
 
                 # Results should be finite
-                assert np.isfinite(effect.ate), (
-                    f"{name} produced non-finite ATE with small sample"
-                )
+                assert np.isfinite(
+                    effect.ate
+                ), f"{name} produced non-finite ATE with small sample"
 
                 # Confidence intervals should be wide due to uncertainty (if available)
                 if effect.confidence_interval is not None:
@@ -278,9 +279,9 @@ class TestSmallSample:
                     "degrees",
                     "freedom",
                 ]
-                assert any(keyword in error_message for keyword in expected_keywords), (
-                    f"{name} failed with unexpected small sample error: {e}"
-                )
+                assert any(
+                    keyword in error_message for keyword in expected_keywords
+                ), f"{name} failed with unexpected small sample error: {e}"
 
 
 class TestEdgeCaseIntegration:
@@ -311,21 +312,21 @@ class TestEdgeCaseIntegration:
         """Test that edge cases are properly documented and structured."""
         for scenario_name, scenario_data in edge_case_data.items():
             # Each scenario should have proper data types
-            assert hasattr(scenario_data["treatment"], "values"), (
-                f"{scenario_name} treatment missing values"
-            )
-            assert hasattr(scenario_data["outcome"], "values"), (
-                f"{scenario_name} outcome missing values"
-            )
-            assert hasattr(scenario_data["covariates"], "values"), (
-                f"{scenario_name} covariates missing values"
-            )
+            assert hasattr(
+                scenario_data["treatment"], "values"
+            ), f"{scenario_name} treatment missing values"
+            assert hasattr(
+                scenario_data["outcome"], "values"
+            ), f"{scenario_name} outcome missing values"
+            assert hasattr(
+                scenario_data["covariates"], "values"
+            ), f"{scenario_name} covariates missing values"
 
             # Data should have consistent sample sizes
             n_treatment = len(scenario_data["treatment"].values)
             n_outcome = len(scenario_data["outcome"].values)
             n_covariates = len(scenario_data["covariates"].values)
 
-            assert n_treatment == n_outcome == n_covariates, (
-                f"{scenario_name} has inconsistent sample sizes: {n_treatment}, {n_outcome}, {n_covariates}"
-            )
+            assert (
+                n_treatment == n_outcome == n_covariates
+            ), f"{scenario_name} has inconsistent sample sizes: {n_treatment}, {n_outcome}, {n_covariates}"

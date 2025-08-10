@@ -149,12 +149,11 @@ class TestVirtualTwins:
 
     def test_prepare_data_non_binary_treatment(self):
         """Test error with non-binary treatment."""
-        treatment_data = TreatmentData(values=np.array([0, 1, 2]))
-        outcome_data = OutcomeData(values=np.array([1.0, 2.0, 3.0]))
-
-        vt = VirtualTwins()
-        with pytest.raises(ValueError, match="binary treatment"):
-            vt._prepare_data(treatment_data, outcome_data, None)
+        # Test that creating TreatmentData with 3 unique values fails at construction
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=np.array([0, 1, 2]))
 
     def test_fit_basic(self):
         """Test basic Virtual Twins fitting."""

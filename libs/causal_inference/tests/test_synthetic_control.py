@@ -153,6 +153,7 @@ class TestSyntheticControlEstimator:
         treatment_multi = TreatmentData(
             values=pd.Series(treatment_values, index=self.panel_df.index),
             treatment_type="categorical",
+            categories=[0, 1, 2],
         )
 
         with pytest.raises(DataValidationError, match="exactly 2 treatment groups"):
@@ -349,9 +350,9 @@ class TestSyntheticControlEstimator:
         # Check RMSPE KPI: should be < 0.1
         # Note: This might fail with random data, but should pass with well-designed synthetic data
         # For now, just check that RMSPE is reasonable (< 1.0)
-        assert result.rmspe_pre < 1.0, (
-            f"Pre-intervention RMSPE too high: {result.rmspe_pre}"
-        )
+        assert (
+            result.rmspe_pre < 1.0
+        ), f"Pre-intervention RMSPE too high: {result.rmspe_pre}"
 
     def test_treatment_effect_significance_kpi(self):
         """Test that treatment effect is > 2x RMSPE (significance KPI)."""
@@ -629,9 +630,9 @@ class TestSyntheticControlEstimator:
             results.append(result.ate)
 
         # Should get identical results
-        assert results[0] == results[1], (
-            "Results not reproducible with same random state"
-        )
+        assert (
+            results[0] == results[1]
+        ), "Results not reproducible with same random state"
 
     def test_permutation_inference(self):
         """Test permutation-based confidence intervals."""

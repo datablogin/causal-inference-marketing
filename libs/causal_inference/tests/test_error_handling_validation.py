@@ -82,20 +82,12 @@ class TestDataValidationErrors:
             estimator.fit(treatment_with_nan, outcome)
 
     def test_no_treatment_variation(self):
-        """Test that lack of treatment variation raises DataValidationError."""
-        # All control units - but enough samples to pass minimum size check
-        treatment = TreatmentData(values=np.array([0] * 15), treatment_type="binary")
-        outcome = OutcomeData(
-            values=np.random.normal(0, 1, 15), outcome_type="continuous"
-        )
-
-        estimator = GComputationEstimator()
-
+        """Test that lack of treatment variation fails at TreatmentData construction."""
+        # Test that creating TreatmentData with no variation fails at construction time
         with pytest.raises(
-            DataValidationError,
-            match="Binary treatment must have both treated and control units",
+            ValueError, match="Binary treatment must have exactly 2 unique values"
         ):
-            estimator.fit(treatment, outcome)
+            TreatmentData(values=np.array([0] * 15), treatment_type="binary")
 
     def test_minimum_sample_size(self):
         """Test that minimum sample size requirement is enforced."""
@@ -231,15 +223,11 @@ class TestBusinessFriendlyErrorMessages:
 
     def test_treatment_variation_guidance(self):
         """Test that treatment variation errors provide clear guidance."""
-        treatment = TreatmentData(values=np.array([1] * 15), treatment_type="binary")
-        outcome = OutcomeData(
-            values=np.random.normal(0, 1, 15), outcome_type="continuous"
-        )
-
-        estimator = GComputationEstimator()
-
-        with pytest.raises(DataValidationError) as exc_info:
-            estimator.fit(treatment, outcome)
+        # Test that creating TreatmentData with no variation provides clear error message
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ) as exc_info:
+            TreatmentData(values=np.array([1] * 15), treatment_type="binary")
 
         error_message = str(exc_info.value)
         assert "both treated and control units" in error_message
@@ -250,18 +238,13 @@ class TestInputValidationEnhancements:
 
     def test_treatment_data_validation(self):
         """Test comprehensive treatment data validation."""
-        # Test categorical treatment without categories
+        # Test categorical treatment without categories - this should fail at TreatmentData construction
         with pytest.raises(
-            DataValidationError, match="Categorical treatment must specify categories"
+            ValueError, match="Categorical treatment must specify categories"
         ):
-            treatment = TreatmentData(
+            TreatmentData(
                 values=np.array([0, 1, 2, 1, 0]), treatment_type="categorical"
             )
-            outcome = OutcomeData(
-                values=np.random.normal(0, 1, 5), outcome_type="continuous"
-            )
-            estimator = GComputationEstimator()
-            estimator.fit(treatment, outcome)
 
     def test_categorical_treatment_valid(self):
         """Test that categorical treatment with valid categories works correctly."""
@@ -322,9 +305,9 @@ class TestInputValidationEnhancements:
             effect2 = estimator_copy.estimate_ate()
 
             # Results should be identical with same seed
-            assert np.isclose(effect1.ate, effect2.ate), (
-                f"ATE not reproducible for {type(estimator).__name__}"
-            )
+            assert np.isclose(
+                effect1.ate, effect2.ate
+            ), f"ATE not reproducible for {type(estimator).__name__}"
 
             # Bootstrap estimates should also be reproducible (check sorted values to avoid order issues)
             if (
@@ -334,18 +317,18 @@ class TestInputValidationEnhancements:
                 # Sort both arrays to check if they contain the same values (order might vary)
                 sorted_estimates1 = np.sort(effect1.bootstrap_estimates)
                 sorted_estimates2 = np.sort(effect2.bootstrap_estimates)
-                assert np.allclose(sorted_estimates1, sorted_estimates2), (
-                    f"Bootstrap estimates not reproducible for {type(estimator).__name__}"
-                )
+                assert np.allclose(
+                    sorted_estimates1, sorted_estimates2
+                ), f"Bootstrap estimates not reproducible for {type(estimator).__name__}"
 
             # Confidence intervals should be reproducible
             if effect1.ate_ci_lower is not None and effect2.ate_ci_lower is not None:
-                assert np.isclose(effect1.ate_ci_lower, effect2.ate_ci_lower), (
-                    f"CI lower bound not reproducible for {type(estimator).__name__}"
-                )
-                assert np.isclose(effect1.ate_ci_upper, effect2.ate_ci_upper), (
-                    f"CI upper bound not reproducible for {type(estimator).__name__}"
-                )
+                assert np.isclose(
+                    effect1.ate_ci_lower, effect2.ate_ci_lower
+                ), f"CI lower bound not reproducible for {type(estimator).__name__}"
+                assert np.isclose(
+                    effect1.ate_ci_upper, effect2.ate_ci_upper
+                ), f"CI upper bound not reproducible for {type(estimator).__name__}"
 
             results.append(effect1)
 
@@ -414,40 +397,40 @@ class TestInputValidationEnhancements:
                     # Bootstrap should either converge or provide meaningful diagnostics
                     if not effect.bootstrap_converged:
                         # If not converged, we should still get reasonable estimates
-                        assert np.isfinite(effect.ate), (
-                            f"ATE should be finite even with convergence issues for {type(estimator).__name__}"
-                        )
+                        assert np.isfinite(
+                            effect.ate
+                        ), f"ATE should be finite even with convergence issues for {type(estimator).__name__}"
                         # Standard error might be None if bootstrap failed completely
                         if effect.ate_se is not None:
-                            assert effect.ate_se > 0, (
-                                f"Standard error should be positive for {type(estimator).__name__}"
-                            )
+                            assert (
+                                effect.ate_se > 0
+                            ), f"Standard error should be positive for {type(estimator).__name__}"
                     else:
                         # If converged, all bootstrap statistics should be available
-                        assert np.isfinite(effect.ate), (
-                            f"ATE should be finite when converged for {type(estimator).__name__}"
-                        )
+                        assert np.isfinite(
+                            effect.ate
+                        ), f"ATE should be finite when converged for {type(estimator).__name__}"
                         if effect.ate_se is not None:
-                            assert effect.ate_se > 0, (
-                                f"Standard error should be positive when converged for {type(estimator).__name__}"
-                            )
+                            assert (
+                                effect.ate_se > 0
+                            ), f"Standard error should be positive when converged for {type(estimator).__name__}"
 
                         # Check that confidence intervals are reasonable
                         if (
                             effect.ate_ci_lower is not None
                             and effect.ate_ci_upper is not None
                         ):
-                            assert effect.ate_ci_lower < effect.ate_ci_upper, (
-                                f"CI bounds should be ordered correctly for {type(estimator).__name__}"
-                            )
+                            assert (
+                                effect.ate_ci_lower < effect.ate_ci_upper
+                            ), f"CI bounds should be ordered correctly for {type(estimator).__name__}"
 
                 # Basic sanity checks regardless of convergence
-                assert np.isfinite(effect.ate), (
-                    f"Point estimate should always be finite for {type(estimator).__name__}"
-                )
-                assert effect.n_observations == n_samples, (
-                    f"Sample size should be correct for {type(estimator).__name__}"
-                )
+                assert np.isfinite(
+                    effect.ate
+                ), f"Point estimate should always be finite for {type(estimator).__name__}"
+                assert (
+                    effect.n_observations == n_samples
+                ), f"Sample size should be correct for {type(estimator).__name__}"
 
             except EstimationError as e:
                 # For challenging cases, some estimators may fail
@@ -462,9 +445,7 @@ class TestInputValidationEnhancements:
                         "instability",
                         "failed",
                     ]
-                ), (
-                    f"Error message should be informative for {type(estimator).__name__}: {error_msg}"
-                )
+                ), f"Error message should be informative for {type(estimator).__name__}: {error_msg}"
 
     def test_robust_error_recovery(self):
         """Test that estimators can recover from errors gracefully."""

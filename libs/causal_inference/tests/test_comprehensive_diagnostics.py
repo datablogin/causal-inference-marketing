@@ -529,8 +529,16 @@ class TestComprehensiveValidationSuite:
 
         assert hasattr(results, "validation_score")
 
-        # All treated or all control
-        all_treated = TreatmentData(values=np.ones(100, dtype=int))
+        # Test that creating invalid TreatmentData with no variation fails at construction time
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(values=np.ones(100, dtype=int))
+
+        # Test with valid but imbalanced treatment for the validation function
+        # Create very imbalanced treatment (95% treated, 5% control)
+        imbalanced_treatment = np.concatenate([np.ones(95), np.zeros(5)])
+        treatment_data = TreatmentData(values=imbalanced_treatment)
         normal_outcome = OutcomeData(values=np.random.normal(0, 1, 100))
         normal_covariates = CovariateData(
             values=pd.DataFrame({"X1": np.random.normal(0, 1, 100)})
@@ -538,10 +546,10 @@ class TestComprehensiveValidationSuite:
 
         # Should handle gracefully (though will detect issues)
         results = validate_causal_assumptions(
-            all_treated, normal_outcome, normal_covariates, verbose=False
+            treatment_data, normal_outcome, normal_covariates, verbose=False
         )
 
-        # Should detect critical issues
+        # Should detect critical issues due to severe imbalance
         assert len(results.critical_issues) > 0
 
 

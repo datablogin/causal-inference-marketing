@@ -392,21 +392,15 @@ class TestBaseEstimator:
 
     def test_input_validation_no_treatment_variation(self):
         """Test validation with no treatment variation."""
-        estimator = MockEstimator()
-
-        # All treated units
-        no_variation_treatment = TreatmentData(
-            values=pd.Series([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),  # All 1s
-            treatment_type="binary",
-        )
-
-        outcome = OutcomeData(values=pd.Series(range(11)), outcome_type="continuous")
-
+        # Test that creating TreatmentData with no variation fails at construction time
         with pytest.raises(
-            DataValidationError,
-            match="Binary treatment must have both treated and control units",
+            ValueError,
+            match="Binary treatment must have exactly 2 unique values",
         ):
-            estimator.fit(treatment=no_variation_treatment, outcome=outcome)
+            TreatmentData(
+                values=pd.Series([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),  # All 1s
+                treatment_type="binary",
+            )
 
     def test_positivity_assumption_check(self):
         """Test positivity assumption checking."""
