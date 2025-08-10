@@ -129,6 +129,15 @@ def test_common_patterns():
 
                 # Check for missing colons in control structures
                 stripped = line.strip()
+
+                # Skip non-control-structure statements
+                if (
+                    stripped.startswith(("#", "import", "from"))
+                    or "=" in stripped
+                    and not stripped.startswith(("if ", "elif ", "while ", "for "))
+                ):
+                    continue
+
                 if (
                     stripped.startswith(
                         (
@@ -146,8 +155,6 @@ def test_common_patterns():
                     )
                     and not stripped.endswith(":")
                     and not stripped.endswith("\\")
-                    and "(" not in stripped
-                    or stripped.count("(") == stripped.count(")")
                 ):
                     error_msg = f"{doc_file.relative_to(Path.cwd())}:{line_num + i} - Missing colon: {stripped}"
                     pattern_errors.append(error_msg)
