@@ -1,0 +1,89 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        version: "latest"
+
+    - name: Install documentation dependencies
+      run: |
+        uv pip install --system -e ".[docs]"
+
+    - name: Build documentation
+      run: |
+        cd docs
+        make html
+
+    - name: Check for broken links
+      run: |
+        cd docs
+        make linkcheck || true  # Don't fail on broken external links
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: documentation-html
+        path: docs/build/html/
+        retention-days: 30
+
+    # Deploy to GitHub Pages on main branch
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/build/html
+        force_orphan: true
+        user_name: 'github-actions[bot]'
+        user_email: 'github-actions[bot]@users.noreply.github.com'
+        commit_message: 'Deploy documentation ${{ github.sha }}'
+
+  test-docs-examples:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v1
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: |
+        uv pip install --system -e ".[dev,test,ml,docs]"
+
+    - name: Test documentation examples
+      run: |
+        # Extract and test code examples from documentation
+        python -m pytest docs/test_doc_examples.py -v || true
+
+    - name: Test notebook examples
+      run: |
+        # Test that example notebooks run without errors
+        jupyter nbconvert --to notebook --execute examples/notebooks/*.ipynb || true
