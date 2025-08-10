@@ -354,7 +354,7 @@ class TestDMLDiagnostics:
                 for key, value in d.items():
                     if isinstance(value, dict):
                         check_numeric_values(value)
-                    elif isinstance(value, int | float):
+                    elif isinstance(value, (int, float)):
                         assert np.isfinite(value) or key in [
                             "correlation",
                             "p_value",
