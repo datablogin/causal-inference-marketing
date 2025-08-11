@@ -93,9 +93,13 @@ class HTMLReportGenerator:
         Returns:
             Complete HTML report as string
         """
-        # Set default title
+        # Set default title with HTML escaping for security
         if title is None:
             title = f"Causal Analysis Report - {self.treatment_column.title()} Impact"
+
+        # Sanitize user inputs for security
+        title = self._sanitize_user_input(title)
+        analyst_name = self._sanitize_user_input(analyst_name) if analyst_name else None
 
         # Generate report sections
         sections = {}
@@ -127,14 +131,27 @@ class HTMLReportGenerator:
         if template in ["technical", "full"]:
             sections["technical_appendix"] = self._generate_technical_appendix()
 
-        # Generate final HTML
-        return self._compile_html_report(
+        # Generate final HTML with size management
+        html_report = self._compile_html_report(
             title=title,
             sections=sections,
             template=template,
             analyst_name=analyst_name,
             **kwargs,
         )
+
+        # Memory management: warn if report is very large
+        report_size_mb = len(html_report) / (1024 * 1024)
+        if report_size_mb > 10:
+            import warnings
+
+            warnings.warn(
+                f"Large HTML report generated ({report_size_mb:.1f}MB). "
+                f"Consider reducing plot complexity or template scope for better performance.",
+                UserWarning,
+            )
+
+        return html_report
 
     def _generate_executive_summary(self) -> dict[str, Any]:
         """Generate executive summary section."""
@@ -358,7 +375,7 @@ class HTMLReportGenerator:
                 "ate_ci_lower": self.effect.ate_ci_lower,
                 "ate_ci_upper": self.effect.ate_ci_upper,
                 "p_value": getattr(self.effect, "p_value", None),
-                "interpretation": self.effect.interpretation,
+                "interpretation": getattr(self.effect, "interpretation", None),
             },
         }
 
@@ -751,3 +768,20 @@ class HTMLReportGenerator:
         """
 
         return html
+
+    def _sanitize_user_input(self, text: str | None) -> str:
+        """Sanitize user input for HTML output to prevent XSS."""
+        if not text:
+            return ""
+
+        import html
+
+        # HTML escape to prevent XSS
+        sanitized = html.escape(str(text))
+
+        # Additional security: limit length to prevent DoS
+        max_length = 500
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "..."
+
+        return sanitized
