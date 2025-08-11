@@ -7,6 +7,8 @@ following monorepo-compatible patterns for future integration.
 __version__ = "0.1.0"
 __author__ = "Robert Welborn"
 
+# Unified API
+from .api import CausalAnalysis
 from .core import *
 from .data import *
 from .discovery import (
@@ -35,6 +37,7 @@ __all__ = [
     "__author__",
     "AIPWEstimator",
     "BaseDiscoveryAlgorithm",
+    "CausalAnalysis",
     "CausalDAG",
     "DiscoveryEstimatorPipeline",
     "DiscoveryResult",
