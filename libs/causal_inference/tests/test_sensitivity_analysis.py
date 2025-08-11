@@ -170,8 +170,9 @@ class TestOsterDelta:
 
     def test_oster_data_validation(self):
         """Test Oster analysis input validation."""
-        T = np.array([1, 0, 1])
-        Y = np.array([2, 1])  # Wrong length
+        # Use longer arrays to pass minimum length requirement
+        T = np.array([1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1])  # 13 elements
+        Y = np.array([2, 1, 3, 4, 5, 6, 7, 8, 9, 10])  # 10 elements - different length
 
         with pytest.raises(ValueError, match="same length"):
             oster_delta(outcome=Y, treatment=T)

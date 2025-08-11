@@ -287,7 +287,9 @@ class TestTreatmentVariationChecks:
 
     def test_check_treatment_variation_unbalanced_warning(self):
         """Test warning for unbalanced binary treatment."""
-        treatment = np.array([0] * 95 + [1] * 5)  # Very unbalanced
+        treatment = np.array(
+            [0] * 999 + [1] * 1
+        )  # Very unbalanced (0.1% < 1% threshold)
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -337,11 +339,16 @@ class TestModelAssumptionChecks:
 
     def test_check_model_assumptions_weak_correlation(self):
         """Test warning for very weak treatment-outcome correlation."""
-        np.random.seed(42)
         n = 1000
+        # Create treatment and outcome with exactly zero correlation
+        treatment = np.array([0, 1] * (n // 2))  # Perfect alternating pattern
 
-        treatment = np.random.binomial(1, 0.5, n)
-        outcome = np.random.normal(0, 1, n)  # No relationship
+        # Create outcome that has exactly zero correlation with treatment
+        # Since treatment alternates 0,1,0,1..., we make outcome also alternate
+        # but with a shift to ensure zero correlation
+        outcome = np.array(
+            [1, 1, -1, -1] * (n // 4)
+        )  # Pattern that sums to zero correlation
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
@@ -415,10 +422,37 @@ class TestIntegrationWithOsterDelta:
                 bootstrap_samples=0,
             )
 
-        # Test with mismatched lengths
+        # Test with mismatched lengths (use longer arrays to pass min_length check)
         with pytest.raises(ValueError, match="same length"):
             oster_delta(
-                outcome=[1, 2, 3, 4, 5],
-                treatment=[0, 1, 0],  # Different length
+                outcome=[
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                ],  # 15 elements
+                treatment=[
+                    0,
+                    1,
+                    0,
+                    1,
+                    0,
+                    1,
+                    0,
+                    1,
+                    0,
+                    1,
+                ],  # 10 elements - different length
                 bootstrap_samples=0,
             )

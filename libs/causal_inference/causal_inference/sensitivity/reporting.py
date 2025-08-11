@@ -13,7 +13,13 @@ from typing import Any
 
 import numpy as np
 
-from . import e_value, negative_control, oster_delta, placebo_test, rosenbaum_bounds
+from .controls import negative_control
+
+# Import functions directly to avoid circular imports
+from .e_values import e_value
+from .oster import oster_delta
+from .placebo import placebo_test
+from .rosenbaum import rosenbaum_bounds
 
 
 def generate_sensitivity_report(
