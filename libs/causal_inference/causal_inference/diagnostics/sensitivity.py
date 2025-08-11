@@ -119,6 +119,13 @@ def evalue_calculation(
     elif evalue_ci_upper is not None:
         evalue_ci = evalue_ci_upper
 
+    # Add protective effect information to interpretation
+    base_interpretation = _interpret_evalue(evalue_point)
+    if risk_ratio < 1.0:
+        interpretation = f"{base_interpretation} (protective effect below null)"
+    else:
+        interpretation = base_interpretation
+
     return {
         "evalue_point": float(evalue_point),
         "evalue_ci": float(evalue_ci) if evalue_ci is not None else None,
@@ -129,7 +136,7 @@ def evalue_calculation(
         if evalue_ci_upper is not None
         else None,
         "risk_ratio_used": float(risk_ratio),
-        "interpretation": _interpret_evalue(evalue_point),
+        "interpretation": interpretation,
         "effect_type": effect_type,
         "threshold_interpretation": _get_evalue_threshold_interpretation(evalue_point),
     }
@@ -138,15 +145,15 @@ def evalue_calculation(
 def _interpret_evalue(evalue: float) -> str:
     """Provide interpretation for E-value following VanderWeele & Ding guidelines."""
     if evalue < 1.5:
-        return "Low robustness - weak confounding could explain association"
+        return "Low robustness - weak unmeasured confounding could explain association"
     elif evalue < 2.0:
-        return "Moderate robustness - moderate confounding needed"
+        return "Moderate robustness - moderate unmeasured confounding needed"
     elif evalue < 3.0:
-        return "Good robustness - strong confounding needed"
+        return "Good robustness - strong unmeasured confounding needed"
     elif evalue < 5.0:
-        return "High robustness - very strong confounding needed"
+        return "High robustness - very strong unmeasured confounding needed"
     else:
-        return "Very high robustness - extreme confounding needed"
+        return "Very high robustness - extreme unmeasured confounding needed"
 
 
 def _get_evalue_threshold_interpretation(evalue: float) -> str:
