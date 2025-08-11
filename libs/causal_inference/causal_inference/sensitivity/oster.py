@@ -7,6 +7,7 @@ as a guide for selection on unobservables.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
@@ -14,6 +15,14 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
+
+from .utils import (
+    check_model_assumptions,
+    check_treatment_variation,
+    format_sensitivity_warnings,
+    standardize_input,
+    validate_treatment_outcome_lengths,
+)
 
 
 def oster_delta(
@@ -98,31 +107,43 @@ def oster_delta(
         Robustness test: Results are considered robust if |β*| is at least
         some fraction (typically 50-80%) of |β_full|.
     """
-    # Convert inputs to numpy arrays
-    y = np.asarray(outcome).flatten()
-    t = np.asarray(treatment).flatten()
+    # Configure warning formatting
+    format_sensitivity_warnings()
 
-    if len(y) != len(t):
-        raise ValueError("Outcome and treatment must have same length")
+    # Standardize inputs with enhanced validation
+    y = standardize_input(outcome, name="outcome", min_length=10)
+    t = standardize_input(treatment, name="treatment", min_length=10)
 
-    n = len(y)
+    # Validate consistent lengths
+    arrays_to_check = [y, t]
+    names_to_check = ["outcome", "treatment"]
 
-    # Handle covariates
+    # Handle covariates with standardization
     X_restricted = None
     if covariates_restricted is not None:
-        X_restricted = np.asarray(covariates_restricted)
-        if X_restricted.ndim == 1:
-            X_restricted = X_restricted.reshape(-1, 1)
-        if len(X_restricted) != n:
-            raise ValueError("Covariates must have same length as outcome")
+        X_restricted = standardize_input(
+            covariates_restricted,
+            name="covariates_restricted",
+            allow_2d=True,
+            min_length=len(y),
+        )
+        arrays_to_check.append(X_restricted)
+        names_to_check.append("covariates_restricted")
 
     X_full = None
     if covariates_full is not None:
-        X_full = np.asarray(covariates_full)
-        if X_full.ndim == 1:
-            X_full = X_full.reshape(-1, 1)
-        if len(X_full) != n:
-            raise ValueError("Full covariates must have same length as outcome")
+        X_full = standardize_input(
+            covariates_full, name="covariates_full", allow_2d=True, min_length=len(y)
+        )
+        arrays_to_check.append(X_full)
+        names_to_check.append("covariates_full")
+
+    # Validate all arrays have consistent lengths
+    validate_treatment_outcome_lengths(*arrays_to_check, names=names_to_check)
+
+    # Check treatment variation and basic assumptions
+    check_treatment_variation(t)
+    check_model_assumptions(y, t, X_full)
 
     # Set random state
     if random_state is not None:
@@ -191,6 +212,42 @@ def oster_delta(
         abs(beta_star) / abs(beta_full) if abs(beta_full) > 1e-10 else 1.0
     )
 
+    # Warning system for edge cases and assumption violations
+    if r2_full < 0.1:
+        warnings.warn(
+            f"Low R² in full model ({r2_full:.3f}). "
+            "Oster bounds may be unreliable with poor model fit. "
+            "Consider adding more relevant covariates.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    if r2_improvement < 0.001:
+        warnings.warn(
+            f"Very small R² improvement ({r2_improvement:.4f}) from additional controls. "
+            "This suggests either no meaningful confounders were added "
+            "or all relevant confounders were already controlled.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    if abs(beta_full) < 0.01:
+        warnings.warn(
+            "Treatment effect is very small. "
+            "Oster bounds may be sensitive to numerical precision issues.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    if robustness_ratio < 0.2:
+        warnings.warn(
+            f"Low robustness ratio ({robustness_ratio:.3f}). "
+            "Results are highly sensitive to unobserved confounding. "
+            "Consider collecting additional control variables.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     # Robustness test (common threshold is 0.5 or 0.8)
     robustness_threshold = 0.5
     passes_robustness_test = robustness_ratio >= robustness_threshold
@@ -243,36 +300,61 @@ def _bootstrap_oster(
     r_max: float,
     delta: float,
     n_bootstrap: int,
+    chunk_size: int = 100,
 ) -> dict[str, Any]:
-    """Bootstrap confidence intervals for Oster bounds."""
+    """Bootstrap confidence intervals for Oster bounds with chunked processing.
+
+    Args:
+        y: Outcome variable
+        t: Treatment variable
+        X_restricted: Restricted covariates
+        X_full: Full covariates
+        r_max: Maximum R-squared
+        delta: Selection parameter
+        n_bootstrap: Number of bootstrap samples
+        chunk_size: Number of bootstrap samples to process in each chunk
+
+    Returns:
+        Dictionary with bootstrap confidence intervals
+    """
     n = len(y)
     bootstrap_betas = []
     bootstrap_ratios = []
 
-    for _ in range(n_bootstrap):
-        # Bootstrap sample
-        idx = np.random.choice(n, n, replace=True)
-        y_boot = y[idx]
-        t_boot = t[idx]
-        X_restricted_boot = X_restricted[idx] if X_restricted is not None else None
-        X_full_boot = X_full[idx] if X_full is not None else None
+    # Process bootstrap samples in chunks to manage memory
+    n_chunks = (n_bootstrap + chunk_size - 1) // chunk_size
 
-        try:
-            # Calculate Oster delta for bootstrap sample
-            boot_results = oster_delta(
-                y_boot,
-                t_boot,
-                X_restricted_boot,
-                X_full_boot,
-                r_max=r_max,
-                delta=delta,
-                bootstrap_samples=0,  # No nested bootstrapping
-            )
-            bootstrap_betas.append(boot_results["beta_star"])
-            bootstrap_ratios.append(boot_results["robustness_ratio"])
-        except (ValueError, np.linalg.LinAlgError):
-            # Skip failed bootstrap samples
-            continue
+    for chunk_idx in range(n_chunks):
+        start_idx = chunk_idx * chunk_size
+        end_idx = min((chunk_idx + 1) * chunk_size, n_bootstrap)
+        chunk_samples = end_idx - start_idx
+
+        # Generate all indices for this chunk at once for efficiency
+        chunk_indices = np.random.choice(n, size=(chunk_samples, n), replace=True)
+
+        for i in range(chunk_samples):
+            idx = chunk_indices[i]
+            y_boot = y[idx]
+            t_boot = t[idx]
+            X_restricted_boot = X_restricted[idx] if X_restricted is not None else None
+            X_full_boot = X_full[idx] if X_full is not None else None
+
+            try:
+                # Calculate Oster delta for bootstrap sample
+                boot_results = oster_delta(
+                    y_boot,
+                    t_boot,
+                    X_restricted_boot,
+                    X_full_boot,
+                    r_max=r_max,
+                    delta=delta,
+                    bootstrap_samples=0,  # No nested bootstrapping
+                )
+                bootstrap_betas.append(boot_results["beta_star"])
+                bootstrap_ratios.append(boot_results["robustness_ratio"])
+            except (ValueError, np.linalg.LinAlgError):
+                # Skip failed bootstrap samples
+                continue
 
     if len(bootstrap_betas) == 0:
         return {"error": "All bootstrap samples failed"}
@@ -290,4 +372,5 @@ def _bootstrap_oster(
             float(np.percentile(bootstrap_ratios, 97.5)),
         ],
         "n_successful_bootstraps": len(bootstrap_betas),
+        "n_chunks_processed": n_chunks,
     }
