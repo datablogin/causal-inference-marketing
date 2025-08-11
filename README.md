@@ -71,18 +71,40 @@ make api            # Start FastAPI development server
 
 ### Available Estimators
 
-This library includes the following causal inference estimators:
+This library includes comprehensive causal inference estimators across multiple categories:
 
-- **G-Computation**: Outcome regression approach
-- **IPW (Inverse Probability Weighting)**: Propensity score weighting
+#### Core Estimators
+- **G-Computation**: Outcome regression approach for standardization
+- **IPW (Inverse Probability Weighting)**: Propensity score weighting with stabilization
 - **AIPW (Augmented IPW)**: Doubly robust estimator combining G-computation and IPW
 - **TMLE (Targeted Maximum Likelihood Estimation)**: Efficient doubly robust estimator
-- **Doubly Robust ML**: Machine learning-based doubly robust estimation
-- **Instrumental Variables (IV)**: Two-stage least squares for unmeasured confounding
-- **G-Estimation**: Structural nested models
-- **Propensity Score Methods**: Matching, stratification, and diagnostics
-- **Time-Varying Treatment**: Sequential treatment strategies
-- **Survival Analysis**: Causal survival models (IPW, G-computation, AIPW)
+- **Doubly Robust ML**: Machine learning-based doubly robust estimation with cross-fitting
+
+#### Advanced Machine Learning Methods
+- **Causal Forests**: Honest random forests for heterogeneous treatment effects
+- **Meta-Learners**: T-learner, X-learner, R-learner for conditional average treatment effects (CATE)
+- **Bayesian Causal Inference**: Posterior inference with uncertainty quantification
+- **Subgroup Discovery**: Automated identification of treatment effect heterogeneity
+
+#### Design-Based Methods
+- **Instrumental Variables (IV)**: Two-stage least squares with weak instrument diagnostics
+- **Regression Discontinuity (RDD)**: Sharp and fuzzy discontinuity designs
+- **Difference-in-Differences (DID)**: Panel data estimation with staggered adoption
+- **Synthetic Control**: Comparative case study method for policy evaluation
+
+#### Specialized Applications
+- **G-Estimation**: Structural nested models for optimal treatment regimes
+- **Mediation Analysis**: Direct and indirect effect decomposition
+- **Propensity Score Methods**: Matching, stratification, and covariate balance diagnostics
+- **Time-Varying Treatment**: Sequential treatment strategies with g-methods
+- **Survival Analysis**: Causal survival models (IPW, G-computation, AIPW) with RMST estimation
+
+#### Enhanced Features
+- **Parallel Cross-Fitting**: 2x+ speedup with configurable backends
+- **Continuous Treatments**: Dose-response estimation and marginal treatment effects
+- **Multi-Category Treatments**: K-way treatment comparisons
+- **Comprehensive Diagnostics**: Orthogonality checks, residual analysis, model validation
+- **Synthetic Data Generation**: Validation pipeline with known ground truth
 
 ### Library Usage
 
@@ -103,7 +125,7 @@ df = pd.DataFrame({
 
 # Prepare data objects
 treatment = TreatmentData(data=df['treatment'])
-outcome = OutcomeData(data=df['outcome'])  
+outcome = OutcomeData(data=df['outcome'])
 covariates = CovariateData(data=df[['age', 'income']])
 
 # G-Computation Estimator
@@ -260,7 +282,329 @@ rmst_diff = survival_ipw.estimate_rmst_difference(tau=365)
 print(f"RMST difference at 1 year: {rmst_diff.effect:.1f} days (95% CI: {rmst_diff.confidence_interval})")
 ```
 
+#### Causal Forests for Heterogeneous Treatment Effects
+```python
+from causal_inference.estimators import CausalForestEstimator
+
+# Honest causal forest for individualized treatment effects
+cf_estimator = CausalForestEstimator(
+    n_trees=1000,
+    min_samples_leaf=10,
+    honesty=True,
+    honesty_fraction=0.5
+)
+cf_estimator.fit(treatment, outcome, covariates)
+
+# Get individualized treatment effects
+individual_effects = cf_estimator.predict(covariates)
+print(f"Mean CATE: {individual_effects.mean():.3f}")
+print(f"CATE std: {individual_effects.std():.3f}")
+
+# Variable importance for effect modifiers
+importance = cf_estimator.get_feature_importance()
+print(f"Top effect modifier: {importance.index[0]} (importance: {importance.iloc[0]:.3f})")
+
+# Confidence intervals for individual effects
+ci_lower, ci_upper = cf_estimator.predict_confidence_intervals(covariates, alpha=0.05)
+print(f"Individual CIs computed for {len(ci_lower)} observations")
+```
+
+#### Meta-Learners for CATE Estimation
+```python
+from causal_inference.estimators import TLearner, XLearner, RLearner
+from sklearn.ensemble import RandomForestRegressor
+
+# T-Learner: Separate models for treated and control
+t_learner = TLearner(
+    base_learner=RandomForestRegressor(n_estimators=100)
+)
+t_learner.fit(treatment, outcome, covariates)
+t_cate = t_learner.predict_cate(covariates)
+
+# X-Learner: More efficient for imbalanced treatments
+x_learner = XLearner(
+    outcome_learner=RandomForestRegressor(n_estimators=100),
+    propensity_learner=RandomForestRegressor(n_estimators=100)
+)
+x_learner.fit(treatment, outcome, covariates)
+x_cate = x_learner.predict_cate(covariates)
+
+# R-Learner: Residual-based approach
+r_learner = RLearner(
+    outcome_learner=RandomForestRegressor(n_estimators=100),
+    propensity_learner=RandomForestRegressor(n_estimators=100),
+    treatment_learner=RandomForestRegressor(n_estimators=100)
+)
+r_learner.fit(treatment, outcome, covariates)
+r_cate = r_learner.predict_cate(covariates)
+
+print(f"T-Learner ATE: {t_cate.mean():.3f}")
+print(f"X-Learner ATE: {x_cate.mean():.3f}")
+print(f"R-Learner ATE: {r_cate.mean():.3f}")
+```
+
+#### Mediation Analysis
+```python
+from causal_inference.estimators import MediationEstimator
+
+# Prepare mediator data
+mediator_data = CovariateData(data=df[['mediator_variable']])
+
+# Mediation analysis with bootstrap CI
+mediation = MediationEstimator(
+    outcome_model_type='linear',
+    mediator_model_type='linear',
+    n_bootstrap=1000
+)
+mediation.fit(treatment, outcome, covariates, mediator_data)
+
+# Decompose total effect
+results = mediation.estimate_effects()
+print(f"Total Effect: {results.total_effect:.3f} (95% CI: {results.total_effect_ci})")
+print(f"Direct Effect: {results.direct_effect:.3f} (95% CI: {results.direct_effect_ci})")
+print(f"Indirect Effect: {results.indirect_effect:.3f} (95% CI: {results.indirect_effect_ci})")
+print(f"Proportion Mediated: {results.proportion_mediated:.2%}")
+```
+
+#### Difference-in-Differences Analysis
+```python
+from causal_inference.estimators import DifferenceInDifferencesEstimator
+
+# Panel data with pre/post periods and treatment/control groups
+did_estimator = DifferenceInDifferencesEstimator(
+    time_variable='period',
+    unit_variable='unit_id',
+    cluster_se=True  # Cluster standard errors by unit
+)
+did_estimator.fit(treatment, outcome, covariates)
+did_result = did_estimator.estimate_ate()
+
+# Parallel trends test
+parallel_trends = did_estimator.test_parallel_trends()
+print(f"DID ATE: {did_result.ate:.3f} (95% CI: {did_result.confidence_interval})")
+print(f"Parallel trends test p-value: {parallel_trends.p_value:.3f}")
+
+# Event study for dynamic effects
+if parallel_trends.p_value > 0.05:  # If parallel trends hold
+    event_study = did_estimator.event_study(leads=3, lags=5)
+    print(f"Pre-treatment effects: {event_study.pre_effects}")
+    print(f"Post-treatment effects: {event_study.post_effects}")
+```
+
+#### Synthetic Control Method
+```python
+from causal_inference.estimators import SyntheticControlEstimator
+
+# Comparative case study for policy evaluation
+sc_estimator = SyntheticControlEstimator(
+    time_variable='year',
+    unit_variable='state',
+    treatment_period=2010
+)
+sc_estimator.fit(treatment, outcome, covariates)
+sc_result = sc_estimator.estimate_ate()
+
+# Get synthetic control weights
+weights = sc_estimator.get_synthetic_weights()
+print(f"Synthetic Control ATE: {sc_result.ate:.3f}")
+print(f"Top donor states: {weights.head(3)}")
+
+# Placebo tests for validation
+placebo_results = sc_estimator.placebo_tests()
+print(f"Placebo test p-value: {placebo_results.p_value:.3f}")
+```
+
+#### Regression Discontinuity Design
+```python
+from causal_inference.estimators import RegressionDiscontinuityEstimator
+
+# Sharp RDD with running variable
+rdd_estimator = RegressionDiscontinuityEstimator(
+    cutoff=0.0,
+    bandwidth='optimal',  # Imbens-Kalyanaraman optimal bandwidth
+    polynomial_order=1
+)
+rdd_estimator.fit(treatment, outcome, covariates, running_variable=df['score'])
+rdd_result = rdd_estimator.estimate_ate()
+
+# Diagnostics
+diagnostics = rdd_estimator.get_diagnostics()
+print(f"RDD Local ATE: {rdd_result.ate:.3f} (95% CI: {rdd_result.confidence_interval})")
+print(f"Optimal bandwidth: {diagnostics['bandwidth']:.3f}")
+print(f"Density test p-value: {diagnostics['density_test_p']:.3f}")
+
+# Robustness checks
+robustness = rdd_estimator.robustness_checks(
+    bandwidths=[0.5, 1.0, 1.5],
+    polynomial_orders=[1, 2, 3]
+)
+print(f"Robustness range: {robustness.effect_range}")
+```
+
+#### Bayesian Causal Inference
+```python
+from causal_inference.estimators import BayesianCausalEstimator
+
+# Bayesian estimation with uncertainty quantification
+bayesian_estimator = BayesianCausalEstimator(
+    prior_type='weakly_informative',
+    n_samples=2000,
+    n_chains=4
+)
+bayesian_estimator.fit(treatment, outcome, covariates)
+
+# Posterior inference
+posterior = bayesian_estimator.get_posterior_samples()
+ate_samples = posterior['ate']
+
+print(f"Posterior mean ATE: {ate_samples.mean():.3f}")
+print(f"95% Credible Interval: [{np.percentile(ate_samples, 2.5):.3f}, {np.percentile(ate_samples, 97.5):.3f}]")
+print(f"P(ATE > 0): {(ate_samples > 0).mean():.3f}")
+
+# Model comparison with Bayes factors
+model_comparison = bayesian_estimator.compare_models(['linear', 'nonlinear'])
+print(f"Best model: {model_comparison.best_model}")
+```
+
+#### Enhanced Doubly Robust ML with Diagnostics
+```python
+from causal_inference.estimators import DoublyRobustMLEstimator
+from causal_inference.testing import generate_synthetic_dml_data
+
+# Generate synthetic data for validation
+X_syn, D_syn, Y_syn, true_ate = generate_synthetic_dml_data(
+    n=2000,
+    n_features=10,
+    true_ate=1.5,
+    confounding_strength=1.0
+)
+
+# Enhanced DML with comprehensive diagnostics
+dml_estimator = DoublyRobustMLEstimator(
+    outcome_learner=RandomForestRegressor(n_estimators=100),
+    propensity_learner=RandomForestClassifier(n_estimators=100),
+    n_folds=5,
+    moment_function='aipw',  # or 'orthogonal', 'partialling_out'
+    performance_config={
+        'n_jobs': -1,  # Parallel processing
+        'parallel_backend': 'threading',
+        'enable_caching': True
+    }
+)
+dml_estimator.fit(TreatmentData(D_syn), OutcomeData(Y_syn), CovariateData(X_syn))
+dml_result = dml_estimator.estimate_ate()
+
+# Comprehensive diagnostics
+diagnostics = dml_estimator.get_comprehensive_diagnostics()
+print(f"DML ATE: {dml_result.ate:.3f} (True: {true_ate:.3f})")
+print(f"Orthogonality check: r={diagnostics['orthogonality_correlation']:.4f}")
+print(f"Outcome model R²: {diagnostics['outcome_model_r2']:.3f}")
+print(f"Propensity model AUC: {diagnostics['propensity_model_auc']:.3f}")
+
+# Performance profiling
+profiling = dml_estimator.profile_performance()
+print(f"Runtime: {profiling['total_time']:.2f}s")
+print(f"Memory peak: {profiling['memory_peak_mb']:.1f}MB")
+```
+
+## Method Selection Guide
+
+### Choosing the Right Estimator
+
+#### By Study Design and Data Structure
+
+**Cross-sectional Data (Single Time Point)**
+- **G-Computation**: When you have good outcome model specification
+- **IPW**: When you have good propensity model specification
+- **AIPW/TMLE**: When you want double robustness protection
+- **Causal Forests**: For heterogeneous treatment effects with high-dimensional data
+- **Meta-Learners**: For CATE estimation with flexible ML models
+
+**Panel Data (Multiple Time Points)**
+- **Difference-in-Differences**: For policy evaluation with parallel trends
+- **Synthetic Control**: For comparative case studies with few treated units
+- **Time-Varying Treatment**: For sequential treatment strategies
+
+**Cross-sectional with Design Elements**
+- **Instrumental Variables**: When you have unmeasured confounding but valid instruments
+- **Regression Discontinuity**: When treatment assignment follows a cutoff rule
+- **Propensity Score Methods**: For covariate balance in observational studies
+
+#### By Treatment Type
+
+**Binary Treatment (0/1)**
+- All estimators support binary treatments
+- Start with **AIPW** for double robustness
+- Use **Causal Forests** for heterogeneity exploration
+
+**Continuous Treatment (doses, amounts)**
+- **Enhanced DML**: Supports dose-response estimation
+- **Bayesian Methods**: For uncertainty quantification with continuous treatments
+- **G-Computation**: With flexible outcome models
+
+**Multi-Category Treatment (A/B/C)**
+- **Enhanced DML**: Supports K-way comparisons
+- **Meta-Learners**: Can handle multiple treatment arms
+- **Bayesian Methods**: For complex treatment structures
+
+#### By Sample Size and Computational Resources
+
+**Small Samples (n < 1,000)**
+- **G-Computation**: Simple and interpretable
+- **Bayesian Methods**: Incorporates prior information
+- **Bootstrap-based methods**: For robust inference
+
+**Medium Samples (1,000 - 10,000)**
+- **AIPW/TMLE**: Efficient and robust
+- **Propensity Score Methods**: Good balance diagnostics
+- **Meta-Learners**: Flexible ML approaches
+
+**Large Samples (n > 10,000)**
+- **Doubly Robust ML**: Parallel processing and caching
+- **Causal Forests**: Scales well with sample size
+- **Enhanced DML**: Memory-efficient processing
+
+#### By Research Question
+
+**Average Treatment Effect (ATE)**
+- **AIPW, TMLE**: Most efficient for population-level effects
+- **DML**: For high-dimensional confounders
+
+**Heterogeneous Treatment Effects (HTE)**
+- **Causal Forests**: Individual-level predictions
+- **Meta-Learners**: Different approaches for different scenarios
+- **Subgroup Discovery**: Automatic subgroup identification
+
+**Optimal Treatment Assignment**
+- **G-Estimation**: Structural nested models for optimal regimes
+- **Causal Forests**: Individual treatment recommendations
+- **Bayesian Methods**: Incorporating decision costs
+
+**Mechanism Understanding**
+- **Mediation Analysis**: Direct vs. indirect effects
+- **G-Estimation**: Structural relationships
+- **Bayesian Methods**: Full posterior uncertainty
+
+### Performance and Scalability
+
+#### Runtime Expectations (1,000 samples)
+- **G-Computation**: < 1s
+- **IPW**: < 1s
+- **AIPW**: < 2s
+- **TMLE**: < 5s
+- **DML (parallel)**: < 10s
+- **Causal Forests**: < 30s
+- **Bayesian Methods**: 1-5 minutes
+
+#### Memory Requirements
+- **Basic Estimators**: < 100MB
+- **DML with caching**: < 1GB
+- **Causal Forests**: < 500MB
+- **Bayesian MCMC**: < 2GB
+
 ### API Service
+
+#### Development Server
 ```bash
 # Start the causal inference API
 make api
@@ -268,9 +612,47 @@ make api
 # Test the API
 curl http://localhost:8000/health/
 curl http://localhost:8000/api/v1/attribution/methods
+
+# Interactive API documentation
+open http://localhost:8000/docs
+```
+
+#### Production Configuration
+```bash
+# Environment variables for production
+export CAUSAL_API_HOST=0.0.0.0
+export CAUSAL_API_PORT=8000
+export CAUSAL_API_WORKERS=4
+export CAUSAL_LOG_LEVEL=INFO
+export CAUSAL_CACHE_SIZE=1000
+
+# Start with production settings
+uvicorn services.causal_api.main:app \
+  --host $CAUSAL_API_HOST \
+  --port $CAUSAL_API_PORT \
+  --workers $CAUSAL_API_WORKERS
+```
+
+#### API Endpoints
+```python
+# Example API usage
+import requests
+
+# Estimate treatment effect via API
+response = requests.post("http://localhost:8000/api/v1/estimate", json={
+    "method": "aipw",
+    "treatment": [1, 0, 1, 0, 1],
+    "outcome": [2.1, 1.5, 2.3, 1.8, 2.0],
+    "covariates": [[1, 2], [2, 1], [1, 1], [2, 2], [1, 2]],
+    "bootstrap_samples": 1000
+})
+result = response.json()
+print(f"ATE: {result['ate']:.3f} (95% CI: {result['confidence_interval']})")
 ```
 
 ### Docker Deployment
+
+#### Development Environment
 ```bash
 # Start all services
 docker-compose -f docker/docker-compose.yml up
@@ -278,6 +660,82 @@ docker-compose -f docker/docker-compose.yml up
 # API available at http://localhost:8000
 # Metrics at http://localhost:9090
 # Prometheus at http://localhost:9091
+```
+
+#### Production Deployment
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+services:
+  causal_api:
+    image: causal-inference:latest
+    environment:
+      - CAUSAL_API_WORKERS=8
+      - CAUSAL_CACHE_SIZE=5000
+      - CAUSAL_LOG_LEVEL=WARNING
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 2GB
+          cpus: '2'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+#### Kubernetes Deployment
+```yaml
+# k8s/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: causal-api
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: causal-api
+  template:
+    spec:
+      containers:
+      - name: api
+        image: causal-inference:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        env:
+        - name: CAUSAL_API_WORKERS
+          value: "4"
+```
+
+#### Performance Monitoring
+```python
+# Monitoring integration
+from causal_inference.monitoring import CausalMetrics
+
+# Track estimation performance
+metrics = CausalMetrics()
+with metrics.track_estimation("aipw"):
+    result = aipw_estimator.estimate_ate()
+
+# Export to Prometheus
+metrics.export_prometheus(port=9090)
+
+# Key metrics tracked:
+# - estimation_duration_seconds
+# - model_fit_duration_seconds
+# - memory_usage_bytes
+# - estimation_errors_total
+# - api_requests_total
 ```
 
 ## Development
@@ -332,7 +790,7 @@ make ci
 
 # Individual commands
 make lint       # Run ruff linting
-make typecheck  # Run mypy type checking  
+make typecheck  # Run mypy type checking
 make test       # Run pytest
 make format     # Auto-format code with ruff
 ```
