@@ -124,7 +124,7 @@ class CausalDAG(BaseModel):
         max_edges = n * (n - 1)  # Maximum edges in DAG
         return self.n_edges / max_edges if max_edges > 0 else 0.0
 
-    def get_parents(self, variable: str | int) -> list[str]:
+    def get_parents(self, variable: Union[str, int]) -> list[str]:
         """Get parent variables of a given variable."""
         if isinstance(variable, str):
             if variable not in self.variable_names:
@@ -136,7 +136,7 @@ class CausalDAG(BaseModel):
         parent_indices = np.where(self.adjacency_matrix[:, var_idx] == 1)[0]
         return [self.variable_names[i] for i in parent_indices]
 
-    def get_children(self, variable: str | int) -> list[str]:
+    def get_children(self, variable: Union[str, int]) -> list[str]:
         """Get child variables of a given variable."""
         if isinstance(variable, str):
             if variable not in self.variable_names:
@@ -148,7 +148,7 @@ class CausalDAG(BaseModel):
         child_indices = np.where(self.adjacency_matrix[var_idx, :] == 1)[0]
         return [self.variable_names[i] for i in child_indices]
 
-    def has_edge(self, from_var: str | int, to_var: str | int) -> bool:
+    def has_edge(self, from_var: Union[str, int], to_var: Union[str, int]) -> bool:
         """Check if there's an edge from one variable to another."""
         if isinstance(from_var, str):
             from_idx = self.variable_names.index(from_var)
@@ -186,7 +186,7 @@ class CausalDAG(BaseModel):
 
         return G
 
-    def get_markov_blanket(self, variable: str | int) -> list[str]:
+    def get_markov_blanket(self, variable: Union[str, int]) -> list[str]:
         """Get the Markov blanket of a variable (parents, children, and co-parents)."""
         if isinstance(variable, str):
             var_name = variable
