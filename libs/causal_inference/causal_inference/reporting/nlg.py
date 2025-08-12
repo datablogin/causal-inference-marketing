@@ -82,12 +82,21 @@ class BusinessInsightsGenerator:
         # Effect size interpretation
         if significance:
             if self.effect.ate > 0:
-                summary_parts.append(
+                base_text = (
                     f"<p><strong>Business Impact:</strong> On average, the treatment increases "
-                    f"{outcome_name} by {self.effect.ate:.3f} units. Based on our confidence interval "
-                    f"[{self.effect.ate_ci_lower:.3f}, {self.effect.ate_ci_upper:.3f}], the true effect "
-                    f"is likely between these values with 95% confidence.</p>"
+                    f"{outcome_name} by {self.effect.ate:.3f} units."
                 )
+                if (
+                    self.effect.ate_ci_lower is not None
+                    and self.effect.ate_ci_upper is not None
+                ):
+                    base_text += (
+                        f" Based on our confidence interval "
+                        f"[{self.effect.ate_ci_lower:.3f}, {self.effect.ate_ci_upper:.3f}], the true effect "
+                        f"is likely between these values with 95% confidence."
+                    )
+                base_text += "</p>"
+                summary_parts.append(base_text)
             else:
                 summary_parts.append(
                     f"<p><strong>Business Impact:</strong> On average, the treatment decreases "
@@ -181,11 +190,20 @@ class BusinessInsightsGenerator:
             )
 
         # Add confidence interval considerations
-        ci_width = self.effect.ate_ci_upper - self.effect.ate_ci_lower
-        if ci_width > abs(self.effect.ate) * 2:  # Wide confidence interval
+        if (
+            self.effect.ate_ci_upper is not None
+            and self.effect.ate_ci_lower is not None
+        ):
+            ci_width = self.effect.ate_ci_upper - self.effect.ate_ci_lower
+            if ci_width > abs(self.effect.ate) * 2:  # Wide confidence interval
+                recommendations.append(
+                    "📊 **Note uncertainty**: The confidence interval is relatively wide, "
+                    "indicating substantial uncertainty about the true effect size."
+                )
+        else:
             recommendations.append(
-                "📊 **Note uncertainty**: The confidence interval is relatively wide, "
-                "indicating substantial uncertainty about the true effect size."
+                "📊 **Note uncertainty**: No confidence intervals available. "
+                "Consider using an estimator with bootstrap-based inference for uncertainty quantification."
             )
 
         return recommendations
@@ -256,8 +274,11 @@ class BusinessInsightsGenerator:
             )
 
         # Confidence interval width
-        if hasattr(self.effect, "ate_ci_lower") and hasattr(
-            self.effect, "ate_ci_upper"
+        if (
+            hasattr(self.effect, "ate_ci_lower")
+            and hasattr(self.effect, "ate_ci_upper")
+            and self.effect.ate_ci_lower is not None
+            and self.effect.ate_ci_upper is not None
         ):
             ci_width = self.effect.ate_ci_upper - self.effect.ate_ci_lower
             if ci_width > abs(self.effect.ate):

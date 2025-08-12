@@ -159,8 +159,11 @@ class HTMLReportGenerator:
             "html": self.insights_generator.generate_executive_summary(),
             "key_findings": [
                 f"Treatment effect: {self.effect.ate:.3f}",
-                f"Statistical significance: {'Yes' if self.effect.p_value < 0.05 else 'No'}",
-                f"Confidence interval: [{self.effect.ate_ci_lower:.3f}, {self.effect.ate_ci_upper:.3f}]",
+                f"Statistical significance: {'Yes' if self.effect.p_value is not None and self.effect.p_value < 0.05 else 'Unknown' if self.effect.p_value is None else 'No'}",
+                f"Confidence interval: [{self.effect.ate_ci_lower:.3f}, {self.effect.ate_ci_upper:.3f}]"
+                if self.effect.ate_ci_lower is not None
+                and self.effect.ate_ci_upper is not None
+                else "Confidence interval: Not available",
                 f"Sample size: {len(self.data):,} observations",
             ],
         }
@@ -257,35 +260,55 @@ class HTMLReportGenerator:
         # Create results visualization
         fig, ax = plt.subplots(figsize=(10, 6))
 
-        # Plot treatment effect with confidence interval
-        ax.errorbar(
-            [0],
-            [self.effect.ate],
-            yerr=[
-                [self.effect.ate - self.effect.ate_ci_lower],
-                [self.effect.ate_ci_upper - self.effect.ate],
-            ],
-            fmt="o",
-            markersize=10,
-            capsize=10,
-            capthick=2,
-            color="#2E86C1",
-            ecolor="#2E86C1",
-        )
+        # Plot treatment effect with confidence interval (if available)
+        if (
+            self.effect.ate_ci_lower is not None
+            and self.effect.ate_ci_upper is not None
+        ):
+            ax.errorbar(
+                [0],
+                [self.effect.ate],
+                yerr=[
+                    [self.effect.ate - self.effect.ate_ci_lower],
+                    [self.effect.ate_ci_upper - self.effect.ate],
+                ],
+                fmt="o",
+                markersize=10,
+                capsize=10,
+                capthick=2,
+                color="#2E86C1",
+                ecolor="#2E86C1",
+            )
+        else:
+            # Plot without error bars if confidence intervals not available
+            ax.plot(
+                [0],
+                [self.effect.ate],
+                "o",
+                markersize=10,
+                color="#2E86C1",
+            )
 
         # Add reference line at zero
         ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
 
         ax.set_xlim(-0.5, 0.5)
         ax.set_ylabel("Treatment Effect")
-        ax.set_title(
-            f"Estimated Treatment Effect\n{self.confidence_level * 100:.0f}% Confidence Interval"
-        )
+        title = "Estimated Treatment Effect"
+        if (
+            self.effect.ate_ci_lower is not None
+            and self.effect.ate_ci_upper is not None
+        ):
+            title += f"\n{self.confidence_level * 100:.0f}% Confidence Interval"
+        ax.set_title(title)
         ax.set_xticks([])
 
         # Add effect size annotation
+        annotation_text = f"ATE = {self.effect.ate:.3f}"
+        if self.effect.p_value is not None:
+            annotation_text += f"\\np = {self.effect.p_value:.3f}"
         ax.annotate(
-            f"ATE = {self.effect.ate:.3f}\\np = {self.effect.p_value:.3f}",
+            annotation_text,
             xy=(0, self.effect.ate),
             xytext=(0.2, self.effect.ate),
             arrowprops=dict(arrowstyle="->", color="black"),
@@ -299,8 +322,12 @@ class HTMLReportGenerator:
 
         return {
             "ate": self.effect.ate,
-            "ci_lower": self.effect.ate_ci_lower,
-            "ci_upper": self.effect.ate_ci_upper,
+            "ci_lower": self.effect.ate_ci_lower
+            if self.effect.ate_ci_lower is not None
+            else 0,
+            "ci_upper": self.effect.ate_ci_upper
+            if self.effect.ate_ci_upper is not None
+            else 0,
             "p_value": getattr(self.effect, "p_value", None),
             "std_error": getattr(self.effect, "std_error", None),
             "confidence_level": self.confidence_level,
@@ -372,8 +399,12 @@ class HTMLReportGenerator:
             "sample_characteristics": self.data.describe().to_dict(),
             "effect_details": {
                 "ate": self.effect.ate,
-                "ate_ci_lower": self.effect.ate_ci_lower,
-                "ate_ci_upper": self.effect.ate_ci_upper,
+                "ate_ci_lower": self.effect.ate_ci_lower
+                if self.effect.ate_ci_lower is not None
+                else 0,
+                "ate_ci_upper": self.effect.ate_ci_upper
+                if self.effect.ate_ci_upper is not None
+                else 0,
                 "p_value": getattr(self.effect, "p_value", None),
                 "interpretation": getattr(self.effect, "interpretation", None),
             },
@@ -667,7 +698,7 @@ class HTMLReportGenerator:
                     <h2>📋 Results</h2>
                     <div class="key-finding">
                         <h3>Treatment Effect: <span class="highlight">{results.get("ate", 0):.3f}</span></h3>
-                        <p><strong>95% Confidence Interval:</strong> [{results.get("ci_lower", 0):.3f}, {results.get("ci_upper", 0):.3f}]</p>
+                        <p><strong>95% Confidence Interval:</strong> {f"[{results.get('ci_lower', 0):.3f}, {results.get('ci_upper', 0):.3f}]" if self.effect.ate_ci_lower is not None and self.effect.ate_ci_upper is not None else "Not available"}</p>
                         <p><strong>Statistical Significance:</strong> {significance}{f" (p = {p_value:.3f})" if p_value is not None else ""}</p>
                     </div>
                     {results.get("plot_html", "")}
@@ -749,8 +780,8 @@ class HTMLReportGenerator:
                     <table class="stats-table">
                         <tr><th>Metric</th><th>Value</th></tr>
                         <tr><td>Average Treatment Effect (ATE)</td><td>{appendix["effect_details"].get("ate", 0):.6f}</td></tr>
-                        <tr><td>95% CI Lower</td><td>{appendix["effect_details"].get("ate_ci_lower", 0):.6f}</td></tr>
-                        <tr><td>95% CI Upper</td><td>{appendix["effect_details"].get("ate_ci_upper", 0):.6f}</td></tr>
+                        <tr><td>95% CI Lower</td><td>{f"{appendix['effect_details'].get('ate_ci_lower', 0):.6f}" if self.effect.ate_ci_lower is not None else "N/A"}</td></tr>
+                        <tr><td>95% CI Upper</td><td>{f"{appendix['effect_details'].get('ate_ci_upper', 0):.6f}" if self.effect.ate_ci_upper is not None else "N/A"}</td></tr>
                         <tr><td>P-value</td><td>{appendix["effect_details"].get("p_value") if appendix["effect_details"].get("p_value") is not None else "N/A"}</td></tr>
                     </table>
                 </div>

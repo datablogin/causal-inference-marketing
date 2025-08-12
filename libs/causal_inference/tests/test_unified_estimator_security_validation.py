@@ -326,11 +326,13 @@ class TestHTMLSecurityEscaping:
         report = analysis.report(analyst_name=malicious_analyst)
         html_content = report["html_report"]
 
-        # Should not contain unescaped HTML
-        assert "<img" not in html_content
-        assert "onerror=" not in html_content
-        # Should contain escaped version
+        # Should not contain unescaped malicious HTML that could execute
+        assert "src='x'" not in html_content  # Unescaped malicious src attribute
+        assert "onerror='alert(1)'" not in html_content  # Unescaped malicious onerror
+        assert "<img src='x'" not in html_content  # The specific malicious img tag
+        # Should contain properly escaped version
         assert "&lt;img" in html_content
+        assert "onerror=&#x27;alert(1)&#x27;" in html_content  # Properly escaped quotes
 
     def test_input_length_limiting(self):
         """Test that very long inputs are properly truncated."""
@@ -588,17 +590,22 @@ class TestIntegrationSecurity:
             # Verify security measures
             html_content = report["html_report"]
 
-            # Should not contain unescaped HTML
+            # Should not contain unescaped HTML that could execute
             assert "<script>" not in html_content
-            assert "onerror=" not in html_content
+            assert (
+                "onerror='console.log()'" not in html_content
+            )  # Unescaped malicious onerror
 
             # Should contain escaped versions
             assert "&lt;script&gt;" in html_content
             assert "&lt;img" in html_content
+            assert (
+                "onerror=&#x27;console.log()&#x27;" in html_content
+            )  # Properly escaped
 
             # Should have valid causal effect
             assert report["effect"].ate is not None
-            assert isinstance(report["effect"].ate, int | float)
+            assert isinstance(report["effect"].ate, (int, float))  # noqa: UP038
 
             # Check that various warnings were issued appropriately
             # Should have some validation-related warnings for imbalanced data
