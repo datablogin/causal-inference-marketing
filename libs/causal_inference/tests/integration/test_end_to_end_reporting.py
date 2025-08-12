@@ -235,11 +235,11 @@ class TestEndToEndWorkflows:
         small_analysis.fit(small_data)
         assert small_analysis.method == "g_computation"
 
-        # No covariates - should select IPW
+        # No covariates - should select G-computation (reduces to simple difference)
         no_cov_data = marketing_campaign_data[["email_campaign", "revenue"]]
         no_cov_analysis = CausalAnalysis(method="auto")
         no_cov_analysis.fit(no_cov_data)
-        assert no_cov_analysis.method == "ipw"
+        assert no_cov_analysis.method == "g_computation"
 
     def test_report_customization(self, marketing_campaign_data):
         """Test report customization options."""

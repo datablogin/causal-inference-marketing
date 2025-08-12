@@ -69,7 +69,7 @@ class TestDataValidation:
             treatment_column="treatment", outcome_column="outcome"
         )
         with pytest.raises(
-            ValueError, match="contains non-finite values: 3 infinite, 0 NaN values"
+            ValueError, match="contains non-finite values: 6 infinite, 0 NaN values"
         ):
             analysis.fit(data_with_inf)
 

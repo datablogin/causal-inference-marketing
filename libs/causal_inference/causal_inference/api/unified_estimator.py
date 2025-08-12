@@ -487,6 +487,10 @@ class CausalAnalysis:
         if self.data_ is None:
             raise ValueError("No data available for column detection")
 
+        # Check for empty data first
+        if self.data_.empty:
+            raise ValueError("Data is empty or None")
+
         # Auto-detect treatment column
         if self.treatment_column is None:
             binary_cols = []
@@ -760,9 +764,16 @@ class CausalAnalysis:
                     self.method = "g_computation"
                     self.estimator_ = GComputationEstimator(**common_params)
             else:
-                # Use IPW when no covariates available
-                self.method = "ipw"
-                self.estimator_ = IPWEstimator(**common_params)
+                # When no covariates available, use G-computation which can work without covariates
+                # (it reduces to simple difference in means)
+                import warnings
+
+                warnings.warn(
+                    "No covariates available for adjustment. Using G-computation which reduces to simple difference in means.",
+                    UserWarning,
+                )
+                self.method = "g_computation"
+                self.estimator_ = GComputationEstimator(**common_params)
 
         elif self.method == "g_computation":
             self.estimator_ = GComputationEstimator(**common_params)
