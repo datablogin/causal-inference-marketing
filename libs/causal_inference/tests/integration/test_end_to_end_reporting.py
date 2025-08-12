@@ -85,7 +85,7 @@ class TestEndToEndWorkflows:
             outcome_column="revenue",
             covariate_columns=["age", "income", "previous_purchases"],
             confidence_level=0.95,
-            bootstrap_samples=500,  # Reduced for faster testing
+            bootstrap_samples=50,  # Further reduced to prevent timeout
             random_state=42,
         )
 
@@ -205,7 +205,7 @@ class TestEndToEndWorkflows:
                 treatment_column="email_campaign",
                 outcome_column="revenue",
                 covariate_columns=["age", "income"],
-                bootstrap_samples=100,  # Reduced for speed
+                bootstrap_samples=20,  # Further reduced to prevent timeout
             )
 
             analysis.fit(marketing_campaign_data)

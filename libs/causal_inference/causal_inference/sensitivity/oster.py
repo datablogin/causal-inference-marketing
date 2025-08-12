@@ -119,23 +119,23 @@ def oster_delta(
     names_to_check = ["outcome", "treatment"]
 
     # Handle covariates with standardization
-    X_restricted = None
+    x_restricted = None
     if covariates_restricted is not None:
-        X_restricted = standardize_input(
+        x_restricted = standardize_input(
             covariates_restricted,
             name="covariates_restricted",
             allow_2d=True,
             min_length=len(y),
         )
-        arrays_to_check.append(X_restricted)
+        arrays_to_check.append(x_restricted)
         names_to_check.append("covariates_restricted")
 
-    X_full = None
+    x_full = None
     if covariates_full is not None:
-        X_full = standardize_input(
+        x_full = standardize_input(
             covariates_full, name="covariates_full", allow_2d=True, min_length=len(y)
         )
-        arrays_to_check.append(X_full)
+        arrays_to_check.append(x_full)
         names_to_check.append("covariates_full")
 
     # Validate all arrays have consistent lengths
@@ -143,35 +143,35 @@ def oster_delta(
 
     # Check treatment variation and basic assumptions
     check_treatment_variation(t)
-    check_model_assumptions(y, t, X_full)
+    check_model_assumptions(y, t, x_full)
 
     # Set random state
     if random_state is not None:
         np.random.seed(random_state)
 
     # Fit restricted model (treatment only or treatment + restricted controls)
-    if X_restricted is not None:
-        X_restricted_with_treatment = np.column_stack([t, X_restricted])
+    if x_restricted is not None:
+        x_restricted_with_treatment = np.column_stack([t, x_restricted])
     else:
-        X_restricted_with_treatment = t.reshape(-1, 1)
+        x_restricted_with_treatment = t.reshape(-1, 1)
 
     model_restricted = LinearRegression()
-    model_restricted.fit(X_restricted_with_treatment, y)
+    model_restricted.fit(x_restricted_with_treatment, y)
     beta_restricted = model_restricted.coef_[0]  # Treatment coefficient
-    y_pred_restricted = model_restricted.predict(X_restricted_with_treatment)
+    y_pred_restricted = model_restricted.predict(x_restricted_with_treatment)
     r2_restricted = r2_score(y, y_pred_restricted)
 
     # Fit full model
-    if X_full is not None:
-        X_full_with_treatment = np.column_stack([t, X_full])
+    if x_full is not None:
+        x_full_with_treatment = np.column_stack([t, x_full])
     else:
         # If no full covariates provided, use restricted + treatment
-        X_full_with_treatment = X_restricted_with_treatment
+        x_full_with_treatment = x_restricted_with_treatment
 
     model_full = LinearRegression()
-    model_full.fit(X_full_with_treatment, y)
+    model_full.fit(x_full_with_treatment, y)
     beta_full = model_full.coef_[0]  # Treatment coefficient
-    y_pred_full = model_full.predict(X_full_with_treatment)
+    y_pred_full = model_full.predict(x_full_with_treatment)
     r2_full = r2_score(y, y_pred_full)
 
     # Determine R_max
@@ -285,7 +285,7 @@ def oster_delta(
     # Bootstrap confidence intervals if requested
     if bootstrap_samples > 0:
         bootstrap_results = _bootstrap_oster(
-            y, t, X_restricted, X_full, r_max_used, delta, bootstrap_samples
+            y, t, x_restricted, x_full, r_max_used, delta, bootstrap_samples
         )
         results["bootstrap_results"] = bootstrap_results
 
@@ -295,8 +295,8 @@ def oster_delta(
 def _bootstrap_oster(
     y: NDArray[Any],
     t: NDArray[Any],
-    X_restricted: NDArray[Any] | None,
-    X_full: NDArray[Any] | None,
+    x_restricted: NDArray[Any] | None,
+    x_full: NDArray[Any] | None,
     r_max: float,
     delta: float,
     n_bootstrap: int,
@@ -307,8 +307,8 @@ def _bootstrap_oster(
     Args:
         y: Outcome variable
         t: Treatment variable
-        X_restricted: Restricted covariates
-        X_full: Full covariates
+        x_restricted: Restricted covariates
+        x_full: Full covariates
         r_max: Maximum R-squared
         delta: Selection parameter
         n_bootstrap: Number of bootstrap samples
@@ -336,16 +336,16 @@ def _bootstrap_oster(
             idx = chunk_indices[i]
             y_boot = y[idx]
             t_boot = t[idx]
-            X_restricted_boot = X_restricted[idx] if X_restricted is not None else None
-            X_full_boot = X_full[idx] if X_full is not None else None
+            x_restricted_boot = x_restricted[idx] if x_restricted is not None else None
+            x_full_boot = x_full[idx] if x_full is not None else None
 
             try:
                 # Calculate Oster delta for bootstrap sample
                 boot_results = oster_delta(
                     y_boot,
                     t_boot,
-                    X_restricted_boot,
-                    X_full_boot,
+                    x_restricted_boot,
+                    x_full_boot,
                     r_max=r_max,
                     delta=delta,
                     bootstrap_samples=0,  # No nested bootstrapping
