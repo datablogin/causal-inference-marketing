@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -38,10 +38,10 @@ class CausalDAG(BaseModel):
     variable_names: list[str] = Field(
         ..., description="Names of variables corresponding to matrix indices"
     )
-    edge_weights: Union[NDArray[Any], None] = Field(
+    edge_weights: NDArray[Any] | None = Field(
         default=None, description="Edge weights/strengths if applicable"
     )
-    confidence_scores: Union[NDArray[Any], None] = Field(
+    confidence_scores: NDArray[Any] | None = Field(
         default=None, description="Confidence scores for each edge"
     )
 
