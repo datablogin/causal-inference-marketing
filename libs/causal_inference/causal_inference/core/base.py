@@ -467,6 +467,7 @@ class CausalEffect:
     ate_se: Union[float, None] = None  # Standard error of ATE
     ate_ci_lower: Union[float, None] = None  # Lower confidence interval
     ate_ci_upper: Union[float, None] = None  # Upper confidence interval
+    p_value: Union[float, None] = None  # P-value for significance test
     confidence_level: float = 0.95  # Confidence level for intervals
 
     # Additional estimates for specific contexts

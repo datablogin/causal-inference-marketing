@@ -644,13 +644,13 @@ class CausalAnalysis:
 
         # Check treatment balance
         treatment_balance = self.data_[self.treatment_column].mean()
-        if treatment_balance < 0.05 or treatment_balance > 0.95:
+        if treatment_balance <= 0.05 or treatment_balance >= 0.95:
             warnings.warn(
                 f"Extreme treatment imbalance ({treatment_balance:.1%}) may affect method performance. "
                 f"Consider stratified sampling or specialized imbalanced treatment methods.",
                 UserWarning,
             )
-        elif treatment_balance < 0.1 or treatment_balance > 0.9:
+        elif treatment_balance <= 0.15 or treatment_balance >= 0.85:
             warnings.warn(
                 f"Moderate treatment imbalance ({treatment_balance:.1%}) detected. "
                 f"Results should be interpreted with caution.",
