@@ -387,6 +387,14 @@ class CausalAnalysis:
         except Exception as e:
             raise ValueError(f"Invalid file path: {path}. Error: {str(e)}")
 
+        # Check file format first (before checking existence)
+        supported_formats = {".csv", ".parquet", ".json"}
+        if file_path.suffix.lower() not in supported_formats:
+            raise ValueError(
+                f"Unsupported file format: {file_path.suffix}. "
+                f"Supported formats: {', '.join(supported_formats)}"
+            )
+
         # Basic security checks
         if not file_path.exists():
             raise FileNotFoundError(f"File does not exist: {file_path}")
@@ -732,7 +740,7 @@ class CausalAnalysis:
             treatment_balance = self.data_[self.treatment_column].mean()
 
             # Adaptive selection based on multiple factors
-            if n_samples > 1000 and n_covariates > 0:
+            if n_samples >= 1000 and n_covariates > 0:
                 # Use AIPW for larger samples with covariates (doubly robust)
                 # But consider treatment balance
                 if treatment_balance < 0.1 or treatment_balance > 0.9:
