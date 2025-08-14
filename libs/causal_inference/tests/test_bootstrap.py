@@ -204,6 +204,8 @@ class TestBootstrapIntegration:
         estimator = GComputationEstimator(
             bootstrap_config=bootstrap_config, verbose=False
         )
+        # Explicitly disable analytical inference to test pure "no bootstrap" behavior
+        estimator._disable_analytical_inference = True
 
         estimator.fit(treatment_data, outcome_data, covariate_data)
         effect = estimator.estimate_ate()

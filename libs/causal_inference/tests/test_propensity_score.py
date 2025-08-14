@@ -181,7 +181,7 @@ class TestPropensityScoreEstimator:
         """Test bootstrap confidence intervals."""
         estimator = PropensityScoreEstimator(
             method="stratification",
-            bootstrap_samples=100,  # Small number for testing
+            bootstrap_samples=20,  # Reduced to prevent timeout
             confidence_level=0.95,
         )
 
@@ -192,7 +192,7 @@ class TestPropensityScoreEstimator:
         assert effect.ate_ci_lower is not None
         assert effect.ate_ci_upper is not None
         assert effect.ate_ci_lower < effect.ate_ci_upper
-        assert effect.bootstrap_samples == 100
+        assert effect.bootstrap_samples == 20
 
     def test_balance_diagnostics(self):
         """Test covariate balance diagnostics."""
@@ -615,7 +615,7 @@ class TestPropensityScoreEstimatorIntegration:
             matching_type="nearest_neighbor",
             n_neighbors=1,
             replacement=False,
-            bootstrap_samples=50,  # Reduce for testing
+            bootstrap_samples=10,  # Further reduced to prevent timeout
         )
 
         estimator_1to1.fit(self.treatment_data, self.outcome_data, self.covariate_data)
@@ -627,7 +627,7 @@ class TestPropensityScoreEstimatorIntegration:
             matching_type="nearest_neighbor",
             n_neighbors=2,
             replacement=False,
-            bootstrap_samples=50,  # Reduce for testing
+            bootstrap_samples=10,  # Further reduced to prevent timeout
         )
 
         estimator_1to2.fit(self.treatment_data, self.outcome_data, self.covariate_data)

@@ -638,6 +638,7 @@ test = [
 [package.dev-dependencies]
 dev = [
     { name = "pandas-stubs", marker = "python_full_version >= '3.10'" },
+    { name = "pytest" },
     { name = "types-networkx", version = "3.4.2.20250509", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "types-networkx", version = "3.5.0.20250728", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
@@ -706,6 +707,7 @@ provides-extras = ["ml", "docs", "dev", "test"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pandas-stubs", marker = "python_full_version >= '3.10'", specifier = ">=2.3.0.250703" },
+    { name = "pytest", specifier = ">=8.4.1" },
     { name = "types-networkx", specifier = ">=3.4.2.20250509" },
 ]
 test = [
