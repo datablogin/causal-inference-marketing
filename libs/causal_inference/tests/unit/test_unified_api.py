@@ -5,6 +5,7 @@ functionality for the causal inference library.
 """
 
 import tempfile
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -280,7 +281,25 @@ class TestCausalAnalysisAPI:
             analysis.fit(data)
 
     def test_multiple_binary_columns_warning(self):
-        """Test warning when multiple binary columns exist."""
+        """Test warning when multiple binary columns exist and no heuristic match."""
+        data = pd.DataFrame(
+            {
+                "binary_a": np.random.binomial(1, 0.5, 100),
+                "binary_b": np.random.binomial(1, 0.3, 100),
+                "outcome": np.random.normal(0, 1, 100),
+            }
+        )
+
+        analysis = CausalAnalysis()
+
+        with pytest.warns(UserWarning, match="Multiple binary columns found"):
+            analysis.fit(data)
+
+        # Should use first binary column since no heuristic match
+        assert analysis.treatment_column == "binary_a"
+
+    def test_multiple_binary_columns_heuristic_no_warning(self):
+        """Test no warning when multiple binary columns exist but heuristic matches."""
         data = pd.DataFrame(
             {
                 "treatment": np.random.binomial(1, 0.5, 100),
@@ -291,7 +310,11 @@ class TestCausalAnalysisAPI:
 
         analysis = CausalAnalysis()
 
-        with pytest.warns(UserWarning, match="Multiple binary columns found"):
+        # Should not emit warning because 'treatment' matches heuristic
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # Turn warnings into errors
+            # Filter out the p-value warning which is expected
+            warnings.filterwarnings("ignore", message="P-value approximated.*")
             analysis.fit(data)
 
         # Should use 'treatment' due to name heuristic
