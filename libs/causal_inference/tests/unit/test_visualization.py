@@ -401,7 +401,7 @@ class TestResidualAnalyzer:
 
     def test_outlier_detection(self):
         """Test outlier detection in residuals."""
-        analyzer = ResidualAnalyzer(outlier_threshold=2.0)
+        analyzer = ResidualAnalyzer(outlier_threshold=1.5)
 
         # Create residuals with known outliers
         residuals = np.array([0, 0, 0, 0, 3, -3, 0])  # 2 outliers
@@ -622,7 +622,7 @@ class TestVisualizationIntegration:
         )
 
         # Create simple residuals
-        fitted_values = np.mean(outcome_data.values)
+        fitted_values = np.full_like(outcome_data.values, np.mean(outcome_data.values))
         residuals = outcome_data.values - fitted_values
 
         # Test that all components work together
