@@ -7,6 +7,7 @@ recommendations.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,9 @@ try:
 except ImportError:
     PLOTLY_AVAILABLE = False
 
+# Configure logger
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class WeightDiagnosticsResult:
@@ -50,6 +54,15 @@ class WeightDiagnosticsResult:
     recommended_trimming_threshold: float | None
     effective_sample_size: float
     weight_summary: dict[str, float]
+
+    # Distribution comparison tests
+    ks_test_exponential_stat: float | None = None
+    ks_test_exponential_pvalue: float | None = None
+    ks_test_lognormal_stat: float | None = None
+    ks_test_lognormal_pvalue: float | None = None
+    ks_test_gamma_stat: float | None = None
+    ks_test_gamma_pvalue: float | None = None
+    best_fit_distribution: str | None = None
 
 
 class WeightDiagnostics:
@@ -98,6 +111,9 @@ class WeightDiagnostics:
         weights = np.asarray(weights)
         n_obs = len(weights)
 
+        logger.info(f"Starting weight analysis for {n_obs:,} observations")
+        logger.debug(f"Weight range: [{np.min(weights):.6f}, {np.max(weights):.6f}]")
+
         # Basic statistics
         min_weight = np.min(weights)
         max_weight = np.max(weights)
@@ -114,12 +130,25 @@ class WeightDiagnostics:
         extreme_count = np.sum(extreme_mask)
         extreme_percentage = extreme_count / n_obs * 100
 
+        if extreme_count > 0:
+            logger.warning(
+                f"Found {extreme_count} extreme weights ({extreme_percentage:.1f}%) "
+                f"above threshold {self.extreme_weight_threshold}"
+            )
+
         # Trimming recommendations
         trimming_threshold = np.percentile(weights, self.trimming_percentile)
 
         # Effective sample size calculation
         # ESS = (sum of weights)^2 / sum of weights^2
         ess = (np.sum(weights) ** 2) / np.sum(weights**2)
+        ess_ratio = ess / n_obs
+
+        logger.info(f"Effective sample size: {ess:.1f} ({ess_ratio:.1%} of original)")
+        if ess_ratio < 0.5:
+            logger.warning(
+                f"Low effective sample size ({ess_ratio:.1%}), consider weight stabilization"
+            )
 
         # Weight summary statistics
         weight_summary = {
@@ -130,6 +159,75 @@ class WeightDiagnostics:
             "p95": np.percentile(weights, 95),
             "p99": np.percentile(weights, 99),
         }
+
+        # Kolmogorov-Smirnov tests for distribution comparison
+        ks_exponential_stat, ks_exponential_pvalue = None, None
+        ks_lognormal_stat, ks_lognormal_pvalue = None, None
+        ks_gamma_stat, ks_gamma_pvalue = None, None
+        best_fit_distribution = None
+
+        try:
+            logger.debug("Starting distribution fitting tests")
+
+            # Test against exponential distribution
+            exp_scale = mean_weight  # MLE for exponential
+            ks_exponential_stat, ks_exponential_pvalue = stats.kstest(
+                weights, lambda x: stats.expon.cdf(x, scale=exp_scale)
+            )
+            logger.debug(
+                f"Exponential test: KS={ks_exponential_stat:.4f}, p={ks_exponential_pvalue:.4f}"
+            )
+
+            # Test against lognormal distribution
+            if np.all(weights > 0):  # Lognormal requires positive values
+                log_weights = np.log(weights)
+                lognorm_mu = np.mean(log_weights)
+                lognorm_sigma = np.std(log_weights)
+                ks_lognormal_stat, ks_lognormal_pvalue = stats.kstest(
+                    weights,
+                    lambda x: stats.lognorm.cdf(
+                        x, s=lognorm_sigma, scale=np.exp(lognorm_mu)
+                    ),
+                )
+
+            # Test against gamma distribution
+            if np.all(weights > 0) and std_weight > 0:
+                # Method of moments for gamma parameters
+                gamma_k = (mean_weight / std_weight) ** 2  # shape parameter
+                gamma_theta = std_weight**2 / mean_weight  # scale parameter
+                if gamma_k > 0 and gamma_theta > 0:
+                    ks_gamma_stat, ks_gamma_pvalue = stats.kstest(
+                        weights,
+                        lambda x: stats.gamma.cdf(x, a=gamma_k, scale=gamma_theta),
+                    )
+
+            # Determine best fitting distribution
+            p_values = []
+            distributions = []
+
+            if ks_exponential_pvalue is not None:
+                p_values.append(ks_exponential_pvalue)
+                distributions.append("exponential")
+
+            if ks_lognormal_pvalue is not None:
+                p_values.append(ks_lognormal_pvalue)
+                distributions.append("lognormal")
+
+            if ks_gamma_pvalue is not None:
+                p_values.append(ks_gamma_pvalue)
+                distributions.append("gamma")
+
+            if p_values:
+                best_idx = np.argmax(p_values)
+                best_fit_distribution = distributions[best_idx]
+                logger.info(
+                    f"Best fitting distribution: {best_fit_distribution} (p={p_values[best_idx]:.4f})"
+                )
+
+        except (ValueError, RuntimeWarning, FloatingPointError) as e:
+            # If distribution fitting fails, continue without KS tests
+            logger.warning(f"Distribution fitting failed: {e}")
+            pass
 
         return WeightDiagnosticsResult(
             weights=weights,
@@ -148,6 +246,13 @@ class WeightDiagnostics:
             else None,
             effective_sample_size=ess,
             weight_summary=weight_summary,
+            ks_test_exponential_stat=ks_exponential_stat,
+            ks_test_exponential_pvalue=ks_exponential_pvalue,
+            ks_test_lognormal_stat=ks_lognormal_stat,
+            ks_test_lognormal_pvalue=ks_lognormal_pvalue,
+            ks_test_gamma_stat=ks_gamma_stat,
+            ks_test_gamma_pvalue=ks_gamma_pvalue,
+            best_fit_distribution=best_fit_distribution,
         )
 
     def create_weight_plots(
@@ -533,6 +638,43 @@ class WeightDiagnostics:
                 f"⚠️ Highly skewed weight distribution (skewness: {diagnostics_result.skewness:.2f}). "
                 "Consider log transformation or alternative weighting approach."
             )
+
+        # Distribution fitting recommendations
+        if diagnostics_result.best_fit_distribution is not None:
+            best_dist = diagnostics_result.best_fit_distribution
+
+            if best_dist == "exponential":
+                p_val = diagnostics_result.ks_test_exponential_pvalue
+                recommendations.append(
+                    f"📊 Weight distribution fits exponential model best (p={p_val:.3f}). "
+                    "This suggests consistent propensity model performance."
+                )
+            elif best_dist == "lognormal":
+                p_val = diagnostics_result.ks_test_lognormal_pvalue
+                recommendations.append(
+                    f"📊 Weight distribution fits lognormal model best (p={p_val:.3f}). "
+                    "This is common with propensity score weights."
+                )
+            elif best_dist == "gamma":
+                p_val = diagnostics_result.ks_test_gamma_pvalue
+                recommendations.append(
+                    f"📊 Weight distribution fits gamma model best (p={p_val:.3f}). "
+                    "Consider gamma regression for propensity modeling."
+                )
+
+            # Check if all distributions fit poorly
+            all_p_values = [
+                diagnostics_result.ks_test_exponential_pvalue,
+                diagnostics_result.ks_test_lognormal_pvalue,
+                diagnostics_result.ks_test_gamma_pvalue,
+            ]
+            valid_p_values = [p for p in all_p_values if p is not None]
+
+            if valid_p_values and max(valid_p_values) < 0.05:
+                recommendations.append(
+                    "⚠️ Weight distribution doesn't fit standard models well. "
+                    "Consider alternative propensity score specifications."
+                )
 
         return recommendations
 

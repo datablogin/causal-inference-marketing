@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +38,9 @@ from .balance_plots import LovePlotData, LovePlotGenerator
 from .propensity_plots import PropensityOverlapResult, PropensityPlotGenerator
 from .residual_analysis import ResidualAnalysisResult, ResidualAnalyzer
 from .weight_diagnostics import WeightDiagnostics, WeightDiagnosticsResult
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -139,6 +143,9 @@ class DiagnosticReportGenerator:
         Returns:
             HTML report as string
         """
+        logger.info(f"Starting comprehensive report generation using {estimator_name}")
+        logger.debug(f"Template type: {template_type}")
+
         # Collect all data and analysis results
         report_data = self._collect_report_data(
             treatment_data,
@@ -167,12 +174,26 @@ class DiagnosticReportGenerator:
         )
 
         # Generate HTML report
+        logger.info("Generating HTML report from collected data and plots")
         html_content = self._generate_html_report(report_data, plot_data, template_type)
+
+        # Log report statistics
+        content_size_mb = len(html_content) / (1024 * 1024)
+        logger.info(
+            f"Generated HTML report: {len(html_content):,} characters ({content_size_mb:.2f} MB)"
+        )
+
+        if content_size_mb > self.max_file_size_mb:
+            logger.warning(
+                f"Report size ({content_size_mb:.2f} MB) exceeds recommended maximum ({self.max_file_size_mb} MB)"
+            )
 
         # Save if path provided
         if save_path:
+            logger.debug(f"Saving report to: {save_path}")
             with open(save_path, "w", encoding="utf-8") as f:
                 f.write(html_content)
+            logger.info(f"Report saved successfully to {save_path}")
 
         return html_content
 
@@ -609,8 +630,33 @@ class DiagnosticReportGenerator:
         return assessment
 
     def _get_html_template(self, template_type: str) -> str:
-        """Get HTML template based on type."""
-        # In a full implementation, templates would be loaded from external files
+        """Get HTML template based on type.
+
+        Supports both external template files and built-in templates.
+        External templates are loaded from the template_dir if specified.
+        """
+        # Try to load external template first
+        if self.template_dir is not None:
+            template_path = Path(self.template_dir) / f"{template_type}_template.html"
+            if template_path.exists():
+                try:
+                    with open(template_path, encoding="utf-8") as f:
+                        return f.read()
+                except (OSError, UnicodeDecodeError) as e:
+                    # Fall back to built-in template if external template fails
+                    import warnings
+
+                    warnings.warn(
+                        f"Failed to load external template {template_path}: {e}. "
+                        f"Using built-in template instead.",
+                        UserWarning,
+                    )
+
+        # Use built-in template as fallback
+        return self._get_builtin_template(template_type)
+
+    def _get_builtin_template(self, template_type: str) -> str:
+        """Get built-in HTML template."""
         # This is a comprehensive template with modern styling
 
         return """

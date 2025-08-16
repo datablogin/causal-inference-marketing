@@ -633,7 +633,13 @@ class ResidualAnalyzer:
                 mode="markers",
                 name="Residuals",
                 marker=dict(size=5, opacity=0.6),
-                hovertemplate="Fitted: %{x:.3f}<br>Residual: %{y:.3f}<extra></extra>",
+                hovertemplate=(
+                    "<b>Residuals vs Fitted</b><br>"
+                    "Fitted Value: %{x:.3f}<br>"
+                    "Residual: %{y:.3f}<br>"
+                    "Observation: %{pointNumber}<br>"
+                    "<extra></extra>"
+                ),
             ),
             row=1,
             col=1,
@@ -754,11 +760,62 @@ class ResidualAnalyzer:
                 col=3,
             )
 
-        # Update layout
+        # Update layout with enhanced interactivity
         fig.update_layout(
             title_text=title,
             showlegend=False,
             height=800,
+            # Enhanced interactivity
+            hovermode="closest",
+            dragmode="zoom",
+            # Add interactive controls
+            updatemenus=[
+                dict(
+                    type="buttons",
+                    direction="left",
+                    buttons=list(
+                        [
+                            dict(
+                                args=[{"dragmode": "zoom"}],
+                                label="🔍 Zoom",
+                                method="relayout",
+                            ),
+                            dict(
+                                args=[{"dragmode": "pan"}],
+                                label="✋ Pan",
+                                method="relayout",
+                            ),
+                            dict(
+                                args=[{"dragmode": "select"}],
+                                label="📦 Select",
+                                method="relayout",
+                            ),
+                        ]
+                    ),
+                    pad={"r": 10, "t": 10},
+                    showactive=True,
+                    x=0.01,
+                    xanchor="left",
+                    y=1.02,
+                    yanchor="top",
+                ),
+            ],
+        )
+
+        # Enhanced axes with crossfilter spikes
+        fig.update_xaxes(
+            showspikes=True,
+            spikecolor="blue",
+            spikesnap="cursor",
+            spikemode="across",
+            spikethickness=1,
+        )
+        fig.update_yaxes(
+            showspikes=True,
+            spikecolor="red",
+            spikesnap="cursor",
+            spikemode="across",
+            spikethickness=1,
         )
 
         if save_path:

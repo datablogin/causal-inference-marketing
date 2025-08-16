@@ -440,7 +440,7 @@ class PropensityPlotGenerator:
         treated_ps = result.propensity_scores[result.treatment_values == 1]
         control_ps = result.propensity_scores[result.treatment_values == 0]
 
-        # 1. Overlap histogram
+        # 1. Overlap histogram with enhanced hover information
         fig.add_trace(
             go.Histogram(
                 x=control_ps,
@@ -448,6 +448,14 @@ class PropensityPlotGenerator:
                 opacity=0.7,
                 nbinsx=30,
                 marker_color="skyblue",
+                hovertemplate=(
+                    "<b>Control Group</b><br>"
+                    "Propensity Score: %{x:.3f}<br>"
+                    "Count: %{y}<br>"
+                    "Density: %{y}/%{meta}<br>"
+                    "<extra></extra>"
+                ),
+                meta=len(control_ps),
                 histnorm="probability density",
             ),
             row=1,
@@ -462,6 +470,14 @@ class PropensityPlotGenerator:
                 nbinsx=30,
                 marker_color="orange",
                 histnorm="probability density",
+                hovertemplate=(
+                    "<b>Treated Group</b><br>"
+                    "Propensity Score: %{x:.3f}<br>"
+                    "Count: %{y}<br>"
+                    "Density: %{y}/%{meta}<br>"
+                    "<extra></extra>"
+                ),
+                meta=len(treated_ps),
             ),
             row=1,
             col=1,
@@ -474,9 +490,18 @@ class PropensityPlotGenerator:
             go.Scatter(
                 x=fpr,
                 y=tpr,
-                mode="lines",
+                mode="lines+markers",
                 name=f"ROC (AUC = {result.auc_score:.3f})",
                 line=dict(color="blue", width=2),
+                marker=dict(size=4, opacity=0.6),
+                hovertemplate=(
+                    "<b>ROC Curve</b><br>"
+                    "False Positive Rate: %{x:.3f}<br>"
+                    "True Positive Rate: %{y:.3f}<br>"
+                    "Sensitivity: %{y:.3f}<br>"
+                    "1 - Specificity: %{x:.3f}<br>"
+                    "<extra></extra>"
+                ),
             ),
             row=1,
             col=2,
@@ -581,6 +606,54 @@ class PropensityPlotGenerator:
             title_text=title,
             showlegend=True,
             height=800,
+            # Enhanced interactivity
+            hovermode="closest",
+            dragmode="zoom",  # Default to zoom mode
+            # Add range selector buttons for better navigation
+            updatemenus=[
+                dict(
+                    type="buttons",
+                    direction="left",
+                    buttons=list(
+                        [
+                            dict(
+                                args=[{"dragmode": "zoom"}],
+                                label="Zoom",
+                                method="relayout",
+                            ),
+                            dict(
+                                args=[{"dragmode": "pan"}],
+                                label="Pan",
+                                method="relayout",
+                            ),
+                            dict(
+                                args=[{"dragmode": "select"}],
+                                label="Select",
+                                method="relayout",
+                            ),
+                            dict(
+                                args=[{"dragmode": "lasso"}],
+                                label="Lasso",
+                                method="relayout",
+                            ),
+                        ]
+                    ),
+                    pad={"r": 10, "t": 10},
+                    showactive=True,
+                    x=0.01,
+                    xanchor="left",
+                    y=1.02,
+                    yanchor="top",
+                ),
+            ],
+        )
+
+        # Update axes for better interaction
+        fig.update_xaxes(
+            showspikes=True, spikecolor="green", spikesnap="cursor", spikemode="across"
+        )
+        fig.update_yaxes(
+            showspikes=True, spikecolor="orange", spikesnap="cursor", spikemode="across"
         )
 
         if save_path:
