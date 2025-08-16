@@ -192,9 +192,9 @@ class ResidualAnalyzer:
             influential_count = np.sum(influential_mask)
 
         # Assumption checks
-        normality_met = shapiro_pvalue > 0.05 and jarque_bera_pvalue > 0.05
-        homoscedasticity_met = breusch_pagan_pvalue > 0.05
-        outliers_detected = outlier_count > 0
+        normality_met = bool(shapiro_pvalue > 0.05 and jarque_bera_pvalue > 0.05)
+        homoscedasticity_met = bool(breusch_pagan_pvalue > 0.05)
+        outliers_detected = bool(outlier_count > 0)
 
         return ResidualAnalysisResult(
             residuals=residuals,

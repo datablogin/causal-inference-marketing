@@ -282,12 +282,14 @@ class TestPropensityPlotGenerator:
 
         # Create propensity scores with extreme values
         treatment = np.array([0, 0, 1, 1])
-        propensity_scores = np.array([0.05, 0.95, 0.05, 0.95])  # 2 violations
+        propensity_scores = np.array(
+            [0.05, 0.95, 0.05, 0.95]
+        )  # 4 violations (2 below 0.1, 2 above 0.9)
         treatment_data = TreatmentData(values=treatment, treatment_type="binary")
 
         result = generator.analyze_propensity_overlap(propensity_scores, treatment_data)
 
-        assert result.positivity_violations == 2
+        assert result.positivity_violations == 4
 
     @patch("causal_inference.visualization.propensity_plots.PLOTTING_AVAILABLE", True)
     @patch("matplotlib.pyplot.show")

@@ -452,18 +452,19 @@ class TestEdgeCases:
         np.random.seed(42)
         n = 200
 
-        # Create perfectly balanced data
+        # Create perfectly balanced data with identical means between groups
         treatment = np.repeat([0, 1], n // 2)
 
-        # Covariates that are identical across groups
-        age = np.random.normal(30, 5, n)
-        income = np.random.normal(50000, 10000, n)
+        # Create perfectly balanced data by pairing observations
+        # Generate pairs of identical observations
+        age_pairs = np.random.normal(30, 5, n // 2)
+        income_pairs = np.random.normal(50000, 10000, n // 2)
 
-        # Shuffle to remove any ordering effects
-        indices = np.random.permutation(n)
-        treatment = treatment[indices]
-        age = age[indices]
-        income = income[indices]
+        # Duplicate each observation for treatment and control
+        age = np.concatenate([age_pairs, age_pairs])
+        income = np.concatenate([income_pairs, income_pairs])
+
+        # This ensures exactly identical means between groups (SMD = 0)
 
         outcome = np.random.normal(100, 10, n)
 
