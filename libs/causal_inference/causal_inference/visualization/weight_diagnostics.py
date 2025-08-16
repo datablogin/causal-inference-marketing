@@ -74,6 +74,7 @@ class WeightDiagnostics:
         trimming_percentile: float = 99.0,
         figsize: tuple[int, int] = (12, 8),
         style: str = "whitegrid",
+        enable_distribution_tests: bool = True,
     ):
         """Initialize weight diagnostics analyzer.
 
@@ -82,6 +83,7 @@ class WeightDiagnostics:
             trimming_percentile: Percentile for trimming recommendations
             figsize: Figure size for plots
             style: Plotting style
+            enable_distribution_tests: Whether to run KS distribution tests (can be slow)
         """
         if not PLOTTING_AVAILABLE:
             raise ImportError(
@@ -93,6 +95,7 @@ class WeightDiagnostics:
         self.trimming_percentile = trimming_percentile
         self.figsize = figsize
         self.style = style
+        self.enable_distribution_tests = enable_distribution_tests
 
         sns.set_style(style)
 
@@ -166,68 +169,72 @@ class WeightDiagnostics:
         ks_gamma_stat, ks_gamma_pvalue = None, None
         best_fit_distribution = None
 
-        try:
-            logger.debug("Starting distribution fitting tests")
+        # Only run expensive distribution tests if enabled
+        if self.enable_distribution_tests:
+            try:
+                logger.debug("Starting distribution fitting tests")
 
-            # Test against exponential distribution
-            exp_scale = mean_weight  # MLE for exponential
-            ks_exponential_stat, ks_exponential_pvalue = stats.kstest(
-                weights, lambda x: stats.expon.cdf(x, scale=exp_scale)
-            )
-            logger.debug(
-                f"Exponential test: KS={ks_exponential_stat:.4f}, p={ks_exponential_pvalue:.4f}"
-            )
-
-            # Test against lognormal distribution
-            if np.all(weights > 0):  # Lognormal requires positive values
-                log_weights = np.log(weights)
-                lognorm_mu = np.mean(log_weights)
-                lognorm_sigma = np.std(log_weights)
-                ks_lognormal_stat, ks_lognormal_pvalue = stats.kstest(
-                    weights,
-                    lambda x: stats.lognorm.cdf(
-                        x, s=lognorm_sigma, scale=np.exp(lognorm_mu)
-                    ),
+                # Test against exponential distribution
+                exp_scale = mean_weight  # MLE for exponential
+                ks_exponential_stat, ks_exponential_pvalue = stats.kstest(
+                    weights, lambda x: stats.expon.cdf(x, scale=exp_scale)
+                )
+                logger.debug(
+                    f"Exponential test: KS={ks_exponential_stat:.4f}, p={ks_exponential_pvalue:.4f}"
                 )
 
-            # Test against gamma distribution
-            if np.all(weights > 0) and std_weight > 0:
-                # Method of moments for gamma parameters
-                gamma_k = (mean_weight / std_weight) ** 2  # shape parameter
-                gamma_theta = std_weight**2 / mean_weight  # scale parameter
-                if gamma_k > 0 and gamma_theta > 0:
-                    ks_gamma_stat, ks_gamma_pvalue = stats.kstest(
+                # Test against lognormal distribution
+                if np.all(weights > 0):  # Lognormal requires positive values
+                    log_weights = np.log(weights)
+                    lognorm_mu = np.mean(log_weights)
+                    lognorm_sigma = np.std(log_weights)
+                    ks_lognormal_stat, ks_lognormal_pvalue = stats.kstest(
                         weights,
-                        lambda x: stats.gamma.cdf(x, a=gamma_k, scale=gamma_theta),
+                        lambda x: stats.lognorm.cdf(
+                            x, s=lognorm_sigma, scale=np.exp(lognorm_mu)
+                        ),
                     )
 
-            # Determine best fitting distribution
-            p_values = []
-            distributions = []
+                # Test against gamma distribution
+                if np.all(weights > 0) and std_weight > 0:
+                    # Method of moments for gamma parameters
+                    gamma_k = (mean_weight / std_weight) ** 2  # shape parameter
+                    gamma_theta = std_weight**2 / mean_weight  # scale parameter
+                    if gamma_k > 0 and gamma_theta > 0:
+                        ks_gamma_stat, ks_gamma_pvalue = stats.kstest(
+                            weights,
+                            lambda x: stats.gamma.cdf(x, a=gamma_k, scale=gamma_theta),
+                        )
 
-            if ks_exponential_pvalue is not None:
-                p_values.append(ks_exponential_pvalue)
-                distributions.append("exponential")
+                # Determine best fitting distribution
+                p_values = []
+                distributions = []
 
-            if ks_lognormal_pvalue is not None:
-                p_values.append(ks_lognormal_pvalue)
-                distributions.append("lognormal")
+                if ks_exponential_pvalue is not None:
+                    p_values.append(ks_exponential_pvalue)
+                    distributions.append("exponential")
 
-            if ks_gamma_pvalue is not None:
-                p_values.append(ks_gamma_pvalue)
-                distributions.append("gamma")
+                if ks_lognormal_pvalue is not None:
+                    p_values.append(ks_lognormal_pvalue)
+                    distributions.append("lognormal")
 
-            if p_values:
-                best_idx = np.argmax(p_values)
-                best_fit_distribution = distributions[best_idx]
-                logger.info(
-                    f"Best fitting distribution: {best_fit_distribution} (p={p_values[best_idx]:.4f})"
-                )
+                if ks_gamma_pvalue is not None:
+                    p_values.append(ks_gamma_pvalue)
+                    distributions.append("gamma")
 
-        except (ValueError, RuntimeWarning, FloatingPointError) as e:
-            # If distribution fitting fails, continue without KS tests
-            logger.warning(f"Distribution fitting failed: {e}")
-            pass
+                if p_values:
+                    best_idx = np.argmax(p_values)
+                    best_fit_distribution = distributions[best_idx]
+                    logger.info(
+                        f"Best fitting distribution: {best_fit_distribution} (p={p_values[best_idx]:.4f})"
+                    )
+
+            except (ValueError, RuntimeWarning, FloatingPointError) as e:
+                # If distribution fitting fails, continue without KS tests
+                logger.warning(f"Distribution fitting failed: {e}")
+                pass
+        else:
+            logger.debug("Distribution fitting tests disabled for performance")
 
         return WeightDiagnosticsResult(
             weights=weights,
@@ -300,8 +307,8 @@ class WeightDiagnostics:
         # 1. Histogram with density
         ax1 = fig.add_subplot(gs[0, :2])
 
-        # Regular histogram
-        n_bins = min(50, max(10, int(np.sqrt(result.n_observations))))
+        # Regular histogram - reduce bins for performance
+        n_bins = min(30, max(10, int(np.sqrt(result.n_observations))))
         counts, bins, patches = ax1.hist(
             result.weights,
             bins=n_bins,
@@ -457,13 +464,13 @@ class WeightDiagnostics:
             table.set_fontsize(10)
             table.scale(1, 2)
 
-            # Color header row
-            for i in range(len(table._cells)):
-                if i < 2:  # Header row
-                    table._cells[i].set_facecolor("#40466e")
-                    table._cells[i].set_text_props(weight="bold", color="white")
+            # Color header row - fix cell access pattern
+            for (row, col), cell in table.get_celld().items():
+                if row == 0:  # Header row
+                    cell.set_facecolor("#40466e")
+                    cell.set_text_props(weight="bold", color="white")
                 else:
-                    table._cells[i].set_facecolor("#f1f1f2")
+                    cell.set_facecolor("#f1f1f2")
 
         plt.suptitle(title, fontsize=16, fontweight="bold")
 
@@ -498,7 +505,7 @@ class WeightDiagnostics:
         fig.add_trace(
             go.Histogram(
                 x=result.weights,
-                nbinsx=min(50, max(10, int(np.sqrt(result.n_observations)))),
+                nbinsx=min(30, max(10, int(np.sqrt(result.n_observations)))),
                 name="Weight Distribution",
                 opacity=0.7,
                 marker_color="skyblue",
@@ -685,6 +692,7 @@ def create_weight_plots(
     title: str = "Weight Distribution Diagnostics",
     save_path: str | None = None,
     interactive: bool = False,
+    enable_distribution_tests: bool = True,
 ) -> tuple[plt.Figure | go.Figure, WeightDiagnosticsResult, list[str]]:
     """Convenience function to create weight diagnostic plots.
 
@@ -694,11 +702,15 @@ def create_weight_plots(
         title: Plot title
         save_path: Path to save the plot
         interactive: Whether to create interactive plot
+        enable_distribution_tests: Whether to run KS distribution tests (can be slow)
 
     Returns:
         Tuple of (figure, diagnostics_result, recommendations)
     """
-    analyzer = WeightDiagnostics(extreme_weight_threshold=extreme_weight_threshold)
+    analyzer = WeightDiagnostics(
+        extreme_weight_threshold=extreme_weight_threshold,
+        enable_distribution_tests=enable_distribution_tests,
+    )
     diagnostics_result = analyzer.analyze_weights(weights)
     figure = analyzer.create_weight_plots(
         diagnostics_result, title, save_path, interactive

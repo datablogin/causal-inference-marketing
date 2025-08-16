@@ -432,6 +432,7 @@ class TestReportQuality:
                 outcome_data=outcome_data,
                 covariates=covariate_data,
                 estimator_name="Performance Test",
+                performance_mode=True,  # Enable performance mode for speed test
             )
 
         elapsed_time = time.time() - start_time

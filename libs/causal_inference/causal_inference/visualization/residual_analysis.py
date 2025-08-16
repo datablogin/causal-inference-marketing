@@ -394,7 +394,7 @@ class ResidualAnalyzer:
         # 4. Histogram of residuals
         ax4 = fig.add_subplot(gs[1, 0])
 
-        n_bins = min(50, max(10, int(np.sqrt(len(result.residuals)))))
+        n_bins = min(30, max(10, int(np.sqrt(len(result.residuals)))))
         counts, bins, patches = ax4.hist(
             result.residuals,
             bins=n_bins,

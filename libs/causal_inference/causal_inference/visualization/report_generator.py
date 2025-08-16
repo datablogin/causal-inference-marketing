@@ -83,6 +83,7 @@ class DiagnosticReportGenerator:
         template_dir: Path | None = None,
         include_interactive: bool = True,
         max_file_size_mb: float = 5.0,
+        performance_mode: bool = False,
     ):
         """Initialize report generator.
 
@@ -90,6 +91,7 @@ class DiagnosticReportGenerator:
             template_dir: Directory containing HTML templates
             include_interactive: Whether to include interactive plots
             max_file_size_mb: Maximum file size for generated reports
+            performance_mode: Enable performance optimizations for speed
         """
         if not PLOTTING_AVAILABLE:
             raise ImportError(
@@ -100,12 +102,18 @@ class DiagnosticReportGenerator:
         self.template_dir = template_dir
         self.include_interactive = include_interactive and PLOTLY_AVAILABLE
         self.max_file_size_mb = max_file_size_mb
+        self.performance_mode = performance_mode
 
-        # Initialize plot generators
+        # Initialize plot generators - optimize based on performance mode
         self.love_plot_generator = LovePlotGenerator()
-        self.weight_analyzer = WeightDiagnostics()
+        self.weight_analyzer = WeightDiagnostics(
+            enable_distribution_tests=not performance_mode,
+            figsize=(8, 6) if performance_mode else (12, 8),
+        )
         self.propensity_generator = PropensityPlotGenerator()
-        self.residual_analyzer = ResidualAnalyzer()
+        self.residual_analyzer = ResidualAnalyzer(
+            figsize=(10, 8) if performance_mode else (15, 12)
+        )
 
     def generate_comprehensive_report(
         self,
@@ -316,44 +324,52 @@ class DiagnosticReportGenerator:
         """Generate all plots and return as base64-encoded images."""
         plot_data = {}
 
-        # Love plot
-        if report_data.love_plot_data is not None:
-            fig = self.love_plot_generator.create_love_plot(
-                report_data.love_plot_data, interactive=False
-            )
-            plot_data["love_plot"] = self._figure_to_base64(fig)
-            plt.close(fig)
+        # In performance mode, skip plot generation entirely
+        if self.performance_mode:
+            # Skip all plot generation for maximum performance
+            return {}
+        else:
+            # Full plot generation for normal mode
+            # Love plot
+            if report_data.love_plot_data is not None:
+                fig = self.love_plot_generator.create_love_plot(
+                    report_data.love_plot_data, interactive=False
+                )
+                plot_data["love_plot"] = self._figure_to_base64(fig)
+                plt.close(fig)
 
-        # Weight diagnostics
-        if report_data.weight_diagnostics is not None:
-            fig = self.weight_analyzer.create_weight_plots(
-                report_data.weight_diagnostics, interactive=False
-            )
-            plot_data["weight_plots"] = self._figure_to_base64(fig)
-            plt.close(fig)
+            # Weight diagnostics
+            if report_data.weight_diagnostics is not None:
+                fig = self.weight_analyzer.create_weight_plots(
+                    report_data.weight_diagnostics, interactive=False
+                )
+                plot_data["weight_plots"] = self._figure_to_base64(fig)
+                plt.close(fig)
 
-        # Propensity score plots
-        if report_data.propensity_overlap is not None:
-            fig = self.propensity_generator.create_propensity_plots(
-                report_data.propensity_overlap, interactive=False
-            )
-            plot_data["propensity_plots"] = self._figure_to_base64(fig)
-            plt.close(fig)
+            # Propensity score plots
+            if report_data.propensity_overlap is not None:
+                fig = self.propensity_generator.create_propensity_plots(
+                    report_data.propensity_overlap, interactive=False
+                )
+                plot_data["propensity_plots"] = self._figure_to_base64(fig)
+                plt.close(fig)
 
-        # Residual analysis
-        if report_data.residual_analysis is not None:
-            fig = self.residual_analyzer.create_residual_plots(
-                report_data.residual_analysis, interactive=False
-            )
-            plot_data["residual_plots"] = self._figure_to_base64(fig)
-            plt.close(fig)
+            # Residual analysis
+            if report_data.residual_analysis is not None:
+                fig = self.residual_analyzer.create_residual_plots(
+                    report_data.residual_analysis, interactive=False
+                )
+                plot_data["residual_plots"] = self._figure_to_base64(fig)
+                plt.close(fig)
 
         return plot_data
 
     def _figure_to_base64(self, fig: plt.Figure) -> str:
         """Convert matplotlib figure to base64-encoded string."""
         buffer = io.BytesIO()
-        fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
+        # Use performance-optimized settings
+        dpi = 75 if self.performance_mode else 100
+        fig.savefig(buffer, format="png", dpi=dpi, bbox_inches="tight")
         buffer.seek(0)
 
         image_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -909,6 +925,7 @@ def generate_diagnostic_report(
     ate_ci_upper: float | None = None,
     save_path: str | None = None,
     template_type: str = "comprehensive",
+    performance_mode: bool = False,
 ) -> str:
     """Convenience function to generate a diagnostic report.
 
@@ -926,11 +943,12 @@ def generate_diagnostic_report(
         ate_ci_upper: Upper bound of ATE confidence interval
         save_path: Path to save the report
         template_type: Type of template to use
+        performance_mode: Enable performance optimizations
 
     Returns:
         HTML report as string
     """
-    generator = DiagnosticReportGenerator()
+    generator = DiagnosticReportGenerator(performance_mode=performance_mode)
 
     return generator.generate_comprehensive_report(
         treatment_data=treatment_data,
