@@ -358,7 +358,7 @@ class TestTransportabilityWeightingInterface:
         np.random.seed(42)
 
         X_source, _ = make_classification(
-            n_samples=200, n_features=3, n_informative=2, random_state=42
+            n_samples=200, n_features=3, n_informative=2, n_redundant=0, random_state=42
         )
 
         X_target = X_source.copy()
