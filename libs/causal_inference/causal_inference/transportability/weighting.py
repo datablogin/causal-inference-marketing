@@ -553,8 +553,8 @@ class TransportabilityWeightingInterface:
         mean_abs_smd = np.mean([abs(smd) for smd in standardized_diffs.values()])
         max_abs_smd = np.max([abs(smd) for smd in standardized_diffs.values()])
 
-        # Balance thresholds
-        good_balance = mean_abs_smd < 0.1 and max_abs_smd < 0.25
+        # Balance thresholds (ensure Python bool, not numpy bool)
+        good_balance = bool(mean_abs_smd < 0.1 and max_abs_smd < 0.25)
 
         return {
             "weighted_means": weighted_means,
