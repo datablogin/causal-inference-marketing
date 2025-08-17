@@ -14,7 +14,11 @@ from ..core.base import (
     CausalEffect,
 )
 from .diagnostics import CovariateShiftDiagnostics, ShiftSeverity
-from .weighting import DensityRatioEstimator, WeightingResult, TransportabilityWeightingInterface
+from .weighting import (
+    DensityRatioEstimator,
+    TransportabilityWeightingInterface,
+    WeightingResult,
+)
 
 
 class TransportabilityEstimator:
@@ -112,9 +116,7 @@ class TransportabilityEstimator:
 
         return transported_effect
 
-    def _ensure_dataframe(
-        self, data: pd.DataFrame | NDArray[Any]
-    ) -> pd.DataFrame:
+    def _ensure_dataframe(self, data: pd.DataFrame | NDArray[Any]) -> pd.DataFrame:
         """Convert input to DataFrame."""
         if isinstance(data, pd.DataFrame):
             return data
@@ -328,7 +330,7 @@ class TransportabilityEstimator:
 
         T = np.array(self.base_estimator.treatment_data.values)
         Y = np.array(self.base_estimator.outcome_data.values)
-        
+
         if self.transport_weights is None:
             raise ValueError("Transport weights not computed")
         weights = self.transport_weights
@@ -462,9 +464,7 @@ class TransportabilityEstimator:
         n_moderate = self.shift_diagnostics._count_shifts_by_severity(
             ShiftSeverity.MODERATE
         )
-        n_mild = self.shift_diagnostics._count_shifts_by_severity(
-            ShiftSeverity.MILD
-        )
+        n_mild = self.shift_diagnostics._count_shifts_by_severity(ShiftSeverity.MILD)
 
         lines.extend(
             [
