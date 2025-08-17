@@ -66,8 +66,12 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
         super().__init__(random_state=random_state, verbose=verbose)
 
         # Model specifications
-        self.outcome_model = outcome_model or RandomForestRegressor(
-            n_estimators=100, random_state=random_state, n_jobs=-1
+        self.outcome_model = (
+            outcome_model
+            if outcome_model is not None
+            else RandomForestRegressor(
+                n_estimators=100, random_state=random_state, n_jobs=-1
+            )
         )
         self.treatment_model = treatment_model or LogisticRegression(
             random_state=random_state, max_iter=1000

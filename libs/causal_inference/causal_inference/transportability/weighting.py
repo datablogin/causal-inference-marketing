@@ -255,10 +255,17 @@ class DensityRatioEstimator(TransportabilityWeighting):
         target_data: pd.DataFrame | NDArray[Any],
     ) -> NDArray[Any]:
         """Estimate density ratio using classification approach."""
-        # Combine data and create labels
-        combined_data = pd.concat(
-            [pd.DataFrame(source_data), pd.DataFrame(target_data)], ignore_index=True
-        )
+        # Combine data and create labels with consistent column naming
+        source_df = pd.DataFrame(source_data)
+        target_df = pd.DataFrame(target_data)
+
+        # Ensure consistent column naming (all strings)
+        if source_df.shape[1] == target_df.shape[1]:
+            column_names = [f"feature_{i}" for i in range(source_df.shape[1])]
+            source_df.columns = column_names
+            target_df.columns = column_names
+
+        combined_data = pd.concat([source_df, target_df], ignore_index=True)
 
         labels = np.concatenate(
             [
