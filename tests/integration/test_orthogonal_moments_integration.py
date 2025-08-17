@@ -485,9 +485,9 @@ class TestOrthogonalMomentsIntegration:
             successful_count = sum(
                 1 for result in results.values() if result.get("success", False)
             )
-            assert (
-                successful_count >= 3
-            ), f"Too few methods successful for {scenario_name}"
+            assert successful_count >= 3, (
+                f"Too few methods successful for {scenario_name}"
+            )
 
     def test_iv_methods_with_instruments(self, synthetic_scenarios):
         """Test IV-based methods when instruments are available."""
@@ -724,15 +724,15 @@ class TestDocumentationAndExamples:
             method_results.items(), key=lambda x: x[1]["error"]
         ):
             print(
-                f"{method:15s}: ${result['ate']:5.1f}k (±{result['ci_width']/2:4.1f}k), "
+                f"{method:15s}: ${result['ate']:5.1f}k (±{result['ci_width'] / 2:4.1f}k), "
                 f"error = ${result['error']:4.1f}k"
             )
 
         # All methods should provide reasonable estimates
         for method, result in method_results.items():
-            assert (
-                result["error"] < 3.0
-            ), f"Method {method} error too large: {result['error']}"
+            assert result["error"] < 3.0, (
+                f"Method {method} error too large: {result['error']}"
+            )
 
     def test_advanced_usage_example(self):
         """Test advanced usage with method selection and validation."""

@@ -382,7 +382,9 @@ class TestTransportabilityWeightingInterface:
         """Test automatic method selection."""
         X_source, X_target = sample_data
 
-        weighting = TransportabilityWeightingInterface(auto_select=True, random_state=42)
+        weighting = TransportabilityWeightingInterface(
+            auto_select=True, random_state=42
+        )
 
         result = weighting.estimate_weights(X_source, X_target)
 
@@ -399,7 +401,9 @@ class TestTransportabilityWeightingInterface:
         """Test weight validation functionality."""
         X_source, X_target = sample_data
 
-        weighting = TransportabilityWeightingInterface(method="classification", random_state=42)
+        weighting = TransportabilityWeightingInterface(
+            method="classification", random_state=42
+        )
         result = weighting.estimate_weights(X_source, X_target)
 
         # Validate the computed weights
@@ -430,4 +434,6 @@ class TestTransportabilityWeightingInterface:
     def test_unknown_method_error(self):
         """Test error handling for unknown weighting method."""
         with pytest.raises(ValueError, match="Unknown weighting method"):
-            TransportabilityWeightingInterface(method="unknown_method", auto_select=False)
+            TransportabilityWeightingInterface(
+                method="unknown_method", auto_select=False
+            )

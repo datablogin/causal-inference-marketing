@@ -9,6 +9,7 @@ from sklearn.linear_model import LogisticRegression
 from causal_inference.core.base import (
     CausalEffect,
     CovariateData,
+    EstimationError,
     OutcomeData,
     TreatmentData,
 )
@@ -83,8 +84,8 @@ class TestTargetedMaximumTransportedLikelihood:
             verbose=True,
         )
 
-        assert tmtl.outcome_model == outcome_model
-        assert tmtl.treatment_model == treatment_model
+        assert tmtl.outcome_model is outcome_model
+        assert tmtl.treatment_model is treatment_model
         assert tmtl.transport_weighting_method == "optimal_transport"
         assert tmtl.max_transport_iterations == 50
         assert tmtl.transport_tolerance == 1e-4
@@ -126,7 +127,7 @@ class TestTargetedMaximumTransportedLikelihood:
 
         tmtl = TargetedMaximumTransportedLikelihood()
 
-        with pytest.raises(ValueError, match="TMTL requires covariates"):
+        with pytest.raises(EstimationError, match="TMTL requires covariates"):
             tmtl.fit(treatment_data, outcome_data, covariates=None)
 
     def test_estimate_transported_ate_basic(self, sample_data, target_data):

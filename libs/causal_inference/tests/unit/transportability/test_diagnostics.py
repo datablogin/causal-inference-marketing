@@ -44,7 +44,9 @@ class TestCovariateShiftDiagnostics:
     def identical_data(self):
         """Generate identical source and target data."""
         np.random.seed(42)
-        X, _ = make_classification(n_samples=500, n_features=3, random_state=42)
+        X, _ = make_classification(
+            n_samples=500, n_features=3, n_informative=2, n_redundant=0, random_state=42
+        )
         return X, X.copy()
 
     def test_initialization(self):

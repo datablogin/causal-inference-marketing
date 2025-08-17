@@ -413,9 +413,9 @@ class TestRDDWithNHEFS:
         error_tolerance = 0.1 * abs(self.true_effect)
         actual_error = abs(result.ate - self.true_effect)
 
-        assert (
-            actual_error <= error_tolerance + 0.5
-        ), f"RDD estimate {result.ate:.3f} vs true effect {self.true_effect:.3f}, error {actual_error:.3f}"
+        assert actual_error <= error_tolerance + 0.5, (
+            f"RDD estimate {result.ate:.3f} vs true effect {self.true_effect:.3f}, error {actual_error:.3f}"
+        )
 
         # Should have reasonable sample sizes on both sides
         assert result.n_left > 50

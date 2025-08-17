@@ -563,9 +563,9 @@ class TestPropensityScoreEstimatorIntegration:
         assert support_diag["overlap_percentage"] >= 0.85, "Common support < 85%"
 
         # Effect estimation should be within reasonable range
-        assert (
-            abs(effect.ate - self.true_ate) < 1.5
-        ), f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        assert abs(effect.ate - self.true_ate) < 1.5, (
+            f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        )
 
     def test_matching_performance_kpis(self):
         """Test that matching meets the performance KPIs from the issue."""
@@ -585,14 +585,14 @@ class TestPropensityScoreEstimatorIntegration:
         match_diag = estimator.get_matching_diagnostics()
 
         # Should successfully match >= 85% of treated units
-        assert (
-            match_diag["match_rate"] >= 0.85
-        ), f"Match rate {match_diag['match_rate']:.1%} < 85%"
+        assert match_diag["match_rate"] >= 0.85, (
+            f"Match rate {match_diag['match_rate']:.1%} < 85%"
+        )
 
         # Average propensity score distance should be < 0.05
-        assert (
-            match_diag["average_distance"] < 0.05
-        ), f"Average distance {match_diag['average_distance']:.3f} >= 0.05"
+        assert match_diag["average_distance"] < 0.05, (
+            f"Average distance {match_diag['average_distance']:.3f} >= 0.05"
+        )
 
         # Balance improvement
         balance_diag = estimator.get_balance_diagnostics()
@@ -603,9 +603,9 @@ class TestPropensityScoreEstimatorIntegration:
         assert improvement >= 0.5, f"Balance improvement {improvement:.1%} < 50%"
 
         # Effect estimation should be reasonable
-        assert (
-            abs(effect.ate - self.true_ate) < 1.0
-        ), f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        assert abs(effect.ate - self.true_ate) < 1.0, (
+            f"ATE estimate {effect.ate:.2f} too far from true {self.true_ate}"
+        )
 
     def test_multiple_matching_ratios(self):
         """Test that 1:2 matching provides tighter confidence intervals than 1:1."""

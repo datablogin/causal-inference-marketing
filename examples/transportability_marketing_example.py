@@ -216,20 +216,20 @@ def _plot_covariate_distributions(data: Dict[str, Any]) -> None:
             source_X[:, i],
             bins=30,
             alpha=0.6,
-            label=f'Source ({data["source"]["population"]})',
+            label=f"Source ({data['source']['population']})",
             density=True,
         )
         ax.hist(
             target_X[:, i],
             bins=30,
             alpha=0.6,
-            label=f'Target ({data["target"]["population"]})',
+            label=f"Target ({data['target']['population']})",
             density=True,
         )
 
         ax.set_xlabel(feature.replace("_", " ").title())
         ax.set_ylabel("Density")
-        ax.set_title(f'Distribution of {feature.replace("_", " ").title()}')
+        ax.set_title(f"Distribution of {feature.replace('_', ' ').title()}")
         ax.legend()
         ax.grid(True, alpha=0.3)
 
@@ -468,7 +468,7 @@ def visualize_results(results: Dict[str, float], data: Dict[str, Any]) -> None:
 
     bars1 = axes[0].bar(methods, estimates, color=colors, edgecolor="black", alpha=0.8)
     axes[0].set_ylabel("Average Treatment Effect ($)")
-    axes[0].set_title(f'ATE Estimates: {data["source"]["population"]}')
+    axes[0].set_title(f"ATE Estimates: {data['source']['population']}")
     axes[0].grid(True, alpha=0.3, axis="y")
 
     # Add value labels
@@ -491,7 +491,7 @@ def visualize_results(results: Dict[str, float], data: Dict[str, Any]) -> None:
         t_methods, t_estimates, color=t_colors, edgecolor="black", alpha=0.8
     )
     axes[1].set_ylabel("Average Treatment Effect ($)")
-    axes[1].set_title(f'Transported ATE Estimates: {data["target"]["population"]}')
+    axes[1].set_title(f"Transported ATE Estimates: {data['target']['population']}")
     axes[1].grid(True, alpha=0.3, axis="y")
 
     # Add value labels
