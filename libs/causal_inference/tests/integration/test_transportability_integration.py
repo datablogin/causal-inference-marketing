@@ -9,9 +9,9 @@ from causal_inference.estimators.g_computation import GComputationEstimator
 from causal_inference.estimators.ipw import IPWEstimator
 from causal_inference.transportability import (
     CovariateShiftDiagnostics,
-    DensityRatioEstimator,
     TargetedMaximumTransportedLikelihood,
     TransportabilityEstimator,
+    TransportabilityWeightingInterface,
 )
 
 
@@ -103,8 +103,10 @@ class TestTransportabilityIntegration:
         assert shift_results["n_variables"] == 3
 
         # Step 2: Transport weight estimation
-        weighting = DensityRatioEstimator(random_state=42)
-        weight_result = weighting.fit_weights(source["X"], target["X"])
+        weighting = TransportabilityWeightingInterface(
+            method="classification", random_state=42
+        )
+        weight_result = weighting.estimate_weights(source["X"], target["X"])
 
         assert weight_result.effective_sample_size > 0
         assert len(weight_result.weights) == len(source["X"])

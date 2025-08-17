@@ -130,9 +130,12 @@ class TransportabilityEstimator:
             raise ValueError("Base estimator must have covariate data")
         source_data = self.base_estimator.covariate_data.values
 
+        # Ensure both source and target have consistent DataFrame format
+        source_df = self._ensure_dataframe(source_data)
+
         # Run analysis
         results = self.shift_diagnostics.analyze_covariate_shift(
-            source_data=source_data,
+            source_data=source_df,
             target_data=target_df,
         )
 
