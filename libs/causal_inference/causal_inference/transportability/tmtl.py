@@ -322,6 +322,9 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
         q_0_updated = q_0.copy()
         q_1_updated = q_1.copy()
 
+        # Initialize convergence variables before loop
+        conv_0 = conv_1 = float("inf")
+
         for iteration in range(self.max_transport_iterations):
             # Calculate transport-weighted clever covariates
             h_0 = weights * (1 - t) / (1 - g)
@@ -457,11 +460,13 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
         if self.transport_weights is None:
             return 0.1, transported_ate - 0.2, transported_ate + 0.2
 
-        # Rough standard error based on effective sample size
+        # Rough standard error based on effective sample size and outcome variance
         eff_n = (np.sum(self.transport_weights) ** 2) / np.sum(
             self.transport_weights**2
         )
-        rough_se = 0.5 / np.sqrt(eff_n)  # Very rough approximation
+        # Base SE on outcome variance and effective sample size
+        outcome_var = np.var(self.source_outcome.values, ddof=1)
+        rough_se = np.sqrt(outcome_var / eff_n)
 
         ate_ci_lower = transported_ate - 1.96 * rough_se
         ate_ci_upper = transported_ate + 1.96 * rough_se

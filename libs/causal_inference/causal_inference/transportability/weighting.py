@@ -148,9 +148,7 @@ class TransportabilityWeighting(ABC):
         self.is_fitted = True
         return result
 
-    def _ensure_dataframe(
-        self, data: pd.DataFrame | NDArray[Any]
-    ) -> pd.DataFrame:
+    def _ensure_dataframe(self, data: pd.DataFrame | NDArray[Any]) -> pd.DataFrame:
         """Convert input to DataFrame."""
         if isinstance(data, pd.DataFrame):
             return data
@@ -187,8 +185,12 @@ class TransportabilityWeighting(ABC):
         """Trim extreme weights to improve stability."""
         trimmed = np.clip(weights, self.min_weight, self.max_weight)
 
-        # Renormalize to maintain sum
-        result = trimmed * len(weights) / np.sum(trimmed)
+        # Renormalize to maintain sum, but ensure bounds are still respected
+        normalization_factor = len(weights) / np.sum(trimmed)
+        result = trimmed * normalization_factor
+
+        # Apply clipping again after renormalization to ensure bounds are respected
+        result = np.clip(result, self.min_weight, self.max_weight)
         return np.asarray(result, dtype=np.float64)
 
     def _calculate_effective_sample_size(self, weights: NDArray[Any]) -> float:
@@ -291,8 +293,8 @@ class DensityRatioEstimator(TransportabilityWeighting):
         # Using Bayes rule: p(X|target) / p(X|source) =
         # [p(target|X) / p(source|X)] * [p(source) / p(target)]
 
-        # Avoid division by zero
-        source_probs = np.clip(source_probs, 1e-12, 1 - 1e-12)
+        # Avoid division by zero with more robust clipping
+        source_probs = np.clip(source_probs, 1e-8, 1 - 1e-8)
 
         # Prior ratio (assuming equal priors for simplicity)
         prior_ratio = 1.0
