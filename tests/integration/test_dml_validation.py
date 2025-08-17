@@ -68,9 +68,9 @@ class TestDMLValidationIntegration:
 
         # Check for reasonable treatment balance (not too extreme)
         treatment_rate = np.mean(D)
-        assert (
-            0.2 <= treatment_rate <= 0.8
-        ), f"Treatment rate {treatment_rate} too extreme"
+        assert 0.2 <= treatment_rate <= 0.8, (
+            f"Treatment rate {treatment_rate} too extreme"
+        )
 
         # Check outcome has reasonable range
         assert np.isfinite(Y).all(), "Outcome contains non-finite values"
@@ -94,17 +94,17 @@ class TestDMLValidationIntegration:
 
         # Check that most simulations succeeded
         min_valid = max(3, CI_SIMULATIONS - 2)  # Allow 2 failures max
-        assert (
-            results["n_valid_simulations"] >= min_valid
-        ), "Too many failed simulations"
+        assert results["n_valid_simulations"] >= min_valid, (
+            "Too many failed simulations"
+        )
 
         # Check bias is reasonable (may not always pass with small samples)
-        assert (
-            abs(results["mean_bias"]) < 0.5
-        ), f"Mean bias {results['mean_bias']} too large"
-        assert (
-            results["abs_bias"] < 0.5
-        ), f"Absolute bias {results['abs_bias']} too large"
+        assert abs(results["mean_bias"]) < 0.5, (
+            f"Mean bias {results['mean_bias']} too large"
+        )
+        assert results["abs_bias"] < 0.5, (
+            f"Absolute bias {results['abs_bias']} too large"
+        )
 
     def test_coverage_validation_passes(self, default_estimator, fast_validator):
         """Test that DML estimator passes coverage validation."""
@@ -124,9 +124,9 @@ class TestDMLValidationIntegration:
 
         # Check that CIs were generated
         min_valid_cis = max(3, CI_SIMULATIONS - 2)  # Allow 2 failures max
-        assert (
-            results["n_valid_cis"] >= min_valid_cis
-        ), "Too few valid confidence intervals"
+        assert results["n_valid_cis"] >= min_valid_cis, (
+            "Too few valid confidence intervals"
+        )
 
         # Check coverage is reasonable
         coverage = results["empirical_coverage"]
@@ -200,9 +200,9 @@ class TestDMLValidationIntegration:
             )
 
             min_valid_moment = max(2, (CI_SIMULATIONS // 2) - 1)
-            assert (
-                results["n_valid_simulations"] >= min_valid_moment
-            ), f"Too many failures for {moment_fn}"
+            assert results["n_valid_simulations"] >= min_valid_moment, (
+                f"Too many failures for {moment_fn}"
+            )
             assert abs(results["mean_bias"]) < 1.5, f"Bias too large for {moment_fn}"
 
     def test_different_sample_sizes(self, default_estimator, fast_validator):
@@ -221,9 +221,9 @@ class TestDMLValidationIntegration:
 
             # Should work for all sample sizes
             min_valid_size = max(2, test_sims - 1)
-            assert (
-                results["n_valid_simulations"] >= min_valid_size
-            ), f"Too many failures for n={n}"
+            assert results["n_valid_simulations"] >= min_valid_size, (
+                f"Too many failures for n={n}"
+            )
             assert len(results["individual_estimates"]) >= min_valid_size
 
 
@@ -315,9 +315,9 @@ class TestDMLBenchmarkIntegration:
 
             # Should work for all configurations
             test_size_key = test_size[0]
-            assert results["runtime_results"][test_size_key][
-                "success"
-            ], f"Failed for config {config}"
+            assert results["runtime_results"][test_size_key]["success"], (
+                f"Failed for config {config}"
+            )
 
 
 class TestDMLValidationRobustness:

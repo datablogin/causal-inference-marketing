@@ -251,9 +251,9 @@ class TestBayesianEstimator:
         assert effect.ate_credible_lower < effect.ate < effect.ate_credible_upper
 
         # True ATE is 5.0, should be reasonably close
-        assert (
-            abs(effect.ate - 5.0) < 2.0
-        ), f"Estimated ATE {effect.ate} too far from true ATE 5.0"
+        assert abs(effect.ate - 5.0) < 2.0, (
+            f"Estimated ATE {effect.ate} too far from true ATE 5.0"
+        )
 
     @pytest.mark.slow
     def test_estimation_nhefs_subset(self, nhefs_subset_data):
@@ -276,14 +276,14 @@ class TestBayesianEstimator:
         assert len(effect.posterior_samples) == 3000 * 4  # draws * chains
 
         # True ATE is 3.5, should be reasonably close
-        assert (
-            abs(effect.ate - 3.5) < 2.5
-        ), f"Estimated ATE {effect.ate} too far from true ATE 3.5"
+        assert abs(effect.ate - 3.5) < 2.5, (
+            f"Estimated ATE {effect.ate} too far from true ATE 3.5"
+        )
 
         # Check effective sample size is reasonable
-        assert (
-            effect.effective_sample_size > 50
-        ), f"ESS too low: {effect.effective_sample_size}"
+        assert effect.effective_sample_size > 50, (
+            f"ESS too low: {effect.effective_sample_size}"
+        )
 
         # Check R-hat indicates convergence
         assert effect.r_hat < 1.3, f"R-hat too high: {effect.r_hat}"
@@ -310,9 +310,9 @@ class TestBayesianEstimator:
 
         assert isinstance(effect, BayesianCausalEffect)
         # True ATE is 3.0
-        assert (
-            abs(effect.ate - 3.0) < 1.5
-        ), f"Estimated ATE {effect.ate} too far from true ATE 3.0"
+        assert abs(effect.ate - 3.0) < 1.5, (
+            f"Estimated ATE {effect.ate} too far from true ATE 3.0"
+        )
 
     def test_summary_statistics(self, simple_data):
         """Test summary statistics method."""

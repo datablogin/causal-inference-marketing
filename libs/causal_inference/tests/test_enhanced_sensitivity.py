@@ -437,12 +437,12 @@ class TestComprehensiveSensitivityAnalysis:
             ci_warnings = [msg for msg in warning_messages if "CI E-value" in msg]
 
             # Should have warnings about extreme risks
-            assert (
-                len(baseline_warnings) > 0
-            ), "Expected warning about extreme baseline risk"
-            assert (
-                len(ci_warnings) > 0
-            ), "Expected warning about CI E-value calculations"
+            assert len(baseline_warnings) > 0, (
+                "Expected warning about extreme baseline risk"
+            )
+            assert len(ci_warnings) > 0, (
+                "Expected warning about CI E-value calculations"
+            )
 
             # Should still provide valid results
             assert result.evalue > 1.0

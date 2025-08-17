@@ -305,9 +305,9 @@ class TestInputValidationEnhancements:
             effect2 = estimator_copy.estimate_ate()
 
             # Results should be identical with same seed
-            assert np.isclose(
-                effect1.ate, effect2.ate
-            ), f"ATE not reproducible for {type(estimator).__name__}"
+            assert np.isclose(effect1.ate, effect2.ate), (
+                f"ATE not reproducible for {type(estimator).__name__}"
+            )
 
             # Bootstrap estimates should also be reproducible (check sorted values to avoid order issues)
             if (
@@ -317,18 +317,18 @@ class TestInputValidationEnhancements:
                 # Sort both arrays to check if they contain the same values (order might vary)
                 sorted_estimates1 = np.sort(effect1.bootstrap_estimates)
                 sorted_estimates2 = np.sort(effect2.bootstrap_estimates)
-                assert np.allclose(
-                    sorted_estimates1, sorted_estimates2
-                ), f"Bootstrap estimates not reproducible for {type(estimator).__name__}"
+                assert np.allclose(sorted_estimates1, sorted_estimates2), (
+                    f"Bootstrap estimates not reproducible for {type(estimator).__name__}"
+                )
 
             # Confidence intervals should be reproducible
             if effect1.ate_ci_lower is not None and effect2.ate_ci_lower is not None:
-                assert np.isclose(
-                    effect1.ate_ci_lower, effect2.ate_ci_lower
-                ), f"CI lower bound not reproducible for {type(estimator).__name__}"
-                assert np.isclose(
-                    effect1.ate_ci_upper, effect2.ate_ci_upper
-                ), f"CI upper bound not reproducible for {type(estimator).__name__}"
+                assert np.isclose(effect1.ate_ci_lower, effect2.ate_ci_lower), (
+                    f"CI lower bound not reproducible for {type(estimator).__name__}"
+                )
+                assert np.isclose(effect1.ate_ci_upper, effect2.ate_ci_upper), (
+                    f"CI upper bound not reproducible for {type(estimator).__name__}"
+                )
 
             results.append(effect1)
 
@@ -397,40 +397,40 @@ class TestInputValidationEnhancements:
                     # Bootstrap should either converge or provide meaningful diagnostics
                     if not effect.bootstrap_converged:
                         # If not converged, we should still get reasonable estimates
-                        assert np.isfinite(
-                            effect.ate
-                        ), f"ATE should be finite even with convergence issues for {type(estimator).__name__}"
+                        assert np.isfinite(effect.ate), (
+                            f"ATE should be finite even with convergence issues for {type(estimator).__name__}"
+                        )
                         # Standard error might be None if bootstrap failed completely
                         if effect.ate_se is not None:
-                            assert (
-                                effect.ate_se > 0
-                            ), f"Standard error should be positive for {type(estimator).__name__}"
+                            assert effect.ate_se > 0, (
+                                f"Standard error should be positive for {type(estimator).__name__}"
+                            )
                     else:
                         # If converged, all bootstrap statistics should be available
-                        assert np.isfinite(
-                            effect.ate
-                        ), f"ATE should be finite when converged for {type(estimator).__name__}"
+                        assert np.isfinite(effect.ate), (
+                            f"ATE should be finite when converged for {type(estimator).__name__}"
+                        )
                         if effect.ate_se is not None:
-                            assert (
-                                effect.ate_se > 0
-                            ), f"Standard error should be positive when converged for {type(estimator).__name__}"
+                            assert effect.ate_se > 0, (
+                                f"Standard error should be positive when converged for {type(estimator).__name__}"
+                            )
 
                         # Check that confidence intervals are reasonable
                         if (
                             effect.ate_ci_lower is not None
                             and effect.ate_ci_upper is not None
                         ):
-                            assert (
-                                effect.ate_ci_lower < effect.ate_ci_upper
-                            ), f"CI bounds should be ordered correctly for {type(estimator).__name__}"
+                            assert effect.ate_ci_lower < effect.ate_ci_upper, (
+                                f"CI bounds should be ordered correctly for {type(estimator).__name__}"
+                            )
 
                 # Basic sanity checks regardless of convergence
-                assert np.isfinite(
-                    effect.ate
-                ), f"Point estimate should always be finite for {type(estimator).__name__}"
-                assert (
-                    effect.n_observations == n_samples
-                ), f"Sample size should be correct for {type(estimator).__name__}"
+                assert np.isfinite(effect.ate), (
+                    f"Point estimate should always be finite for {type(estimator).__name__}"
+                )
+                assert effect.n_observations == n_samples, (
+                    f"Sample size should be correct for {type(estimator).__name__}"
+                )
 
             except EstimationError as e:
                 # For challenging cases, some estimators may fail
@@ -445,7 +445,9 @@ class TestInputValidationEnhancements:
                         "instability",
                         "failed",
                     ]
-                ), f"Error message should be informative for {type(estimator).__name__}: {error_msg}"
+                ), (
+                    f"Error message should be informative for {type(estimator).__name__}: {error_msg}"
+                )
 
     def test_robust_error_recovery(self):
         """Test that estimators can recover from errors gracefully."""

@@ -789,9 +789,9 @@ class TestVisualizationPerformance:
         memory_increase = final_memory - initial_memory
 
         # Memory usage should be reasonable (< 500MB as per issue requirements)
-        assert (
-            memory_increase < 500
-        ), f"Memory usage too high: {memory_increase:.1f}MB increase"
+        assert memory_increase < 500, (
+            f"Memory usage too high: {memory_increase:.1f}MB increase"
+        )
 
 
 if __name__ == "__main__":

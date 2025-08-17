@@ -112,9 +112,9 @@ class TestParallelProcessingIntegration:
 
         # Parallel processing should at least not be more than 50% slower
         # (accounting for overhead in small examples)
-        assert (
-            speedup_ratio > 0.5
-        ), f"Parallel processing too slow: {speedup_ratio:.2f}x"
+        assert speedup_ratio > 0.5, (
+            f"Parallel processing too slow: {speedup_ratio:.2f}x"
+        )
 
         # Check that parallel speedup was recorded
         parallel_metrics = parallel_estimator.get_performance_metrics()

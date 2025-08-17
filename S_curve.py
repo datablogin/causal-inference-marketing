@@ -163,21 +163,21 @@ plt.axvline(
     color="gray",
     linestyle="--",
     alpha=0.7,
-    label=f"Inflection Point: ${x0_final/1000:.0f}K",
+    label=f"Inflection Point: ${x0_final / 1000:.0f}K",
 )
 plt.axhline(
     y=baseline_final / 1000,
     color="gray",
     linestyle="--",
     alpha=0.7,
-    label=f"Baseline: ${baseline_final/1000:.0f}K",
+    label=f"Baseline: ${baseline_final / 1000:.0f}K",
 )
 plt.axhline(
     y=L_final / 1000,
     color="gray",
     linestyle="--",
     alpha=0.7,
-    label=f"Saturation: ${L_final/1000:.0f}K",
+    label=f"Saturation: ${L_final / 1000:.0f}K",
 )
 
 plt.title(
@@ -232,4 +232,4 @@ for spend_level in spend_levels:
     )
     marginal_revenue = rev2 - rev1
     marginal_roi = marginal_revenue / delta
-    print(f"  ${spend_level/1000:3.0f}K spend: {marginal_roi:.2f}x ROI")
+    print(f"  ${spend_level / 1000:3.0f}K spend: {marginal_roi:.2f}x ROI")
