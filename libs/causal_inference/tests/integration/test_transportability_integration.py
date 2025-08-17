@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
-from causal_inference.estimators.aipw import AIPW
+from causal_inference.estimators.aipw import AIPWEstimator
 from causal_inference.estimators.g_computation import GComputationEstimator
 from causal_inference.estimators.ipw import IPWEstimator
 from causal_inference.transportability import (
@@ -146,7 +146,7 @@ class TestTransportabilityIntegration:
             values=source["X"], names=source["feature_names"]
         )
 
-        aipw = AIPW(random_state=42, verbose=False)
+        aipw = AIPWEstimator(random_state=42, verbose=False)
         aipw.fit(treatment_data, outcome_data, covariate_data)
 
         # Wrap with transportability
@@ -229,7 +229,7 @@ class TestTransportabilityIntegration:
         outcome_data = OutcomeData(values=Y)
         covariate_data = CovariateData(values=X_source, names=["X1", "X2", "X3"])
 
-        aipw = AIPW(random_state=42, verbose=False)
+        aipw = AIPWEstimator(random_state=42, verbose=False)
         aipw.fit(treatment_data, outcome_data, covariate_data)
 
         # Wrap with transportability
@@ -304,7 +304,7 @@ class TestTransportabilityIntegration:
 
         # Test with different base estimators
         estimators = {
-            "AIPW": AIPW(random_state=42, verbose=False),
+            "AIPW": AIPWEstimator(random_state=42, verbose=False),
             "G-Computation": GComputationEstimator(random_state=42, verbose=False),
             "IPW": IPWEstimator(random_state=42, verbose=False),
         }
