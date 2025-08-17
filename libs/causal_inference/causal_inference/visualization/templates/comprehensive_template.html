@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Causal Inference Diagnostic Report</title>
+    <style>
+        /* Modern, professional styling for comprehensive diagnostic reports */
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 3rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin: 0;
+            font-weight: 300;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            margin-top: 1rem;
+            opacity: 0.9;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 5px solid #667eea;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-description {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .section-header {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+
+        .section-content {
+            padding: 2rem;
+        }
+
+        .plot-container {
+            text-align: center;
+            margin: 2rem 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .plot-container img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .recommendations {
+            background: linear-gradient(135deg, #ecf0f1 0%, #bdc3c7 100%);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .recommendations h4 {
+            margin-top: 0;
+            color: #2c3e50;
+            font-size: 1.2rem;
+        }
+
+        .recommendations ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .recommendations li {
+            margin: 0.5rem 0;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .recommendation-good {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .recommendation-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        .recommendation-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .overall-assessment {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin: 2rem 0;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .overall-assessment h2 {
+            margin-top: 0;
+            font-size: 2rem;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .footer {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 3rem;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🔬 Causal Inference Diagnostics</h1>
+            <div class="subtitle">Comprehensive Analysis Report</div>
+        </header>
+
+        <!-- This template serves as a foundation for the report generator -->
+        <!-- The actual content will be dynamically inserted by the Python code -->
+
+        <div class="footer">
+            <p><strong>Advanced Diagnostics & Visualization Tools</strong></p>
+            <p>Automated report generation for causal inference analysis quality assessment</p>
+        </div>
+    </div>
+</body>
+</html>
