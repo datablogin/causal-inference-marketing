@@ -180,11 +180,17 @@ class TransportabilityEstimator:
         source_data = self.base_estimator.covariate_data.values
 
         # Use density ratio estimation
+        # Prepare kwargs, avoiding duplicate random_state
+        estimator_kwargs = self.weighting_kwargs.copy()
+        if "random_state" not in estimator_kwargs:
+            estimator_kwargs["random_state"] = getattr(
+                self.base_estimator, "random_state", None
+            )
+
         weighting_estimator = DensityRatioEstimator(
             trim_weights=self.trim_weights,
             max_weight=self.max_weight,
-            random_state=getattr(self.base_estimator, "random_state", None),
-            **self.weighting_kwargs,
+            **estimator_kwargs,
         )
 
         self.weighting_result = weighting_estimator.fit_weights(

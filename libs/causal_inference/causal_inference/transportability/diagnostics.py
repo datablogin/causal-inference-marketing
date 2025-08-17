@@ -385,7 +385,7 @@ class CovariateShiftDiagnostics:
 
         # Variable-specific recommendations
         severe_vars = [
-            diff.variable_name
+            str(diff.variable_name)
             for diff in self.distribution_differences
             if diff.severity == ShiftSeverity.SEVERE
         ]
