@@ -144,11 +144,14 @@ class PolicyOptimizer:
         """
         n_individuals = len(uplifts)
 
+        # Validate inputs
+        if n_individuals == 0:
+            raise ValueError("uplifts cannot be empty")
+
         # Set default costs
         if costs is None:
             costs = np.ones(n_individuals)
 
-        # Validate inputs
         if len(costs) != n_individuals:
             raise ValueError("uplifts and costs must have same length")
 

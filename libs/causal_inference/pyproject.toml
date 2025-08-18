@@ -85,8 +85,6 @@ python_functions = ["test_*"]
 asyncio_mode = "auto"
 timeout = 300
 timeout_method = "thread"
-# Fail fast configuration
-maxfail = 3
 # Custom markers for test categorization
 markers = [
     "slow: marks tests as slow (deselected with '-m \"not slow\"')",

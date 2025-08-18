@@ -117,8 +117,12 @@ class OffPolicyEvaluator:
         random_state: int | None = None,
     ):
         self.method = method
-        self.propensity_model = propensity_model or LogisticRegression()
-        self.outcome_model = outcome_model or RandomForestRegressor()
+        self.propensity_model = (
+            propensity_model if propensity_model is not None else LogisticRegression()
+        )
+        self.outcome_model = (
+            outcome_model if outcome_model is not None else RandomForestRegressor()
+        )
         self.clip_weights = clip_weights
         self.weight_clip_threshold = weight_clip_threshold
         self.bootstrap_samples = bootstrap_samples
@@ -507,8 +511,8 @@ class OffPolicyEvaluator:
             "difference_ci": (diff_ci_lower, diff_ci_upper),
             "t_statistic": t_stat,
             "p_value": p_value,
-            "significant": p_value < 0.05,
-            "policy1_better": diff > 0 and p_value < 0.05,
+            "significant": bool(p_value < 0.05),
+            "policy1_better": bool(diff > 0 and p_value < 0.05),
         }
 
     def check_positivity(
