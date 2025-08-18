@@ -22,6 +22,7 @@ dependencies = [
     # Causal inference specific
     "pymc>=5.10.0", # Bayesian modeling (already in monorepo)
     "networkx>=3.5",
+    "cvxpy>=1.3.0", # Optimization for policy learning
 ]
 
 [project.optional-dependencies]
