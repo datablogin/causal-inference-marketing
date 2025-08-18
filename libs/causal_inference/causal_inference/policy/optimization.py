@@ -181,8 +181,8 @@ class PolicyOptimizer:
         """Greedy optimization by uplift-to-cost ratio."""
         n_individuals = len(uplifts)
 
-        # Calculate uplift-to-cost ratios
-        ratios = uplifts / costs
+        # Calculate uplift-to-cost ratios with numerical stability
+        ratios = uplifts / (costs + 1e-8)
 
         # Sort by ratio (descending)
         sorted_indices = np.argsort(-ratios)

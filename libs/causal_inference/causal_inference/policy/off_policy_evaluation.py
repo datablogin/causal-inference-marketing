@@ -365,11 +365,18 @@ class OffPolicyEvaluator:
         normalized_weights = raw_weights / (np.mean(raw_weights) + 1e-8)
 
         # Recalculate with normalized weights
-        outcome_predictions = dr_result.individual_predictions
-        direct_component = (
-            outcome_predictions * policy_assignment
-            + outcome_predictions * (1 - policy_assignment)
+        # Get the separate μ₁ and μ₀ predictions from the DR result
+        mu_0, mu_1 = self._estimate_outcome_models(
+            historical_treatments,
+            historical_outcomes,
+            features,
         )
+
+        # Correct direct component using separate predictions for treatment/control
+        direct_component = mu_1 * policy_assignment + mu_0 * (1 - policy_assignment)
+
+        # Use the original outcome predictions for bias correction
+        outcome_predictions = dr_result.individual_predictions
         bias_correction = normalized_weights * (
             historical_outcomes - outcome_predictions
         )
@@ -423,17 +430,8 @@ class OffPolicyEvaluator:
         if np.sum(control_mask) > 0:
             try:
                 # Use cross-validation to avoid overfitting
-                mu_0 = np.full(n_individuals, np.mean(outcomes[control_mask]))
                 if np.sum(control_mask) >= 10:  # Enough samples for modeling
-                    cross_val_predict(
-                        self.outcome_model,
-                        features[control_mask],
-                        outcomes[control_mask],
-                        cv=min(5, np.sum(control_mask) // 2),
-                    )
-                    np.full(n_individuals, np.mean(outcomes[control_mask]))
-
-                    # Predict for all individuals
+                    # Fit model on all control data for predictions on full dataset
                     outcome_model_control = RandomForestRegressor(
                         random_state=self.random_state
                     )
@@ -441,6 +439,9 @@ class OffPolicyEvaluator:
                         features[control_mask], outcomes[control_mask]
                     )
                     mu_0 = outcome_model_control.predict(features)
+                else:
+                    # Not enough samples for modeling, use marginal mean
+                    mu_0 = np.full(n_individuals, np.mean(outcomes[control_mask]))
             except Exception:
                 mu_0 = np.full(n_individuals, np.mean(outcomes[control_mask]))
         else:
@@ -508,6 +509,151 @@ class OffPolicyEvaluator:
             "p_value": p_value,
             "significant": p_value < 0.05,
             "policy1_better": diff > 0 and p_value < 0.05,
+        }
+
+    def check_positivity(
+        self,
+        treatments: NDArray[np.bool_],
+        features: NDArray[np.floating] | None = None,
+        propensity_scores: NDArray[np.floating] | None = None,
+        min_propensity: float = 0.01,
+        max_propensity: float = 0.99,
+    ) -> dict[str, Any]:
+        """Check positivity assumption: 0 < e(x) < 1 for all x.
+
+        Args:
+            treatments: Historical treatment assignments
+            features: Individual features (optional)
+            propensity_scores: Known propensity scores (optional)
+            min_propensity: Minimum acceptable propensity score
+            max_propensity: Maximum acceptable propensity score
+
+        Returns:
+            Dictionary with positivity diagnostics
+        """
+        if propensity_scores is None:
+            propensity_scores = self._estimate_propensity_scores(treatments, features)
+
+        # Check for violations
+        too_low = propensity_scores < min_propensity
+        too_high = propensity_scores > max_propensity
+
+        return {
+            "n_violations_low": np.sum(too_low),
+            "n_violations_high": np.sum(too_high),
+            "violation_rate": (np.sum(too_low) + np.sum(too_high))
+            / len(propensity_scores),
+            "min_propensity": np.min(propensity_scores),
+            "max_propensity": np.max(propensity_scores),
+            "mean_propensity": np.mean(propensity_scores),
+            "std_propensity": np.std(propensity_scores),
+            "positivity_ok": not np.any(too_low) and not np.any(too_high),
+            "extreme_indices": np.where(too_low | too_high)[0],
+        }
+
+    def check_overlap(
+        self,
+        treatments: NDArray[np.bool_],
+        features: NDArray[np.floating],
+    ) -> dict[str, Any]:
+        """Check covariate overlap between treatment groups.
+
+        Args:
+            treatments: Historical treatment assignments
+            features: Individual features
+
+        Returns:
+            Dictionary with overlap diagnostics
+        """
+        # Handle empty arrays
+        if len(treatments) == 0 or len(features) == 0:
+            raise ValueError("Treatments and features cannot be empty")
+
+        treated_mask = treatments
+        control_mask = ~treatments
+
+        treated_features = features[treated_mask]
+        control_features = features[control_mask]
+
+        if len(treated_features) == 0 or len(control_features) == 0:
+            return {
+                "overlap_ok": False,
+                "reason": "No overlap - missing treatment or control group",
+                "n_treated": len(treated_features),
+                "n_control": len(control_features),
+            }
+
+        # Calculate mean and std for each group
+        treated_mean = np.mean(treated_features, axis=0)
+        control_mean = np.mean(control_features, axis=0)
+        treated_std = np.std(treated_features, axis=0)
+        control_std = np.std(control_features, axis=0)
+
+        # Standardized mean differences
+        pooled_std = np.sqrt((treated_std**2 + control_std**2) / 2)
+        standardized_diff = np.abs(treated_mean - control_mean) / (pooled_std + 1e-8)
+
+        # Check for large differences (> 0.25 is concerning, > 0.5 is problematic)
+        concerning_features = standardized_diff > 0.25
+        problematic_features = standardized_diff > 0.5
+
+        return {
+            "overlap_ok": not np.any(problematic_features),
+            "n_treated": len(treated_features),
+            "n_control": len(control_features),
+            "standardized_diffs": standardized_diff,
+            "max_std_diff": np.max(standardized_diff),
+            "mean_std_diff": np.mean(standardized_diff),
+            "concerning_features": np.where(concerning_features)[0],
+            "problematic_features": np.where(problematic_features)[0],
+            "n_concerning": np.sum(concerning_features),
+            "n_problematic": np.sum(problematic_features),
+        }
+
+    def diagnose_assumptions(
+        self,
+        treatments: NDArray[np.bool_],
+        features: NDArray[np.floating],
+        propensity_scores: NDArray[np.floating] | None = None,
+    ) -> dict[str, Any]:
+        """Comprehensive diagnostic check for causal inference assumptions.
+
+        Args:
+            treatments: Historical treatment assignments
+            features: Individual features
+            propensity_scores: Known propensity scores (optional)
+
+        Returns:
+            Dictionary with all diagnostic results
+        """
+        positivity_check = self.check_positivity(
+            treatments, features, propensity_scores
+        )
+        overlap_check = self.check_overlap(treatments, features)
+
+        # Overall assessment
+        assumptions_ok = (
+            positivity_check["positivity_ok"] and overlap_check["overlap_ok"]
+        )
+
+        warnings = []
+        if not positivity_check["positivity_ok"]:
+            warnings.append(
+                f"Positivity violations: {positivity_check['violation_rate']:.1%} of observations"
+            )
+        if not overlap_check["overlap_ok"]:
+            warnings.append(
+                f"Poor covariate overlap: {overlap_check['n_problematic']} features have large differences"
+            )
+
+        return {
+            "assumptions_ok": assumptions_ok,
+            "warnings": warnings,
+            "positivity": positivity_check,
+            "overlap": overlap_check,
+            "recommendation": "Review problematic features and consider sensitivity analysis"
+            if not assumptions_ok
+            else "Assumptions appear satisfied for causal inference",
         }
 
 
