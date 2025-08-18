@@ -218,9 +218,7 @@ class PolicyIntegrator:
                 ate=ate_value,
                 confidence_interval=(ci_lower, ci_upper),
                 cate_estimates=treatment_effects,
-                method=getattr(cate_estimator, "__class__", {}).get(
-                    "__name__", "unknown"
-                ),
+                method=getattr(cate_estimator.__class__, "__name__", "unknown"),
             )
 
         return CATEPolicyResult(
