@@ -262,6 +262,7 @@ class TestPolicyOptimizerIntegration:
         self.costs = np.random.uniform(0.5, 2.0, self.n_individuals)
         self.features = np.random.rand(self.n_individuals, 5)
 
+    @pytest.mark.slow
     def test_large_scale_optimization(self):
         """Test optimization with larger dataset."""
         optimizer = PolicyOptimizer(optimization_method="greedy", random_state=42)
@@ -303,6 +304,7 @@ class TestPolicyOptimizerIntegration:
             result_budget.treatment_assignment, result_rate.treatment_assignment
         )
 
+    @pytest.mark.slow
     def test_performance_requirements(self):
         """Test that optimization meets performance requirements."""
         import time

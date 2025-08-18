@@ -443,6 +443,7 @@ class TestOPEIntegration:
         # Note: This might not always hold in small samples, but generally true
         # assert dr_ci_width <= ips_ci_width * 1.2  # Allow some tolerance
 
+    @pytest.mark.slow
     def test_performance_requirements(self):
         """Test that OPE meets performance requirements."""
         import time

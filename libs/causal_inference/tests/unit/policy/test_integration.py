@@ -1,6 +1,7 @@
 """Tests for policy integration functionality."""
 
 import numpy as np
+import pytest
 from sklearn.ensemble import RandomForestRegressor
 
 from causal_inference.estimators.meta_learners import TLearner
@@ -112,6 +113,7 @@ class TestPolicyIntegrator:
         self.effects = np.random.normal(0.5, 0.3, self.n_individuals)
         self.cate_estimator = MockCATEEstimator(effects=self.effects)
 
+    @pytest.mark.fast
     def test_integration_basic(self):
         """Test basic CATE integration."""
         integrator = PolicyIntegrator(verbose=False)
@@ -127,6 +129,7 @@ class TestPolicyIntegrator:
         assert result.policy_result.individual_uplifts is not None
         assert len(result.policy_result.individual_uplifts) == self.n_individuals
 
+    @pytest.mark.fast
     def test_integration_with_ope(self):
         """Test integration with off-policy evaluation."""
         integrator = PolicyIntegrator(verbose=False)
@@ -143,6 +146,7 @@ class TestPolicyIntegrator:
         assert result.ope_result is not None
         assert isinstance(result.ope_result.policy_value, float)
 
+    @pytest.mark.fast
     def test_integration_with_constraints(self):
         """Test integration with budget and rate constraints."""
         integrator = PolicyIntegrator(verbose=False)
@@ -161,6 +165,7 @@ class TestPolicyIntegrator:
         assert result.policy_result.treatment_rate <= 0.3
         assert len(result.policy_result.individual_costs) == self.n_individuals
 
+    @pytest.mark.slow
     def test_integration_with_real_estimator(self):
         """Test integration with real CATE estimator."""
         # Create synthetic data for T-learner
@@ -236,6 +241,7 @@ class TestPolicyIntegrator:
         assert "Estimator1" in comparison["integrated_results"]
         assert "Estimator2" in comparison["integrated_results"]
 
+    @pytest.mark.slow
     def test_simulate_cate_policy(self):
         """Test CATE policy simulation."""
 
@@ -430,6 +436,7 @@ class TestPolicyIntegratorEdgeCases:
 class TestPolicyIntegratorPerformance:
     """Test performance aspects of PolicyIntegrator."""
 
+    @pytest.mark.slow
     def test_large_scale_integration(self):
         """Test integration with larger datasets."""
         import time
