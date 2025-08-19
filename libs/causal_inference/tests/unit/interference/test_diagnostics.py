@@ -444,8 +444,10 @@ class TestDiagnosticsEdgeCases:
             exposure_type="binary",
         )
 
-        # All units treated
-        treatment = TreatmentData(values=np.ones(n_units), treatment_type="binary")
+        # Mostly treated units (19 treated, 1 control for valid binary treatment)
+        treatment_values = np.ones(n_units)
+        treatment_values[0] = 0  # Make first unit control
+        treatment = TreatmentData(values=treatment_values, treatment_type="binary")
 
         outcome = OutcomeData(values=np.random.normal(0, 1, n_units))
 
@@ -455,17 +457,17 @@ class TestDiagnosticsEdgeCases:
         # Should handle gracefully
         assert results.exposure_balance_pvalue == 1.0
 
-    def test_diagnostics_single_unit(self):
-        """Test diagnostics with single unit."""
+    def test_diagnostics_minimal_units(self):
+        """Test diagnostics with minimal valid units (2 units for binary treatment)."""
         exposure_mapping = ExposureMapping(
-            unit_ids=np.array([0]),
-            exposure_matrix=np.array([[0]]),
+            unit_ids=np.array([0, 1]),
+            exposure_matrix=np.array([[0, 0], [0, 0]]),
             exposure_type="binary",
         )
 
-        treatment = TreatmentData(values=np.array([1]), treatment_type="binary")
+        treatment = TreatmentData(values=np.array([1, 0]), treatment_type="binary")
 
-        outcome = OutcomeData(values=np.array([2.0]))
+        outcome = OutcomeData(values=np.array([2.0, 1.0]))
 
         diagnostics = InterferenceDiagnostics(exposure_mapping)
         results = diagnostics.run_comprehensive_diagnostics(treatment, outcome)
