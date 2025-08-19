@@ -21,6 +21,8 @@ Key Steps:
 6. Generate actionable business recommendations
 """
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
@@ -37,7 +39,7 @@ from causal_inference.policy import (
 )
 
 
-def generate_marketing_data(n_customers=5000, seed=42):
+def generate_marketing_data(n_customers: int = 5000, seed: int = 42) -> dict[str, Any]:
     """Generate realistic marketing campaign data.
 
     This simulates a historical email marketing campaign for an e-commerce company.
@@ -156,7 +158,9 @@ def generate_marketing_data(n_customers=5000, seed=42):
     }
 
 
-def train_cate_models(data, test_size=0.3, random_state=42):
+def train_cate_models(
+    data: dict[str, Any], test_size: float = 0.3, random_state: int = 42
+) -> dict[str, Any]:
     """Train multiple CATE estimators and compare performance.
 
     Args:
@@ -258,7 +262,11 @@ def train_cate_models(data, test_size=0.3, random_state=42):
     }
 
 
-def optimize_marketing_policy(cate_results, data, budget_scenarios=None):
+def optimize_marketing_policy(
+    cate_results: dict[str, Any],
+    data: dict[str, Any],
+    budget_scenarios: list[float] | None = None,
+) -> dict[str, Any]:
     """Optimize marketing policy under different budget constraints.
 
     Args:
@@ -327,7 +335,9 @@ def optimize_marketing_policy(cate_results, data, budget_scenarios=None):
     return policy_results
 
 
-def evaluate_policy_performance(policy_results, data):
+def evaluate_policy_performance(
+    policy_results: dict[str, Any], data: dict[str, Any]
+) -> dict[str, Any]:
     """Evaluate and compare policy performance across scenarios.
 
     Args:
@@ -387,7 +397,9 @@ def evaluate_policy_performance(policy_results, data):
     }
 
 
-def simulate_policy_scenarios(cate_results, n_simulations=50):
+def simulate_policy_scenarios(
+    cate_results: dict[str, Any], n_simulations: int = 50
+) -> dict[str, Any]:
     """Simulate policy performance under different market conditions.
 
     Args:
@@ -470,7 +482,10 @@ def simulate_policy_scenarios(cate_results, n_simulations=50):
     return scenario_results
 
 
-def generate_business_recommendations(evaluation_results, scenario_results=None):
+def generate_business_recommendations(
+    evaluation_results: dict[str, Any],
+    scenario_results: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Generate actionable business recommendations based on analysis.
 
     Args:
@@ -486,7 +501,7 @@ def generate_business_recommendations(evaluation_results, scenario_results=None)
 
     best_policy = evaluation_results["best_policy_result"]
 
-    recommendations = {
+    recommendations: dict[str, Any] = {
         "executive_summary": {
             "recommended_budget": f"{evaluation_results['best_scenario']['budget_fraction']:.0%} of total marketing budget",
             "expected_customers_treated": f"{evaluation_results['best_scenario']['n_treated']:,}",
@@ -553,7 +568,7 @@ def generate_business_recommendations(evaluation_results, scenario_results=None)
     return recommendations
 
 
-def main():
+def main() -> None:
     """Run the complete marketing policy optimization workflow."""
     print("=" * 60)
     print("MARKETING POLICY OPTIMIZATION EXAMPLE")
@@ -570,7 +585,7 @@ def main():
     cate_results = train_cate_models(data)
 
     # Step 3: Optimize policies under different budget scenarios
-    policy_results = optimize_marketing_policy(cate_results)
+    policy_results = optimize_marketing_policy(cate_results, data)
 
     # Step 4: Evaluate policy performance
     evaluation_results = evaluate_policy_performance(policy_results, data)

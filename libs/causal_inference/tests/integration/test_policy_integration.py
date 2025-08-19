@@ -70,8 +70,7 @@ class TestEndToEndPolicyWorkflow:
         covariate_data = CovariateData(values=self.features)
 
         t_learner = TLearner(
-            control_model=RandomForestRegressor(n_estimators=50, random_state=42),
-            treatment_model=RandomForestRegressor(n_estimators=50, random_state=42),
+            base_learner=RandomForestRegressor(n_estimators=50, random_state=42),
             random_state=42,
         )
         t_learner.fit(treatment_data, outcome_data, covariate_data)
@@ -141,8 +140,7 @@ class TestEndToEndPolicyWorkflow:
         covariate_data = CovariateData(values=self.features)
 
         t_learner = TLearner(
-            control_model=RandomForestRegressor(n_estimators=30, random_state=42),
-            treatment_model=RandomForestRegressor(n_estimators=30, random_state=42),
+            base_learner=RandomForestRegressor(n_estimators=30, random_state=42),
             random_state=42,
         )
         t_learner.fit(treatment_data, outcome_data, covariate_data)

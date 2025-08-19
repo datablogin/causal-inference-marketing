@@ -191,8 +191,7 @@ class TestPolicyIntegrator:
         covariate_data = CovariateData(values=X_train)
 
         t_learner = TLearner(
-            control_model=RandomForestRegressor(n_estimators=10, random_state=42),
-            treatment_model=RandomForestRegressor(n_estimators=10, random_state=42),
+            base_learner=RandomForestRegressor(n_estimators=10, random_state=42),
             random_state=42,
         )
         t_learner.fit(treatment_data, outcome_data, covariate_data)
