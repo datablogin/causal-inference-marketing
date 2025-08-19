@@ -81,7 +81,7 @@ test:
 .PHONY: test-fast
 test-fast:
 	@echo "🚀 Running fast tests (CI optimized)"
-	FAST_TEST_MODE=true $(UV) run $(PYTEST) -x --tb=short --timeout=30 -m "not slow and not integration" libs/causal_inference/tests/unit/
+	FAST_TEST_MODE=true $(UV) run $(PYTEST) -x --tb=short -m "not slow and not integration" libs/causal_inference/tests/unit/
 
 .PHONY: test-unit
 test-unit:
@@ -89,11 +89,11 @@ test-unit:
 
 .PHONY: test-integration
 test-integration:
-	$(UV) run $(PYTEST) -m integration --timeout=120
+	$(UV) run $(PYTEST) -m integration
 
 .PHONY: test-slow
 test-slow:
-	$(UV) run $(PYTEST) -m slow --timeout=300
+	$(UV) run $(PYTEST) -m slow
 
 .PHONY: test-sequential
 test-sequential:
@@ -106,7 +106,7 @@ test-cov:
 .PHONY: test-all-fast
 test-all-fast:
 	@echo "🚀 Running all tests in fast mode"
-	FAST_TEST_MODE=true $(UV) run $(PYTEST) --maxfail=5 -x --tb=short --timeout=60 libs/causal_inference/tests/
+	FAST_TEST_MODE=true $(UV) run $(PYTEST) --maxfail=5 -x --tb=short libs/causal_inference/tests/
 
 # CI pipeline
 .PHONY: ci

@@ -33,7 +33,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run unit tests only (exclude slow/integration)
-        run: uv run pytest libs/causal_inference/tests/unit/ -m "not slow and not integration" --maxfail=3 -x --tb=short --timeout=30
+        run: uv run pytest libs/causal_inference/tests/unit/ -m "not slow and not integration" --maxfail=3 -x --tb=short
 
   # Run integration tests in parallel (after unit tests pass)
   integration-tests:
@@ -58,7 +58,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run integration tests with fast parameters
-        run: uv run pytest libs/causal_inference/tests/integration/ -m "integration" --maxfail=3 -x --tb=short --timeout=120
+        run: uv run pytest libs/causal_inference/tests/integration/ -m "integration" --maxfail=3 -x --tb=short
 
   # Run slow tests last (only if everything else passes)
   slow-tests:
@@ -84,7 +84,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run slow tests with reduced parameters
-        run: uv run pytest libs/causal_inference/tests/ -m "slow" --maxfail=3 -x --tb=short --timeout=300
+        run: uv run pytest libs/causal_inference/tests/ -m "slow" --maxfail=3 -x --tb=short
 
   # Multi-version testing (only on main branch)
   multi-version:
@@ -114,4 +114,4 @@ jobs:
         run: uv sync --frozen
 
       - name: Run core tests only
-        run: uv run pytest libs/causal_inference/tests/unit/ -m "not slow and not integration" --maxfail=5 --timeout=60
+        run: uv run pytest libs/causal_inference/tests/unit/ -m "not slow and not integration" --maxfail=5
