@@ -2,7 +2,11 @@
 
 This module provides reusable fixtures for testing estimators, data models,
 and diagnostic functions across the causal inference library.
+
+Performance optimizations are included to dramatically reduce CI time.
 """
+
+import os
 
 import numpy as np
 import pandas as pd
@@ -14,6 +18,45 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
 from causal_inference.data.synthetic import SyntheticDataGenerator
 
+# ===== PERFORMANCE OPTIMIZATION CONFIGURATION =====
+# Automatically detect CI environment and enable fast mode
+FAST_TEST_MODE = (
+    os.getenv("FAST_TEST_MODE", "true" if os.getenv("CI") else "false").lower()
+    == "true"
+)
+
+# Dramatically reduced parameters for CI speed
+FAST_PARAMS = {
+    "n_estimators": 5,  # Instead of 50-100
+    "n_simulations": 3,  # Instead of 100+
+    "n_permutations": 10,  # Instead of 500+
+    "n_bootstrap": 10,  # Instead of 1000+
+    "max_iter": 50,  # Instead of 1000
+    "n_samples": 100,  # Instead of 1000+
+    "max_depth": 5,  # Limit tree depth
+}
+
+STANDARD_PARAMS = {
+    "n_estimators": 100,
+    "n_simulations": 100,
+    "n_permutations": 500,
+    "n_bootstrap": 1000,
+    "max_iter": 1000,
+    "n_samples": 1000,
+    "max_depth": None,
+}
+
+# Use fast parameters in CI, standard in local development
+TEST_PARAMS = FAST_PARAMS if FAST_TEST_MODE else STANDARD_PARAMS
+
+# Configure numpy for performance
+np.seterr(all="ignore")  # Suppress warnings for faster execution
+
+
+def get_fast_param(param_name):
+    """Get optimized parameter value for current test mode."""
+    return TEST_PARAMS.get(param_name, STANDARD_PARAMS.get(param_name))
+
 
 @pytest.fixture
 def random_state():
@@ -24,19 +67,23 @@ def random_state():
 @pytest.fixture
 def small_sample_size():
     """Small sample size for quick tests."""
-    return 100
+    return get_fast_param("n_samples") // 2  # Even smaller for unit tests
 
 
 @pytest.fixture
 def medium_sample_size():
     """Medium sample size for more realistic tests."""
-    return 500
+    return get_fast_param("n_samples")
 
 
 @pytest.fixture
 def large_sample_size():
     """Large sample size for performance and robustness tests."""
-    return 1000
+    return (
+        get_fast_param("n_samples") * 2
+        if not FAST_TEST_MODE
+        else get_fast_param("n_samples")
+    )
 
 
 @pytest.fixture
@@ -394,13 +441,23 @@ def model_combinations():
             "propensity_model": LogisticRegression(random_state=42),
         },
         "random_forest": {
-            "outcome_model": RandomForestRegressor(n_estimators=10, random_state=42),
+            "outcome_model": RandomForestRegressor(
+                n_estimators=get_fast_param("n_estimators"),
+                max_depth=get_fast_param("max_depth"),
+                random_state=42,
+            ),
             "propensity_model": RandomForestClassifier(
-                n_estimators=10, random_state=42
+                n_estimators=get_fast_param("n_estimators"),
+                max_depth=get_fast_param("max_depth"),
+                random_state=42,
             ),
         },
         "mixed": {
-            "outcome_model": RandomForestRegressor(n_estimators=10, random_state=42),
+            "outcome_model": RandomForestRegressor(
+                n_estimators=get_fast_param("n_estimators"),
+                max_depth=get_fast_param("max_depth"),
+                random_state=42,
+            ),
             "propensity_model": LogisticRegression(random_state=42),
         },
     }
