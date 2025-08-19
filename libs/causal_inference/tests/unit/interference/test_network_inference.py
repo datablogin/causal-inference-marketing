@@ -246,9 +246,11 @@ class TestClusterRandomizationInference:
 
     def test_cluster_inference_no_variation(self):
         """Test error handling with no cluster treatment variation."""
-        # All clusters treated
+        # All clusters treated (need at least one control for valid binary treatment)
+        treatment_values = np.ones(40)
+        treatment_values[0] = 0  # Make first unit control for valid binary treatment
         all_treated_treatment = TreatmentData(
-            values=np.ones(40), treatment_type="binary"
+            values=treatment_values, treatment_type="binary"
         )
 
         inference = ClusterRandomizationInference(
@@ -371,9 +373,11 @@ class TestNetworkPermutationTest:
 
     def test_network_permutation_no_treatment_variation(self):
         """Test permutation test with no treatment variation."""
-        # All units treated
+        # All units treated (need at least one control for valid binary treatment)
+        treatment_values = np.ones(50)
+        treatment_values[0] = 0  # Make first unit control for valid binary treatment
         no_variation_treatment = TreatmentData(
-            values=np.ones(50), treatment_type="binary"
+            values=treatment_values, treatment_type="binary"
         )
 
         test = NetworkPermutationTest(

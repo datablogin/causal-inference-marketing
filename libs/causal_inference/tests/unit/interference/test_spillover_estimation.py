@@ -258,7 +258,16 @@ class TestSpilloverEstimator:
         n_units = len(self.treatment.values)
         test_treatment = np.random.binomial(1, 0.3, n_units)
 
-        predictions = estimator.predict_spillover_effects(test_treatment)
+        # Need to provide covariates that match the fitted model's feature count
+        test_covariates = (
+            self.covariates.values.values
+            if isinstance(self.covariates.values, pd.DataFrame)
+            else np.array(self.covariates.values)
+        )
+
+        predictions = estimator.predict_spillover_effects(
+            test_treatment, covariates=test_covariates
+        )
 
         assert "current" in predictions
         assert "no_spillover" in predictions
