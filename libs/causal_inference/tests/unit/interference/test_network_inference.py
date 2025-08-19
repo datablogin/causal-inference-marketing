@@ -167,23 +167,13 @@ class TestTwoStageRandomizationInference:
 
     def test_two_stage_inference_no_variation(self):
         """Test error handling when no treatment variation."""
-        # Create treatment with no variation
-        no_variation_treatment = TreatmentData(
-            values=np.ones(60),  # All treated
-            treatment_type="binary",
-        )
-
-        inference = TwoStageRandomizationInference(
-            exposure_mapping=self.exposure_mapping,
-            cluster_column="cluster",
-            random_state=42,
-        )
-
-        with pytest.raises(ValueError, match="Must have both treated and control"):
-            inference.test_treatment_effect(
-                treatment=no_variation_treatment,
-                outcome=self.outcome,
-                unit_data=self.unit_data,
+        # Test that TreatmentData validation catches invalid binary treatment
+        with pytest.raises(
+            ValueError, match="Binary treatment must have exactly 2 unique values"
+        ):
+            TreatmentData(
+                values=np.ones(60),  # All treated - invalid
+                treatment_type="binary",
             )
 
 
@@ -195,10 +185,12 @@ class TestClusterRandomizationInference:
         np.random.seed(42)
         n_units = 40
 
-        # Simple exposure mapping
+        # Simple exposure mapping with zero diagonal
+        exposure_matrix = np.eye(n_units)
+        np.fill_diagonal(exposure_matrix, 0)  # Ensure diagonal is zero
         self.exposure_mapping = ExposureMapping(
             unit_ids=np.arange(n_units),
-            exposure_matrix=np.eye(n_units),  # Simple identity for testing
+            exposure_matrix=exposure_matrix,
             exposure_type="binary",
         )
 
