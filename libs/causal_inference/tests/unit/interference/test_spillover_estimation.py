@@ -284,9 +284,13 @@ class TestSpilloverEstimator:
             2, n_treatment_units // 2
         )  # Ensure it's different from treatment size
 
+        # Create exposure matrix with zero diagonal
+        exposure_matrix = np.eye(wrong_size)
+        np.fill_diagonal(exposure_matrix, 0)  # Ensure diagonal is zero
+
         wrong_exposure = ExposureMapping(
             unit_ids=np.arange(wrong_size),
-            exposure_matrix=np.eye(wrong_size),
+            exposure_matrix=exposure_matrix,
             exposure_type="binary",
         )
 
