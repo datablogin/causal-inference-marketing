@@ -278,10 +278,15 @@ class TestSpilloverEstimator:
         """Test validation error handling."""
         model = AdditiveSpilloverModel()
 
-        # Wrong exposure mapping size
+        # Wrong exposure mapping size (should be different from self.treatment size)
+        n_treatment_units = len(self.treatment.values)
+        wrong_size = max(
+            2, n_treatment_units // 2
+        )  # Ensure it's different from treatment size
+
         wrong_exposure = ExposureMapping(
-            unit_ids=np.array([1, 2]),  # Only 2 units
-            exposure_matrix=np.array([[0, 1], [1, 0]]),
+            unit_ids=np.arange(wrong_size),
+            exposure_matrix=np.eye(wrong_size),
             exposure_type="binary",
         )
 
