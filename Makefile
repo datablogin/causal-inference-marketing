@@ -78,6 +78,23 @@ security:
 test:
 	$(UV) run $(PYTEST) -n auto libs/ shared/
 
+.PHONY: test-fast
+test-fast:
+	@echo "🚀 Running fast tests (CI optimized)"
+	FAST_TEST_MODE=true $(UV) run $(PYTEST) -x --tb=short -m "not slow and not integration" libs/causal_inference/tests/unit/
+
+.PHONY: test-unit
+test-unit:
+	$(UV) run $(PYTEST) -m "not slow and not integration" libs/causal_inference/tests/unit/
+
+.PHONY: test-integration
+test-integration:
+	$(UV) run $(PYTEST) -m integration
+
+.PHONY: test-slow
+test-slow:
+	$(UV) run $(PYTEST) -m slow
+
 .PHONY: test-sequential
 test-sequential:
 	$(UV) run $(PYTEST) libs/ shared/
@@ -86,9 +103,10 @@ test-sequential:
 test-cov:
 	$(UV) run $(PYTEST) --cov=causal_inference --cov=shared --cov-report=html --cov-report=term libs/ shared/
 
-.PHONY: test-integration
-test-integration:
-	$(UV) run $(PYTEST) -m integration
+.PHONY: test-all-fast
+test-all-fast:
+	@echo "🚀 Running all tests in fast mode"
+	FAST_TEST_MODE=true $(UV) run $(PYTEST) --maxfail=5 -x --tb=short libs/causal_inference/tests/
 
 # CI pipeline
 .PHONY: ci
