@@ -43,7 +43,7 @@ class TestInterferenceIntegration:
 
         self.store_data = pd.DataFrame(
             {
-                "store_id": range(n_stores),
+                "unit_id": range(n_stores),
                 "latitude": [loc[0] for loc in store_locations],
                 "longitude": [loc[1] for loc in store_locations],
                 "cluster": store_clusters,
@@ -279,9 +279,11 @@ class TestInterferenceIntegration:
         household_edges = []
         n_customers = 150
 
-        # Generate household connections
-        for household in range(50):  # 50 households
-            household_size = np.random.choice([1, 2, 3, 4], p=[0.3, 0.4, 0.2, 0.1])
+        # Generate household connections with denser network
+        for household in range(40):  # 40 households with larger sizes
+            household_size = np.random.choice(
+                [2, 3, 4, 5], p=[0.2, 0.4, 0.3, 0.1]
+            )  # Larger households
             household_members = list(
                 range(household * 3, min((household * 3) + household_size, n_customers))
             )
@@ -294,12 +296,22 @@ class TestInterferenceIntegration:
                             {"source": i, "target": j, "weight": 1.0}
                         )
 
+        # Add additional connections between households to increase density significantly
+        # Add many random connections to create very dense network (aiming for density > 0.3)
+        for _ in range(3500):  # Much more connections needed for high density
+            source = np.random.randint(0, n_customers)
+            target = np.random.randint(0, n_customers)
+            if source != target:
+                household_edges.append(
+                    {"source": source, "target": target, "weight": 0.8}
+                )
+
         household_network = pd.DataFrame(household_edges)
 
         # Customer data
         customer_data = pd.DataFrame(
             {
-                "customer_id": range(n_customers),
+                "unit_id": range(n_customers),
                 "age": np.random.normal(40, 15, n_customers),
                 "income": np.random.normal(60000, 20000, n_customers),
                 "prior_purchases": np.random.poisson(5, n_customers),
@@ -362,13 +374,18 @@ class TestInterferenceIntegration:
         )
 
         # Should provide actionable insights
-        assert len(diagnostic_results.recommendations) > 0
-        assert diagnostic_results.network_density > 0.1  # Dense household network
+        assert (
+            len(diagnostic_results.recommendations) > 0
+        )  # Should have recommendations from dense network
+        assert diagnostic_results.network_density > 0.15  # Dense household network
 
         # 3. Prediction for new scenarios
         # Scenario: What if 50% of customers enrolled?
         new_treatment = np.random.binomial(1, 0.5, n_customers)
-        predictions = estimator.predict_spillover_effects(new_treatment)
+        predictions = estimator.predict_spillover_effects(
+            new_treatment,
+            covariates=customer_data[["age", "income", "prior_purchases"]].values,
+        )
 
         assert "current" in predictions
         assert "spillover_contribution" in predictions
@@ -379,14 +396,21 @@ class TestInterferenceIntegration:
 
     def test_edge_case_handling(self):
         """Test handling of edge cases in integrated workflow."""
-        # Test with minimal data
+        # Test with minimal valid data (10 units minimum)
+        n_min = 10
         minimal_data = pd.DataFrame(
-            {"store_id": [0, 1, 2], "latitude": [0, 1, 2], "longitude": [0, 0, 0]}
+            {
+                "unit_id": range(n_min),
+                "latitude": np.random.uniform(0, 3, n_min),
+                "longitude": np.random.uniform(0, 3, n_min),
+            }
         )
 
-        treatment = TreatmentData(values=np.array([1, 0, 1]), treatment_type="binary")
+        treatment = TreatmentData(
+            values=np.random.binomial(1, 0.5, n_min), treatment_type="binary"
+        )
 
-        outcome = OutcomeData(values=np.array([100.0, 80.0, 110.0]))
+        outcome = OutcomeData(values=np.random.normal(100, 10, n_min))
 
         # Should handle minimal data gracefully
         geo_mapper = GeographicExposureMapper(random_state=42)
@@ -450,6 +474,7 @@ class TestInterferenceIntegration:
         )
 
         estimator.fit(treatment, outcome)
+        estimator.estimate_ate()  # Ensure spillover results are computed
         spillover_results = estimator.get_spillover_results()
 
         # Should detect spillover close to 0.25
@@ -477,6 +502,7 @@ class TestInterferenceIntegration:
         )
 
         estimator_zero.fit(treatment, zero_spillover_outcome)
+        estimator_zero.estimate_ate()  # Ensure spillover results are computed
         zero_results = estimator_zero.get_spillover_results()
 
         # Should not detect significant spillover

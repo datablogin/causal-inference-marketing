@@ -102,6 +102,11 @@ class InterferenceDiagnostics:
             spillover_detected=False,
             detection_confidence=0.0,
             detection_method="comprehensive",
+            exposure_imbalance=0.0,
+            max_exposure_ratio=1.0,
+            exposure_balance_pvalue=1.0,
+            network_density=0.0,
+            clustering_coefficient=0.0,
         )
 
         # 1. Check exposure balance

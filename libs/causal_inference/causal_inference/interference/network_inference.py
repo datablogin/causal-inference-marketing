@@ -611,15 +611,22 @@ def _estimate_power_for_effect(
     significant_tests = 0
 
     for _ in range(n_simulations):
+        # Ensure exposure mapping size matches sample size
+        n_units_exposure = exposure_mapping.exposure_matrix.shape[0]
+        actual_sample_size = min(sample_size, n_units_exposure)
+
         # Generate synthetic data with known spillover effect
-        treatment = np.random.binomial(1, 0.5, sample_size)
-        spillover_exposure = np.dot(exposure_mapping.exposure_matrix, treatment)
+        treatment = np.random.binomial(1, 0.5, actual_sample_size)
+        exposure_matrix_subset = exposure_mapping.exposure_matrix[
+            :actual_sample_size, :actual_sample_size
+        ]
+        spillover_exposure = np.dot(exposure_matrix_subset, treatment)
 
         # Outcome with direct effect + spillover effect + noise
         outcome = (
             0.5 * treatment  # Direct effect
             + effect_size * spillover_exposure  # Spillover effect
-            + np.random.normal(0, 1, sample_size)  # Noise
+            + np.random.normal(0, 1, actual_sample_size)  # Noise
         )
 
         # Test for spillover effect using simple regression
@@ -640,7 +647,7 @@ def _estimate_power_for_effect(
             se_spillover = np.sqrt(mse / np.var(spillover_exposure))
 
             t_stat = spillover_coef / se_spillover if se_spillover > 0 else 0
-            p_value = 2 * (1 - stats.t.cdf(np.abs(t_stat), sample_size - 2))
+            p_value = 2 * (1 - stats.t.cdf(np.abs(t_stat), actual_sample_size - 2))
 
             if p_value < alpha:
                 significant_tests += 1
