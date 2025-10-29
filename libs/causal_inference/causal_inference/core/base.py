@@ -640,6 +640,7 @@ class BaseEstimator(abc.ABC):
         random_state: Union[int, None] = None,
         verbose: bool = False,
         bootstrap_config: Union[Any, None] = None,
+        optimization_config: Union[Any, None] = None,
     ) -> None:
         """Initialize the base estimator.
 
@@ -647,6 +648,7 @@ class BaseEstimator(abc.ABC):
             random_state: Random seed for reproducible results
             verbose: Whether to print verbose output during estimation
             bootstrap_config: Configuration for bootstrap confidence intervals
+            optimization_config: Configuration for optimization strategies
         """
         self.random_state = random_state
         self.verbose = verbose
@@ -654,6 +656,9 @@ class BaseEstimator(abc.ABC):
 
         # Bootstrap configuration (will be set by BootstrapMixin if used)
         self.bootstrap_config = bootstrap_config
+
+        # Optimization configuration (will be set by OptimizationMixin if used)
+        self.optimization_config = optimization_config
 
         # Data containers
         self.treatment_data: Union[TreatmentData, None] = None

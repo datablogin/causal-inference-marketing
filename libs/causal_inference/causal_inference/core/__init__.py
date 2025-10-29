@@ -25,6 +25,8 @@ from .longitudinal import (
     TimeVaryingTreatmentData,
     TreatmentStrategy,
 )
+from .optimization_config import OptimizationConfig
+from .optimization_mixin import OptimizationMixin
 
 __all__ = [
     "BaseEstimator",
@@ -46,4 +48,6 @@ __all__ = [
     "TimeVaryingOutcomeData",
     "TimeVaryingCovariateData",
     "TreatmentStrategy",
+    "OptimizationConfig",
+    "OptimizationMixin",
 ]
