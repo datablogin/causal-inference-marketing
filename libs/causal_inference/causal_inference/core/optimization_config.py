@@ -2,7 +2,7 @@
 
 from typing import Literal, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class OptimizationConfig(BaseModel):
@@ -10,7 +10,7 @@ class OptimizationConfig(BaseModel):
 
     Attributes:
         optimize_weights: Enable weight optimization vs analytical computation
-        method: Scipy optimization method (SLSQP, trust-constr, COBYLA)
+        method: Scipy optimization method (SLSQP, trust-constr)
         max_iterations: Maximum optimization iterations
         variance_constraint: Maximum allowed weight variance (φ in PyRake)
         balance_constraints: Enforce covariate balance constraints
@@ -27,7 +27,7 @@ class OptimizationConfig(BaseModel):
         description="Enable weight optimization (vs analytical computation)",
     )
 
-    method: Literal["SLSQP", "trust-constr", "COBYLA"] = Field(
+    method: Literal["SLSQP", "trust-constr"] = Field(
         default="SLSQP", description="Scipy optimization method"
     )
 
@@ -40,7 +40,9 @@ class OptimizationConfig(BaseModel):
 
     # PyRake-style constraints
     variance_constraint: Union[float, None] = Field(
-        default=None, description="Maximum allowed weight variance (φ in PyRake)"
+        default=None,
+        gt=0.0,
+        description="Maximum allowed weight variance (φ in PyRake)",
     )
 
     balance_constraints: bool = Field(
@@ -69,21 +71,3 @@ class OptimizationConfig(BaseModel):
     convergence_tolerance: float = Field(
         default=1e-6, gt=0.0, description="Convergence tolerance for optimization"
     )
-
-    @field_validator("method")
-    @classmethod
-    def validate_method(cls, v: str) -> str:
-        """Validate optimization method."""
-        allowed_methods = {"SLSQP", "trust-constr", "COBYLA"}
-        if v not in allowed_methods:
-            raise ValueError(f"method must be one of {allowed_methods}")
-        return v
-
-    @field_validator("distance_metric")
-    @classmethod
-    def validate_distance_metric(cls, v: str) -> str:
-        """Validate distance metric."""
-        allowed_metrics = {"l2", "kl_divergence", "huber"}
-        if v not in allowed_metrics:
-            raise ValueError(f"distance_metric must be one of {allowed_metrics}")
-        return v

@@ -107,7 +107,7 @@ def test_optimization_config_convergence_tolerance_validation():
 
 def test_optimization_config_all_methods():
     """Test all valid optimization methods."""
-    for method in ["SLSQP", "trust-constr", "COBYLA"]:
+    for method in ["SLSQP", "trust-constr"]:
         config = OptimizationConfig(method=method)
         assert config.method == method
 

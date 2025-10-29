@@ -11,6 +11,8 @@ class DummyEstimator(OptimizationMixin):
 
     def __init__(self, optimization_config=None):
         """Initialize dummy estimator."""
+        # Set attributes directly since we're testing the mixin in isolation
+        # In real usage, OptimizationMixin would be used with BaseEstimator
         self.optimization_config = optimization_config
         self._optimization_diagnostics = {}
 
@@ -267,7 +269,7 @@ def test_optimization_mixin_different_methods():
     baseline_weights = np.ones(n)
     covariates = np.random.randn(n, 2)
 
-    for method in ["SLSQP", "trust-constr", "COBYLA"]:
+    for method in ["SLSQP", "trust-constr"]:
         config = OptimizationConfig(
             optimize_weights=True,
             method=method,

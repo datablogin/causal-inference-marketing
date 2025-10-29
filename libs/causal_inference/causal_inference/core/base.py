@@ -658,7 +658,8 @@ class BaseEstimator(abc.ABC):
         self.bootstrap_config = bootstrap_config
 
         # Optimization configuration (will be set by OptimizationMixin if used)
-        self.optimization_config = optimization_config
+        if not hasattr(self, "optimization_config"):
+            self.optimization_config = optimization_config
 
         # Data containers
         self.treatment_data: Union[TreatmentData, None] = None

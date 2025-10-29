@@ -20,9 +20,6 @@ class OptimizationMixin:
     - Provides fallback to non-optimized methods on failure
     """
 
-    optimization_config: Union[OptimizationConfig, None]
-    _optimization_diagnostics: dict[str, Any]
-
     def __init__(
         self,
         *args: Any,
@@ -36,20 +33,9 @@ class OptimizationMixin:
             *args: Positional arguments for parent class
             **kwargs: Keyword arguments for parent class
         """
-        # Pass optimization_config through kwargs for super() call
-        if "optimization_config" not in kwargs:
-            kwargs["optimization_config"] = optimization_config
-        super().__init__(*args, **kwargs)
-
-        # Ensure valid OptimizationConfig
-        if optimization_config is not None:
-            self.optimization_config = optimization_config
-        elif (
-            not hasattr(self, "optimization_config") or self.optimization_config is None
-        ):
-            self.optimization_config = None  # No optimization by default
-
-        self._optimization_diagnostics = {}
+        super().__init__(*args, optimization_config=optimization_config, **kwargs)
+        self.optimization_config: Union[OptimizationConfig, None] = optimization_config
+        self._optimization_diagnostics: dict[str, Any] = {}
 
     def optimize_weights_constrained(
         self,
@@ -77,6 +63,10 @@ class OptimizationMixin:
             return baseline_weights
 
         n_obs = len(baseline_weights)
+
+        # Validate covariate matrix
+        if len(covariates) == 0:
+            raise ValueError("Cannot optimize weights with empty covariate matrix")
 
         # Set target means to observed means if not provided
         if target_means is None:
@@ -149,6 +139,11 @@ class OptimizationMixin:
                 },
             )
 
+            # Compute constraint violation
+            constraint_violation = self._compute_constraint_violation(
+                result.x, covariates, target_means
+            )
+
             # Store diagnostics
             if self.optimization_config.store_diagnostics:
                 self._optimization_diagnostics = {
@@ -156,9 +151,7 @@ class OptimizationMixin:
                     "message": result.message,
                     "n_iterations": result.nit,
                     "final_objective": result.fun,
-                    "constraint_violation": self._compute_constraint_violation(
-                        result.x, covariates, target_means
-                    ),
+                    "constraint_violation": constraint_violation,
                     "weight_variance": float(np.var(result.x)),
                     "effective_sample_size": float(
                         np.sum(result.x) ** 2 / np.sum(result.x**2)
@@ -169,6 +162,18 @@ class OptimizationMixin:
                 warnings.warn(
                     f"Weight optimization did not converge: {result.message}. "
                     f"Falling back to baseline weights."
+                )
+                return baseline_weights
+
+            # Check constraint violations even on success
+            if (
+                self.optimization_config.balance_constraints
+                and constraint_violation
+                > self.optimization_config.balance_tolerance * 10
+            ):
+                warnings.warn(
+                    f"Optimization succeeded but severe constraint violation detected "
+                    f"(SMD={constraint_violation:.4f}). Falling back to baseline weights."
                 )
                 return baseline_weights
 
@@ -198,8 +203,16 @@ class OptimizationMixin:
             Maximum standardized mean difference across covariates
         """
         weighted_means = (covariates.T @ weights) / len(weights)
-        smd = np.abs(weighted_means - target_means) / (
-            np.std(covariates, axis=0) + 1e-10
+        std_covs = np.std(covariates, axis=0)
+
+        # Exclude constant covariates from SMD calculation
+        non_constant = std_covs > 1e-8
+        if not np.any(non_constant):
+            return 0.0
+
+        smd = (
+            np.abs(weighted_means[non_constant] - target_means[non_constant])
+            / std_covs[non_constant]
         )
         return float(np.max(smd))
 
