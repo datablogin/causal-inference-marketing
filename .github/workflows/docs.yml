@@ -44,7 +44,7 @@ jobs:
         make linkcheck || true  # Don't fail on broken external links
 
     - name: Upload documentation artifacts
-      uses: actions/upload-artifact@v4.6.2
+      uses: actions/upload-artifact@v5.0.0
       if: always()
       with:
         name: documentation-html
