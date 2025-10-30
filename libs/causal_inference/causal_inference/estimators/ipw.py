@@ -606,6 +606,23 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             outcome: Outcome variable data
             covariates: Covariate data for propensity score estimation
         """
+        import warnings
+
+        # Warn about bootstrap-optimization interaction
+        if (
+            self.optimization_config
+            and self.optimization_config.optimize_weights
+            and self.bootstrap_config
+            and self.bootstrap_config.n_samples > 0
+        ):
+            warnings.warn(
+                "Bootstrap confidence intervals are computed using non-optimized weights "
+                "to reduce computational cost. This may underestimate variance. "
+                "Consider using analytical variance estimation for optimized weights.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Fit propensity score model
         self._fit_propensity_model(treatment, covariates)
 
@@ -637,14 +654,32 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 )
 
             # Get covariate array - handle different data types
-            import pandas as pd
-
             if isinstance(covariates.values, pd.DataFrame):
                 covariate_array = covariates.values.values
             elif isinstance(covariates.values, pd.Series):
                 covariate_array = covariates.values.to_numpy().reshape(-1, 1)
             else:
                 covariate_array = np.asarray(covariates.values)
+
+            # Validate covariate array dimensions
+            if covariate_array.ndim == 1:
+                covariate_array = covariate_array.reshape(-1, 1)
+            elif covariate_array.ndim != 2:
+                raise EstimationError(
+                    f"Covariates must be 1D or 2D array, got {covariate_array.ndim}D"
+                )
+
+            # Validate sample size matches treatment
+            if isinstance(treatment.values, pd.Series):
+                treatment_len = len(treatment.values.values)
+            else:
+                treatment_len = len(treatment.values)
+
+            if len(covariate_array) != treatment_len:
+                raise EstimationError(
+                    f"Covariate length ({len(covariate_array)}) doesn't match "
+                    f"treatment length ({treatment_len})"
+                )
 
             # Show baseline diagnostics if verbose
             if self.verbose:
@@ -663,6 +698,42 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 covariates=covariate_array,
                 variance_constraint=self.optimization_config.variance_constraint,
             )
+
+            # Post-optimization overlap check
+            if self.check_overlap:
+                # Check if optimized weights imply extreme propensity scores
+                # For treated units: weight = 1/PS, so PS = 1/weight
+                # For control units: weight = 1/(1-PS), so PS = 1 - 1/weight
+                if isinstance(treatment.values, pd.Series):
+                    treatment_vals = treatment.values.values
+                else:
+                    treatment_vals = treatment.values
+
+                treated_mask = treatment_vals == 1
+                control_mask = treatment_vals == 0
+
+                # Implied propensity scores from optimized weights
+                implied_ps = np.zeros_like(self.weights)
+                if np.any(treated_mask):
+                    implied_ps[treated_mask] = 1.0 / np.maximum(
+                        self.weights[treated_mask], 1e-10
+                    )
+                if np.any(control_mask):
+                    implied_ps[control_mask] = 1.0 - 1.0 / np.maximum(
+                        self.weights[control_mask], 1e-10
+                    )
+
+                # Check for overlap violations
+                if np.any(implied_ps < self.overlap_threshold) or np.any(
+                    implied_ps > 1 - self.overlap_threshold
+                ):
+                    warnings.warn(
+                        "Optimized weights imply propensity scores that may violate "
+                        "overlap assumptions. Consider adjusting variance_constraint or "
+                        "reviewing covariate balance.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
 
             if self.verbose:
                 opt_diag = self.get_optimization_diagnostics()

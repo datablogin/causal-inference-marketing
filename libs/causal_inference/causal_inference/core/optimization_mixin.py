@@ -210,8 +210,9 @@ class OptimizationMixin:
         if not np.any(non_constant):
             return 0.0
 
-        # Add small epsilon for numerical stability
-        eps = 1e-10
+        # Add conservative epsilon for numerical stability
+        # Use relative epsilon to handle different scales
+        eps = np.maximum(1e-10, 1e-6 * np.abs(std_covs[non_constant]))
         smd = np.abs(weighted_means[non_constant] - target_means[non_constant]) / (
             std_covs[non_constant] + eps
         )
