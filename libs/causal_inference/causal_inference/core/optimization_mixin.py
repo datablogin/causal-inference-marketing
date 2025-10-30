@@ -152,20 +152,25 @@ class OptimizationMixin:
                 result.x, covariates, target_means
             )
 
-            # Store diagnostics
+            # Store diagnostics (merge instead of overwriting)
             assert self.optimization_config is not None  # Type narrowing for mypy
             if self.optimization_config.store_diagnostics:
-                self._optimization_diagnostics = {
-                    "success": result.success,
-                    "message": result.message,
-                    "n_iterations": result.nit,
-                    "final_objective": result.fun,
-                    "constraint_violation": constraint_violation,
-                    "weight_variance": float(np.var(result.x)),
-                    "effective_sample_size": float(
-                        np.sum(result.x) ** 2 / np.sum(result.x**2)
-                    ),
-                }
+                if not hasattr(self, "_optimization_diagnostics"):
+                    self._optimization_diagnostics = {}
+
+                self._optimization_diagnostics.update(
+                    {
+                        "success": result.success,
+                        "message": result.message,
+                        "n_iterations": result.nit,
+                        "final_objective": result.fun,
+                        "constraint_violation": constraint_violation,
+                        "weight_variance": float(np.var(result.x)),
+                        "effective_sample_size": float(
+                            np.sum(result.x) ** 2 / np.sum(result.x**2)
+                        ),
+                    }
+                )
 
             if not result.success:
                 warnings.warn(

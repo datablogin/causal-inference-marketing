@@ -641,6 +641,10 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         # Predict counterfactual outcomes
         if self.use_ensemble and self.ensemble_models_fitted:
             # Ensemble prediction
+            if self.ensemble_weights is None:
+                raise EstimationError(
+                    "Ensemble weights must be optimized before prediction"
+                )
             predictions = np.column_stack(
                 [
                     model.predict(counterfactual_features)
@@ -704,6 +708,10 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             # Predict using ensemble or single model
             if self.use_ensemble and self.ensemble_models_fitted:
                 # Ensemble prediction
+                if self.ensemble_weights is None:
+                    raise EstimationError(
+                        "Ensemble weights must be optimized before prediction"
+                    )
                 predictions = np.column_stack(
                     [
                         model.predict(chunk_features)
