@@ -110,9 +110,10 @@ from ..core.base import (
     TreatmentData,
 )
 from ..core.bootstrap import BootstrapConfig, BootstrapMixin
+from ..core.optimization_mixin import OptimizationMixin
 
 
-class IPWEstimator(BootstrapMixin, BaseEstimator):
+class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     """Inverse Probability Weighting estimator for causal inference.
 
     IPW estimates causal effects by:
@@ -141,6 +142,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = False,
         bootstrap_config: Any | None = None,
+        optimization_config: Any | None = None,
         check_overlap: bool = True,
         overlap_threshold: float = 0.1,
         # Legacy parameters for backward compatibility
@@ -158,6 +160,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             truncation_threshold: Threshold for truncation (0.01 = 1st/99th percentile)
             stabilized_weights: Whether to use stabilized weights
             bootstrap_config: Configuration for bootstrap confidence intervals
+            optimization_config: Configuration for weight optimization
             check_overlap: Whether to check overlap assumption
             overlap_threshold: Minimum propensity score for overlap check
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
@@ -175,6 +178,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
 
         super().__init__(
             bootstrap_config=bootstrap_config,
+            optimization_config=optimization_config,
             random_state=random_state,
             verbose=verbose,
         )
@@ -202,6 +206,9 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
     ) -> IPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
+        Note: Optimization is disabled in bootstrap samples to avoid
+        nested optimization and reduce computational cost.
+
         Args:
             random_state: Random state for this bootstrap instance
 
@@ -215,6 +222,7 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
             truncation_threshold=self.truncation_threshold,
             stabilized_weights=self.stabilized_weights,
             bootstrap_config=BootstrapConfig(n_samples=0),  # No nested bootstrap
+            optimization_config=None,  # Disable optimization in bootstrap
             check_overlap=False,  # Skip overlap checks in bootstrap
             overlap_threshold=self.overlap_threshold,
             random_state=random_state,
@@ -591,13 +599,30 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
         outcome: OutcomeData,
         covariates: CovariateData | None = None,
     ) -> None:
-        """Fit the IPW estimator.
+        """Fit the IPW estimator with optional weight optimization.
 
         Args:
             treatment: Treatment assignment data
             outcome: Outcome variable data
             covariates: Covariate data for propensity score estimation
         """
+        import warnings
+
+        # Warn about bootstrap-optimization interaction
+        if (
+            self.optimization_config
+            and self.optimization_config.optimize_weights
+            and self.bootstrap_config
+            and self.bootstrap_config.n_samples > 0
+        ):
+            warnings.warn(
+                "Bootstrap confidence intervals are computed using non-optimized weights "
+                "to reduce computational cost. This may underestimate variance. "
+                "Consider using analytical variance estimation for optimized weights.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Fit propensity score model
         self._fit_propensity_model(treatment, covariates)
 
@@ -617,13 +642,140 @@ class IPWEstimator(BootstrapMixin, BaseEstimator):
                 # Could raise AssumptionViolationError here if strict checking desired
                 # For now, just warn
 
-        # Compute IPW weights
-        self.weights = self._compute_weights(treatment, self.propensity_scores)
+        # Compute baseline weights analytically
+        baseline_weights = self._compute_weights(treatment, self.propensity_scores)
+
+        # Optimize weights if configured
+        if self.optimization_config and self.optimization_config.optimize_weights:
+            if covariates is None:
+                raise EstimationError(
+                    "Covariates required for weight optimization. "
+                    "Cannot optimize without covariate balance constraints."
+                )
+
+            # Get covariate array - handle different data types
+            if isinstance(covariates.values, pd.DataFrame):
+                covariate_array = covariates.values.values
+            elif isinstance(covariates.values, pd.Series):
+                covariate_array = covariates.values.to_numpy().reshape(-1, 1)
+            else:
+                covariate_array = np.asarray(covariates.values)
+
+            # Validate covariate array dimensions
+            if covariate_array.ndim == 1:
+                covariate_array = covariate_array.reshape(-1, 1)
+            elif covariate_array.ndim != 2:
+                raise EstimationError(
+                    f"Covariates must be 1D or 2D array, got {covariate_array.ndim}D"
+                )
+
+            # Validate sample size matches treatment
+            if isinstance(treatment.values, pd.Series):
+                treatment_len = len(treatment.values.values)
+            else:
+                treatment_len = len(treatment.values)
+
+            if len(covariate_array) != treatment_len:
+                raise EstimationError(
+                    f"Covariate length ({len(covariate_array)}) doesn't match "
+                    f"treatment length ({treatment_len})"
+                )
+
+            # Show baseline diagnostics if verbose
+            if self.verbose:
+                baseline_diag = self._compute_weight_diagnostics(baseline_weights)
+                print("\n=== Baseline Weight Diagnostics ===")
+                print(
+                    f"Baseline weight variance: {baseline_diag['weight_variance']:.4f}"
+                )
+                print(
+                    f"Baseline effective sample size: {baseline_diag['effective_sample_size']:.1f}"
+                )
+
+            # Optimize weights with PyRake-style constraints
+            self.weights = self.optimize_weights_constrained(
+                baseline_weights=baseline_weights,
+                covariates=covariate_array,
+                variance_constraint=self.optimization_config.variance_constraint,
+            )
+
+            # Post-optimization overlap check
+            if self.check_overlap:
+                # Check if optimized weights imply extreme propensity scores
+                # For treated units: weight = 1/PS, so PS = 1/weight
+                # For control units: weight = 1/(1-PS), so PS = 1 - 1/weight
+                if isinstance(treatment.values, pd.Series):
+                    treatment_vals = treatment.values.values
+                else:
+                    treatment_vals = treatment.values
+
+                treated_mask = treatment_vals == 1
+                control_mask = treatment_vals == 0
+
+                # Implied propensity scores from optimized weights
+                implied_ps = np.zeros_like(self.weights)
+                if np.any(treated_mask):
+                    implied_ps[treated_mask] = 1.0 / np.maximum(
+                        self.weights[treated_mask], 1e-10
+                    )
+                if np.any(control_mask):
+                    implied_ps[control_mask] = 1.0 - 1.0 / np.maximum(
+                        self.weights[control_mask], 1e-10
+                    )
+
+                # Check for overlap violations
+                if np.any(implied_ps < self.overlap_threshold) or np.any(
+                    implied_ps > 1 - self.overlap_threshold
+                ):
+                    warnings.warn(
+                        "Optimized weights imply propensity scores that may violate "
+                        "overlap assumptions. Consider adjusting variance_constraint or "
+                        "reviewing covariate balance.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+
+            if self.verbose:
+                opt_diag = self.get_optimization_diagnostics()
+                if opt_diag:
+                    print("\n=== Weight Optimization Results ===")
+                    print(f"Optimization converged: {opt_diag['success']}")
+                    print(f"Final objective value: {opt_diag['final_objective']:.6f}")
+                    print(f"Iterations: {opt_diag['n_iterations']}")
+                    print(
+                        f"Max covariate imbalance (SMD): {opt_diag['constraint_violation']:.4f}"
+                    )
+                    print(
+                        f"Optimized weight variance: {opt_diag['weight_variance']:.4f}"
+                    )
+                    print(
+                        f"Optimized effective sample size: {opt_diag['effective_sample_size']:.1f}"
+                    )
+                    # Show improvement
+                    variance_improvement = (
+                        (baseline_diag["weight_variance"] - opt_diag["weight_variance"])
+                        / baseline_diag["weight_variance"]
+                        * 100
+                    )
+                    ess_improvement = (
+                        (
+                            opt_diag["effective_sample_size"]
+                            - baseline_diag["effective_sample_size"]
+                        )
+                        / baseline_diag["effective_sample_size"]
+                        * 100
+                    )
+                    print(f"Variance reduction: {variance_improvement:.1f}%")
+                    print(f"ESS improvement: {ess_improvement:.1f}%")
+        else:
+            # Use baseline analytical weights
+            self.weights = baseline_weights
 
         # Compute weight diagnostics
         self._weight_diagnostics = self._compute_weight_diagnostics(self.weights)
 
         if self.verbose:
+            print("\n=== Weight Diagnostics ===")
             print(f"Mean weight: {self._weight_diagnostics['mean_weight']:.4f}")
             print(
                 f"Weight range: [{self._weight_diagnostics['min_weight']:.4f}, {self._weight_diagnostics['max_weight']:.4f}]"

@@ -683,12 +683,12 @@ from ..core.optimization_mixin import OptimizationMixin
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] IPW with optimization runs without errors: `pytest libs/causal_inference/tests/test_ipw_optimization.py::test_ipw_basic_optimization -v`
-- [ ] IPW without optimization still works (backward compatibility): `pytest libs/causal_inference/tests/test_ipw.py -v`
-- [ ] Bootstrap with optimization works: `pytest libs/causal_inference/tests/test_ipw_optimization.py::test_ipw_optimization_with_bootstrap -v`
-- [ ] Type checking passes: `make typecheck`
-- [ ] Linting passes: `make lint`
-- [ ] All tests pass: `make test`
+- [x] IPW with optimization runs without errors: `pytest libs/causal_inference/tests/test_ipw_optimization.py::test_ipw_basic_optimization -v`
+- [x] IPW without optimization still works (backward compatibility): `pytest libs/causal_inference/tests/test_ipw.py -v`
+- [x] Bootstrap with optimization works: `pytest libs/causal_inference/tests/test_ipw_optimization.py::test_ipw_optimization_with_bootstrap -v`
+- [x] Type checking passes: `make typecheck`
+- [x] Linting passes: `make lint`
+- [x] All tests pass: `make test`
 
 #### Manual Verification:
 - [ ] Optimized weights have lower variance than analytical weights

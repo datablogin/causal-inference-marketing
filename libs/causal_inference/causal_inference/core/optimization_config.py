@@ -2,7 +2,7 @@
 
 from typing import Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class OptimizationConfig(BaseModel):
@@ -71,3 +71,11 @@ class OptimizationConfig(BaseModel):
     convergence_tolerance: float = Field(
         default=1e-6, gt=0.0, description="Convergence tolerance for optimization"
     )
+
+    @field_validator("variance_constraint")
+    @classmethod
+    def validate_variance_constraint(cls, v: Union[float, None]) -> Union[float, None]:
+        """Validate that variance_constraint is positive if provided."""
+        if v is not None and v <= 0:
+            raise ValueError("variance_constraint must be positive (> 0)")
+        return v
