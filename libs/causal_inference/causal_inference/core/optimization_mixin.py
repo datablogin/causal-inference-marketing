@@ -33,7 +33,7 @@ class OptimizationMixin:
             *args: Positional arguments for parent class
             **kwargs: Keyword arguments for parent class
         """
-        super().__init__(*args, optimization_config=optimization_config, **kwargs)
+        super().__init__(*args, **kwargs)
         self.optimization_config: Union[OptimizationConfig, None] = optimization_config
         self._optimization_diagnostics: dict[str, Any] = {}
 
@@ -210,9 +210,10 @@ class OptimizationMixin:
         if not np.any(non_constant):
             return 0.0
 
-        smd = (
-            np.abs(weighted_means[non_constant] - target_means[non_constant])
-            / std_covs[non_constant]
+        # Add small epsilon for numerical stability
+        eps = 1e-10
+        smd = np.abs(weighted_means[non_constant] - target_means[non_constant]) / (
+            std_covs[non_constant] + eps
         )
         return float(np.max(smd))
 
