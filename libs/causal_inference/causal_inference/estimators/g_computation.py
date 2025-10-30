@@ -7,6 +7,7 @@ treatment scenarios.
 
 from __future__ import annotations
 
+import warnings
 from contextlib import nullcontext
 from typing import Any
 
@@ -15,7 +16,7 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator as SklearnBaseEstimator
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
 from sklearn.metrics import log_loss, mean_squared_error
 
 from ..core.base import (
@@ -221,8 +222,6 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         Returns:
             Dictionary of fitted models
         """
-        from sklearn.linear_model import Ridge
-
         models = {}
 
         for model_name in self.ensemble_models:
@@ -237,7 +236,6 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     # Use sensible defaults unless overridden
                     rf_params = {
                         "n_estimators": 100,
-                        "max_depth": 5,
                         "random_state": self.random_state,
                         **self.model_params,
                     }
@@ -266,7 +264,6 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 elif model_name == "random_forest":
                     rf_params = {
                         "n_estimators": 100,
-                        "max_depth": 5,
                         "random_state": self.random_state,
                         **self.model_params,
                     }
@@ -282,8 +279,12 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 if self.verbose:
                     print(f"Fitted {model_name} model")
             except Exception as e:
+                warning_msg = f"Failed to fit {model_name}: {str(e)}"
+                warnings.warn(warning_msg, RuntimeWarning)
                 if self.verbose:
-                    print(f"Failed to fit {model_name}: {e}")
+                    import traceback
+
+                    print(f"{warning_msg}\n{traceback.format_exc()}")
 
         return models
 
@@ -344,14 +345,19 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         if not result.success and self.verbose:
             print(f"Ensemble optimization warning: {result.message}")
 
-        # Store diagnostics
-        self._optimization_diagnostics = {
-            "ensemble_success": result.success,
-            "ensemble_objective": result.fun,
-            "ensemble_weights": {
-                name: float(w) for name, w in zip(model_names, result.x)
-            },
-        }
+        # Store diagnostics (merge instead of overwriting)
+        if not hasattr(self, "_optimization_diagnostics"):
+            self._optimization_diagnostics = {}
+
+        self._optimization_diagnostics.update(
+            {
+                "ensemble_success": result.success,
+                "ensemble_objective": result.fun,
+                "ensemble_weights": {
+                    name: float(w) for name, w in zip(model_names, result.x)
+                },
+            }
+        )
 
         return np.asarray(result.x)
 
@@ -507,6 +513,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                             print(f"{name}: {weight:.4f}")
                 else:
                     # Fall back to single model if ensemble failed
+                    warnings.warn(
+                        f"Ensemble failed: only {len(self.ensemble_models_fitted)} model(s) fitted successfully. "
+                        f"Falling back to single {outcome.outcome_type} model. "
+                        f"To avoid this, check that ensemble_models are compatible with your data.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
                     self.use_ensemble = False
                     self.outcome_model = self._select_model(outcome.outcome_type)
                     self.outcome_model.fit(X, y)
@@ -778,49 +791,57 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             and not getattr(self, "_disable_analytical_inference", False)
         )
         # Disable analytical SE for ensemble models (not yet supported)
-        if provide_analytical and not self.use_ensemble:
-            # Simple analytical SE approximation for G-computation
-            try:
-                # Predict outcomes for current data to calculate residual variance
-                X = (
-                    self.covariate_data.values
-                    if self.covariate_data is not None
-                    else np.array([]).reshape(len(self.treatment_data.values), 0)
+        if provide_analytical:
+            if self.use_ensemble:
+                warnings.warn(
+                    "Analytical standard errors are not supported for ensemble models. "
+                    "Use bootstrap_samples > 0 for confidence intervals.",
+                    UserWarning,
+                    stacklevel=2,
                 )
-                X_with_treatment = (
-                    np.column_stack([self.treatment_data.values, X])
-                    if X.shape[1] > 0
-                    else self.treatment_data.values.reshape(-1, 1)
-                )
-
-                predicted_outcomes = self.outcome_model.predict(X_with_treatment)
-                residuals = self.outcome_data.values - predicted_outcomes
-                residual_variance = np.var(residuals, ddof=1)
-
-                # Simple approximation: SE ≈ sqrt(residual_var * (1/n_treated + 1/n_control))
-                n_treated = np.sum(self.treatment_data.values == 1)
-                n_control = np.sum(self.treatment_data.values == 0)
-
-                if n_treated > 0 and n_control > 0:
-                    ate_se = np.sqrt(
-                        residual_variance * (1 / n_treated + 1 / n_control)
+            else:
+                # Simple analytical SE approximation for G-computation
+                try:
+                    # Predict outcomes for current data to calculate residual variance
+                    X = (
+                        self.covariate_data.values
+                        if self.covariate_data is not None
+                        else np.array([]).reshape(len(self.treatment_data.values), 0)
+                    )
+                    X_with_treatment = (
+                        np.column_stack([self.treatment_data.values, X])
+                        if X.shape[1] > 0
+                        else self.treatment_data.values.reshape(-1, 1)
                     )
 
-                    # Calculate basic confidence intervals using normal approximation
-                    import scipy.stats as stats
+                    predicted_outcomes = self.outcome_model.predict(X_with_treatment)
+                    residuals = self.outcome_data.values - predicted_outcomes
+                    residual_variance = np.var(residuals, ddof=1)
 
-                    confidence_level = (
-                        self.bootstrap_config.confidence_level
-                        if self.bootstrap_config
-                        else 0.95
-                    )
-                    z_alpha = stats.norm.ppf(1 - (1 - confidence_level) / 2)
-                    ate_ci_lower = ate - z_alpha * ate_se
-                    ate_ci_upper = ate + z_alpha * ate_se
+                    # Simple approximation: SE ≈ sqrt(residual_var * (1/n_treated + 1/n_control))
+                    n_treated = np.sum(self.treatment_data.values == 1)
+                    n_control = np.sum(self.treatment_data.values == 0)
 
-            except Exception:
-                # If analytical SE calculation fails, continue without it
-                ate_se = None
+                    if n_treated > 0 and n_control > 0:
+                        ate_se = np.sqrt(
+                            residual_variance * (1 / n_treated + 1 / n_control)
+                        )
+
+                        # Calculate basic confidence intervals using normal approximation
+                        import scipy.stats as stats
+
+                        confidence_level = (
+                            self.bootstrap_config.confidence_level
+                            if self.bootstrap_config
+                            else 0.95
+                        )
+                        z_alpha = stats.norm.ppf(1 - (1 - confidence_level) / 2)
+                        ate_ci_lower = ate - z_alpha * ate_se
+                        ate_ci_upper = ate + z_alpha * ate_se
+
+                except Exception:
+                    # If analytical SE calculation fails, continue without it
+                    ate_se = None
 
         # Enhanced bootstrap confidence intervals
         bootstrap_result = None
