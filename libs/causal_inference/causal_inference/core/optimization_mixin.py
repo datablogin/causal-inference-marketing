@@ -1,5 +1,7 @@
 """Mixin providing PyRake-style constrained optimization capabilities."""
 
+from __future__ import annotations
+
 import warnings
 from typing import Any, Union
 
@@ -62,6 +64,9 @@ class OptimizationMixin:
         ):
             return baseline_weights
 
+        # At this point, optimization_config is guaranteed to be non-None
+        assert self.optimization_config is not None  # Type narrowing for mypy
+
         n_obs = len(baseline_weights)
 
         # Validate covariate matrix
@@ -79,6 +84,7 @@ class OptimizationMixin:
         # Define objective function
         def objective(w: NDArray[Any]) -> float:
             """Distance from baseline weights."""
+            assert self.optimization_config is not None  # Type narrowing for mypy
             metric = self.optimization_config.distance_metric
 
             if metric == "l2":
@@ -103,6 +109,7 @@ class OptimizationMixin:
         constraints = []
 
         # Covariate balance constraint
+        assert self.optimization_config is not None  # Type narrowing for mypy
         if self.optimization_config.balance_constraints:
 
             def balance_constraint(w: NDArray[Any]) -> NDArray[Any]:
@@ -126,6 +133,7 @@ class OptimizationMixin:
 
         # Optimize
         try:
+            assert self.optimization_config is not None  # Type narrowing for mypy
             result = minimize(
                 objective,
                 baseline_weights,
@@ -145,6 +153,7 @@ class OptimizationMixin:
             )
 
             # Store diagnostics
+            assert self.optimization_config is not None  # Type narrowing for mypy
             if self.optimization_config.store_diagnostics:
                 self._optimization_diagnostics = {
                     "success": result.success,
@@ -177,7 +186,7 @@ class OptimizationMixin:
                 )
                 return baseline_weights
 
-            return result.x
+            return np.asarray(result.x)
 
         except Exception as e:
             warnings.warn(
