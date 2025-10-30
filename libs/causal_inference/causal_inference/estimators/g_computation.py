@@ -7,6 +7,7 @@ treatment scenarios.
 
 from __future__ import annotations
 
+import warnings
 from contextlib import nullcontext
 from typing import Any
 
@@ -15,7 +16,7 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator as SklearnBaseEstimator
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
 from sklearn.metrics import log_loss, mean_squared_error
 
 from ..core.base import (
@@ -27,13 +28,14 @@ from ..core.base import (
     TreatmentData,
 )
 from ..core.bootstrap import BootstrapConfig, BootstrapMixin
+from ..core.optimization_mixin import OptimizationMixin
 from ..utils.memory_efficient import (
     MemoryMonitor,
     optimize_pandas_dtypes,
 )
 
 
-class GComputationEstimator(BootstrapMixin, BaseEstimator):
+class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     """G-computation (Standardization) estimator for causal inference.
 
     G-computation estimates causal effects by:
@@ -55,6 +57,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         model_type: str = "auto",
         model_params: dict[str, Any] | None = None,
         bootstrap_config: Any | None = None,
+        optimization_config: Any | None = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
@@ -64,6 +67,10 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         chunk_size: int = 10000,
         memory_efficient: bool = True,
         large_dataset_threshold: int = 100000,
+        # Ensemble settings
+        use_ensemble: bool = False,
+        ensemble_models: list[str] | None = None,
+        ensemble_variance_penalty: float = 0.1,
     ) -> None:
         """Initialize the G-computation estimator.
 
@@ -71,6 +78,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             model_type: Model type ('auto', 'linear', 'logistic', 'random_forest')
             model_params: Parameters to pass to the sklearn model
             bootstrap_config: Configuration for bootstrap confidence intervals
+            optimization_config: Configuration for optimization strategies
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
             confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
@@ -78,6 +86,9 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             chunk_size: Size of chunks for processing large datasets
             memory_efficient: Enable memory optimizations for large datasets
             large_dataset_threshold: Sample size threshold for enabling optimizations
+            use_ensemble: Use ensemble of models instead of single model
+            ensemble_models: List of model types for ensemble (if use_ensemble=True)
+            ensemble_variance_penalty: Penalty on ensemble weight variance
         """
         # Create bootstrap config if not provided (for backward compatibility)
         if bootstrap_config is None:
@@ -89,6 +100,7 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
 
         super().__init__(
             bootstrap_config=bootstrap_config,
+            optimization_config=optimization_config,
             random_state=random_state,
             verbose=verbose,
         )
@@ -101,9 +113,33 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         self.memory_efficient = memory_efficient
         self.large_dataset_threshold = large_dataset_threshold
 
+        # Ensemble settings
+        self.use_ensemble = use_ensemble
+        self.ensemble_models = ensemble_models or ["linear", "ridge", "random_forest"]
+        self.ensemble_variance_penalty = ensemble_variance_penalty
+
         # Model storage
         self.outcome_model: SklearnBaseEstimator | None = None
+        self.ensemble_models_fitted: dict[str, Any] = {}
+        self.ensemble_weights: NDArray[Any] | None = None
         self._model_features: list[str] | None = None
+
+    def _check_is_fitted(self) -> None:
+        """Check if the estimator has been fitted.
+
+        Raises:
+            EstimationError: If the estimator is not fitted
+        """
+        if self.treatment_data is None:
+            raise EstimationError("Model must be fitted before prediction/estimation")
+
+        if not self.use_ensemble and self.outcome_model is None:
+            raise EstimationError("Model must be fitted before prediction/estimation")
+
+        if self.use_ensemble and not self.ensemble_models_fitted:
+            raise EstimationError(
+                "Ensemble models must be fitted before prediction/estimation"
+            )
 
     def _create_bootstrap_estimator(
         self, random_state: int | None = None
@@ -120,8 +156,10 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             model_type=self.model_type,
             model_params=self.model_params,
             bootstrap_config=BootstrapConfig(n_samples=0),  # No nested bootstrap
+            optimization_config=None,  # Disable optimization in bootstrap
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
+            use_ensemble=False,  # Disable ensemble in bootstrap
         )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
@@ -167,6 +205,161 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
                 )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
+
+    def _fit_ensemble_models(
+        self,
+        features: pd.DataFrame,
+        y: NDArray[Any],
+        outcome_type: str,
+    ) -> dict[str, Any]:
+        """Fit multiple models for ensemble.
+
+        Args:
+            features: Feature matrix
+            y: Outcome vector
+            outcome_type: Type of outcome ('continuous', 'binary')
+
+        Returns:
+            Dictionary of fitted models
+        """
+        models = {}
+
+        for model_name in self.ensemble_models:
+            if outcome_type == "continuous":
+                if model_name == "linear":
+                    model = LinearRegression(**self.model_params)
+                elif model_name == "ridge":
+                    # Use default alpha=1.0 unless overridden in model_params
+                    ridge_params = {"alpha": 1.0, **self.model_params}
+                    model = Ridge(**ridge_params)
+                elif model_name == "random_forest":
+                    # Use sensible defaults unless overridden
+                    rf_params = {
+                        "n_estimators": 100,
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = RandomForestRegressor(**rf_params)
+                else:
+                    continue
+            elif outcome_type == "binary":
+                if model_name == "linear":
+                    # Unregularized logistic regression
+                    logistic_params = {
+                        "max_iter": 1000,
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = LogisticRegression(**logistic_params)
+                elif model_name == "ridge":
+                    # Regularized logistic regression (L2 penalty)
+                    logistic_ridge_params = {
+                        "max_iter": 1000,
+                        "C": 1.0,  # Inverse of regularization strength
+                        "penalty": "l2",
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = LogisticRegression(**logistic_ridge_params)
+                elif model_name == "random_forest":
+                    rf_params = {
+                        "n_estimators": 100,
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = RandomForestClassifier(**rf_params)
+                else:
+                    continue
+            else:
+                continue
+
+            try:
+                model.fit(features, y)
+                models[model_name] = model
+                if self.verbose:
+                    print(f"Fitted {model_name} model")
+            except Exception as e:
+                warning_msg = f"Failed to fit {model_name}: {str(e)}"
+                warnings.warn(warning_msg, RuntimeWarning)
+                if self.verbose:
+                    import traceback
+
+                    print(f"{warning_msg}\n{traceback.format_exc()}")
+
+        return models
+
+    def _optimize_ensemble_weights(
+        self,
+        models: dict[str, Any],
+        features: pd.DataFrame,
+        y: NDArray[Any],
+    ) -> NDArray[Any]:
+        """Optimize ensemble weights with variance penalty.
+
+        Args:
+            models: Dictionary of fitted models
+            features: Feature matrix
+            y: Outcome vector
+
+        Returns:
+            Optimized ensemble weights
+        """
+        from scipy.optimize import minimize
+
+        n_models = len(models)
+        model_names = list(models.keys())
+
+        # Get predictions from each model
+        predictions = np.column_stack(
+            [models[name].predict(features) for name in model_names]
+        )
+
+        def objective(weights: NDArray[Any]) -> float:
+            """MSE with variance penalty."""
+            ensemble_pred = predictions @ weights
+            mse = float(np.mean((y - ensemble_pred) ** 2))
+
+            # Variance penalty (encourages uniform weights, prevents over-reliance on single model)
+            variance_penalty = self.ensemble_variance_penalty * float(np.var(weights))
+
+            return mse + variance_penalty
+
+        # Constraints: weights sum to 1, all non-negative
+        constraints = [
+            {"type": "eq", "fun": lambda w: np.sum(w) - 1},
+        ]
+        bounds = [(0, 1) for _ in range(n_models)]
+
+        # Initial guess: equal weights
+        initial_weights = np.ones(n_models) / n_models
+
+        result = minimize(
+            objective,
+            initial_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+            options={"maxiter": 1000},
+        )
+
+        if not result.success and self.verbose:
+            print(f"Ensemble optimization warning: {result.message}")
+
+        # Store diagnostics (merge instead of overwriting)
+        if not hasattr(self, "_optimization_diagnostics"):
+            self._optimization_diagnostics = {}
+
+        self._optimization_diagnostics.update(
+            {
+                "ensemble_success": result.success,
+                "ensemble_objective": result.fun,
+                "ensemble_weights": {
+                    name: float(w) for name, w in zip(model_names, result.x)
+                },
+            }
+        )
+
+        return np.asarray(result.x)
 
     def _prepare_features(
         self,
@@ -289,7 +482,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
                 y = np.asarray(outcome.values)
 
             # Select and fit model
-            self.outcome_model = self._select_model(outcome.outcome_type)
+            if not self.use_ensemble:
+                self.outcome_model = self._select_model(outcome.outcome_type)
 
         try:
             # Check for treatment variation first
@@ -300,10 +494,41 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
                     "Cannot estimate causal effects without variation in treatment assignment."
                 )
 
-            self.outcome_model.fit(X, y)
+            # Ensemble path
+            if self.use_ensemble:
+                self.ensemble_models_fitted = self._fit_ensemble_models(
+                    features=X, y=y, outcome_type=outcome.outcome_type
+                )
 
-            if self.verbose:
-                # Calculate model fit metrics
+                if len(self.ensemble_models_fitted) > 1:
+                    self.ensemble_weights = self._optimize_ensemble_weights(
+                        models=self.ensemble_models_fitted, features=X, y=y
+                    )
+
+                    if self.verbose:
+                        print("\n=== Ensemble Weights ===")
+                        for name, weight in zip(
+                            self.ensemble_models_fitted.keys(), self.ensemble_weights
+                        ):
+                            print(f"{name}: {weight:.4f}")
+                else:
+                    # Fall back to single model if ensemble failed
+                    warnings.warn(
+                        f"Ensemble failed: only {len(self.ensemble_models_fitted)} model(s) fitted successfully. "
+                        f"Falling back to single {outcome.outcome_type} model. "
+                        f"To avoid this, check that ensemble_models are compatible with your data.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self.use_ensemble = False
+                    self.outcome_model = self._select_model(outcome.outcome_type)
+                    self.outcome_model.fit(X, y)
+            else:
+                # Existing single model path
+                self.outcome_model.fit(X, y)
+
+            if self.verbose and not self.use_ensemble:
+                # Calculate model fit metrics (for single model only)
                 y_pred = self.outcome_model.predict(X)
                 if outcome.outcome_type == "continuous":
                     mse = mean_squared_error(y, y_pred)
@@ -351,8 +576,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             Array of predicted counterfactual outcomes
         """
-        if self.outcome_model is None or self.treatment_data is None:
-            raise EstimationError("Model must be fitted before prediction")
+        # Check if model is fitted
+        self._check_is_fitted()
 
         # Use original data if no new covariates provided
         if covariates is None:
@@ -414,9 +639,24 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             counterfactual_features = counterfactual_features[self._model_features]
 
         # Predict counterfactual outcomes
-        if self.outcome_model is None:
-            raise EstimationError("Outcome model must be fitted before prediction")
-        return np.asarray(self.outcome_model.predict(counterfactual_features))
+        if self.use_ensemble and self.ensemble_models_fitted:
+            # Ensemble prediction
+            if self.ensemble_weights is None:
+                raise EstimationError(
+                    "Ensemble weights must be optimized before prediction"
+                )
+            predictions = np.column_stack(
+                [
+                    model.predict(counterfactual_features)
+                    for model in self.ensemble_models_fitted.values()
+                ]
+            )
+            return np.asarray(predictions @ self.ensemble_weights)
+        else:
+            # Single model prediction
+            if self.outcome_model is None:
+                raise EstimationError("Outcome model must be fitted before prediction")
+            return np.asarray(self.outcome_model.predict(counterfactual_features))
 
     def _predict_counterfactuals_chunked(
         self,
@@ -465,9 +705,27 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             if self._model_features is not None:
                 chunk_features = chunk_features[self._model_features]
 
-            if self.outcome_model is None:
-                raise EstimationError("Outcome model must be fitted before prediction")
-            return np.asarray(self.outcome_model.predict(chunk_features))
+            # Predict using ensemble or single model
+            if self.use_ensemble and self.ensemble_models_fitted:
+                # Ensemble prediction
+                if self.ensemble_weights is None:
+                    raise EstimationError(
+                        "Ensemble weights must be optimized before prediction"
+                    )
+                predictions = np.column_stack(
+                    [
+                        model.predict(chunk_features)
+                        for model in self.ensemble_models_fitted.values()
+                    ]
+                )
+                return np.asarray(predictions @ self.ensemble_weights)
+            else:
+                # Single model prediction
+                if self.outcome_model is None:
+                    raise EstimationError(
+                        "Outcome model must be fitted before prediction"
+                    )
+                return np.asarray(self.outcome_model.predict(chunk_features))
 
         # Use chunked operation to predict
         def chunk_operation(chunk_start: int) -> NDArray[Any]:
@@ -490,8 +748,8 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
         Returns:
             CausalEffect object with ATE estimate and confidence intervals
         """
-        if self.outcome_model is None or self.treatment_data is None:
-            raise EstimationError("Model must be fitted before estimation")
+        # Check if model is fitted
+        self._check_is_fitted()
 
         # Determine treatment values for binary/categorical treatments
         treatment_values: list[Any]
@@ -540,49 +798,58 @@ class GComputationEstimator(BootstrapMixin, BaseEstimator):
             self.bootstrap_config.n_samples == 0
             and not getattr(self, "_disable_analytical_inference", False)
         )
+        # Disable analytical SE for ensemble models (not yet supported)
         if provide_analytical:
-            # Simple analytical SE approximation for G-computation
-            try:
-                # Predict outcomes for current data to calculate residual variance
-                X = (
-                    self.covariate_data.values
-                    if self.covariate_data is not None
-                    else np.array([]).reshape(len(self.treatment_data.values), 0)
+            if self.use_ensemble:
+                warnings.warn(
+                    "Analytical standard errors are not supported for ensemble models. "
+                    "Use bootstrap_samples > 0 for confidence intervals.",
+                    UserWarning,
+                    stacklevel=2,
                 )
-                X_with_treatment = (
-                    np.column_stack([self.treatment_data.values, X])
-                    if X.shape[1] > 0
-                    else self.treatment_data.values.reshape(-1, 1)
-                )
-
-                predicted_outcomes = self.outcome_model.predict(X_with_treatment)
-                residuals = self.outcome_data.values - predicted_outcomes
-                residual_variance = np.var(residuals, ddof=1)
-
-                # Simple approximation: SE ≈ sqrt(residual_var * (1/n_treated + 1/n_control))
-                n_treated = np.sum(self.treatment_data.values == 1)
-                n_control = np.sum(self.treatment_data.values == 0)
-
-                if n_treated > 0 and n_control > 0:
-                    ate_se = np.sqrt(
-                        residual_variance * (1 / n_treated + 1 / n_control)
+            else:
+                # Simple analytical SE approximation for G-computation
+                try:
+                    # Predict outcomes for current data to calculate residual variance
+                    X = (
+                        self.covariate_data.values
+                        if self.covariate_data is not None
+                        else np.array([]).reshape(len(self.treatment_data.values), 0)
+                    )
+                    X_with_treatment = (
+                        np.column_stack([self.treatment_data.values, X])
+                        if X.shape[1] > 0
+                        else self.treatment_data.values.reshape(-1, 1)
                     )
 
-                    # Calculate basic confidence intervals using normal approximation
-                    import scipy.stats as stats
+                    predicted_outcomes = self.outcome_model.predict(X_with_treatment)
+                    residuals = self.outcome_data.values - predicted_outcomes
+                    residual_variance = np.var(residuals, ddof=1)
 
-                    confidence_level = (
-                        self.bootstrap_config.confidence_level
-                        if self.bootstrap_config
-                        else 0.95
-                    )
-                    z_alpha = stats.norm.ppf(1 - (1 - confidence_level) / 2)
-                    ate_ci_lower = ate - z_alpha * ate_se
-                    ate_ci_upper = ate + z_alpha * ate_se
+                    # Simple approximation: SE ≈ sqrt(residual_var * (1/n_treated + 1/n_control))
+                    n_treated = np.sum(self.treatment_data.values == 1)
+                    n_control = np.sum(self.treatment_data.values == 0)
 
-            except Exception:
-                # If analytical SE calculation fails, continue without it
-                ate_se = None
+                    if n_treated > 0 and n_control > 0:
+                        ate_se = np.sqrt(
+                            residual_variance * (1 / n_treated + 1 / n_control)
+                        )
+
+                        # Calculate basic confidence intervals using normal approximation
+                        import scipy.stats as stats
+
+                        confidence_level = (
+                            self.bootstrap_config.confidence_level
+                            if self.bootstrap_config
+                            else 0.95
+                        )
+                        z_alpha = stats.norm.ppf(1 - (1 - confidence_level) / 2)
+                        ate_ci_lower = ate - z_alpha * ate_se
+                        ate_ci_upper = ate + z_alpha * ate_se
+
+                except Exception:
+                    # If analytical SE calculation fails, continue without it
+                    ate_se = None
 
         # Enhanced bootstrap confidence intervals
         bootstrap_result = None

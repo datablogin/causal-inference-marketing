@@ -1,5 +1,7 @@
 """Configuration for PyRake-style constrained optimization."""
 
+from __future__ import annotations
+
 from typing import Literal, Union
 
 from pydantic import BaseModel, Field, field_validator
