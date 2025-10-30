@@ -123,6 +123,23 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.ensemble_weights: NDArray[Any] | None = None
         self._model_features: list[str] | None = None
 
+    def _check_is_fitted(self) -> None:
+        """Check if the estimator has been fitted.
+
+        Raises:
+            EstimationError: If the estimator is not fitted
+        """
+        if self.treatment_data is None:
+            raise EstimationError("Model must be fitted before prediction/estimation")
+
+        if not self.use_ensemble and self.outcome_model is None:
+            raise EstimationError("Model must be fitted before prediction/estimation")
+
+        if self.use_ensemble and not self.ensemble_models_fitted:
+            raise EstimationError(
+                "Ensemble models must be fitted before prediction/estimation"
+            )
+
     def _create_bootstrap_estimator(
         self, random_state: int | None = None
     ) -> GComputationEstimator:
@@ -211,28 +228,49 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         for model_name in self.ensemble_models:
             if outcome_type == "continuous":
                 if model_name == "linear":
-                    model = LinearRegression()
+                    model = LinearRegression(**self.model_params)
                 elif model_name == "ridge":
-                    model = Ridge(alpha=1.0)
+                    # Use default alpha=1.0 unless overridden in model_params
+                    ridge_params = {"alpha": 1.0, **self.model_params}
+                    model = Ridge(**ridge_params)
                 elif model_name == "random_forest":
-                    model = RandomForestRegressor(
-                        n_estimators=100,
-                        max_depth=5,
-                        random_state=self.random_state,
-                    )
+                    # Use sensible defaults unless overridden
+                    rf_params = {
+                        "n_estimators": 100,
+                        "max_depth": 5,
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = RandomForestRegressor(**rf_params)
                 else:
                     continue
             elif outcome_type == "binary":
-                if model_name in ["linear", "ridge"]:
-                    model = LogisticRegression(
-                        max_iter=1000, random_state=self.random_state
-                    )
+                if model_name == "linear":
+                    # Unregularized logistic regression
+                    logistic_params = {
+                        "max_iter": 1000,
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = LogisticRegression(**logistic_params)
+                elif model_name == "ridge":
+                    # Regularized logistic regression (L2 penalty)
+                    logistic_ridge_params = {
+                        "max_iter": 1000,
+                        "C": 1.0,  # Inverse of regularization strength
+                        "penalty": "l2",
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = LogisticRegression(**logistic_ridge_params)
                 elif model_name == "random_forest":
-                    model = RandomForestClassifier(
-                        n_estimators=100,
-                        max_depth=5,
-                        random_state=self.random_state,
-                    )
+                    rf_params = {
+                        "n_estimators": 100,
+                        "max_depth": 5,
+                        "random_state": self.random_state,
+                        **self.model_params,
+                    }
+                    model = RandomForestClassifier(**rf_params)
                 else:
                     continue
             else:
@@ -280,7 +318,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             ensemble_pred = predictions @ weights
             mse = float(np.mean((y - ensemble_pred) ** 2))
 
-            # Variance penalty (encourage diverse weights)
+            # Variance penalty (encourages uniform weights, prevents over-reliance on single model)
             variance_penalty = self.ensemble_variance_penalty * float(np.var(weights))
 
             return mse + variance_penalty
@@ -525,15 +563,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         Returns:
             Array of predicted counterfactual outcomes
         """
-        # Check if model is fitted (either single model or ensemble)
-        if self.treatment_data is None:
-            raise EstimationError("Model must be fitted before prediction")
-
-        if not self.use_ensemble and self.outcome_model is None:
-            raise EstimationError("Model must be fitted before prediction")
-
-        if self.use_ensemble and not self.ensemble_models_fitted:
-            raise EstimationError("Ensemble models must be fitted before prediction")
+        # Check if model is fitted
+        self._check_is_fitted()
 
         # Use original data if no new covariates provided
         if covariates is None:
@@ -657,9 +688,23 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             if self._model_features is not None:
                 chunk_features = chunk_features[self._model_features]
 
-            if self.outcome_model is None:
-                raise EstimationError("Outcome model must be fitted before prediction")
-            return np.asarray(self.outcome_model.predict(chunk_features))
+            # Predict using ensemble or single model
+            if self.use_ensemble and self.ensemble_models_fitted:
+                # Ensemble prediction
+                predictions = np.column_stack(
+                    [
+                        model.predict(chunk_features)
+                        for model in self.ensemble_models_fitted.values()
+                    ]
+                )
+                return np.asarray(predictions @ self.ensemble_weights)
+            else:
+                # Single model prediction
+                if self.outcome_model is None:
+                    raise EstimationError(
+                        "Outcome model must be fitted before prediction"
+                    )
+                return np.asarray(self.outcome_model.predict(chunk_features))
 
         # Use chunked operation to predict
         def chunk_operation(chunk_start: int) -> NDArray[Any]:
@@ -682,15 +727,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         Returns:
             CausalEffect object with ATE estimate and confidence intervals
         """
-        # Check if model is fitted (either single model or ensemble)
-        if self.treatment_data is None:
-            raise EstimationError("Model must be fitted before estimation")
-
-        if not self.use_ensemble and self.outcome_model is None:
-            raise EstimationError("Model must be fitted before estimation")
-
-        if self.use_ensemble and not self.ensemble_models_fitted:
-            raise EstimationError("Ensemble models must be fitted before estimation")
+        # Check if model is fitted
+        self._check_is_fitted()
 
         # Determine treatment values for binary/categorical treatments
         treatment_values: list[Any]
@@ -739,7 +777,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             self.bootstrap_config.n_samples == 0
             and not getattr(self, "_disable_analytical_inference", False)
         )
-        if provide_analytical:
+        # Disable analytical SE for ensemble models (not yet supported)
+        if provide_analytical and not self.use_ensemble:
             # Simple analytical SE approximation for G-computation
             try:
                 # Predict outcomes for current data to calculate residual variance
