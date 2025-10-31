@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -41,7 +41,7 @@ class OptimizationConfig(BaseModel):
     )
 
     # PyRake-style constraints
-    variance_constraint: Union[float, None] = Field(
+    variance_constraint: float | None = Field(
         default=None,
         gt=0.0,
         description="Maximum allowed weight variance (φ in PyRake)",
@@ -76,7 +76,7 @@ class OptimizationConfig(BaseModel):
 
     @field_validator("variance_constraint")
     @classmethod
-    def validate_variance_constraint(cls, v: Union[float, None]) -> Union[float, None]:
+    def validate_variance_constraint(cls, v: float | None) -> float | None:
         """Validate that variance_constraint is positive if provided."""
         if v is not None and v <= 0:
             raise ValueError("variance_constraint must be positive (> 0)")
