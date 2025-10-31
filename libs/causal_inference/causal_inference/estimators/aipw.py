@@ -762,12 +762,31 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     ) -> float:
         """Optimize balance between G-computation and IPW components.
 
+        This method finds the optimal weight α ∈ [0.3, 0.7] that minimizes
+        the variance of the weighted AIPW estimator:
+
+            τ̂_opt = α·(μ₁ - μ₀) + (1-α)·(IPW correction)
+
+        while penalizing extreme weights to ensure both components contribute
+        meaningfully. This is inspired by the PyRake framework for constrained
+        optimization of causal estimators.
+
+        Theoretical Note:
+            Standard AIPW (α=1) is doubly robust: consistent if either the
+            outcome model OR propensity model is correct. The weighted formulation
+            may sacrifice some robustness for efficiency gains. Use with caution
+            when model misspecification is a concern.
+
         Args:
-            g_comp_components: G-computation component values (μ₁ - μ₀)
-            ipw_components: IPW correction component values
+            g_comp_components: G-computation component values (μ₁ - μ₀) for each unit
+            ipw_components: IPW correction component values for each unit
 
         Returns:
-            Optimal weight for G-computation component (alpha)
+            Optimal weight for G-computation component (alpha), bounded to [0.3, 0.7]
+
+        References:
+            - PyRake: https://github.com/rwilson4/PyRake
+            - Doubly robust estimation: Bang & Robins (2005), Biometrics
         """
         from scipy.optimize import minimize_scalar
 
@@ -778,8 +797,8 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
             combined = alpha * g_comp_components + (1 - alpha) * ipw_components
 
-            # Variance of estimate
-            estimate_variance = float(np.var(combined))
+            # Variance of estimate (use sample variance with ddof=1)
+            estimate_variance = float(np.var(combined, ddof=1))
 
             # Penalty for extreme weights (force meaningful contribution from both)
             balance_penalty = self.component_variance_penalty * (alpha - 0.5) ** 2
@@ -801,10 +820,11 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             "optimized_variance": float(
                 np.var(
                     optimal_alpha * g_comp_components
-                    + (1 - optimal_alpha) * ipw_components
+                    + (1 - optimal_alpha) * ipw_components,
+                    ddof=1,
                 )
             ),
-            "fixed_variance": float(np.var(g_comp_components + ipw_components)),
+            "fixed_variance": float(np.var(g_comp_components + ipw_components, ddof=1)),
         }
 
         if self.verbose:
@@ -884,29 +904,38 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             "ipw_correction": ipw_correction,
         }
 
+        # Standard AIPW (always computed for reference)
+        standard_aipw = g_comp_component + ipw_correction
+        self._aipw_components["full_aipw_standard"] = standard_aipw
+
         # Optimize component balance if enabled
         if self.optimize_component_balance:
+            if self.verbose:
+                print(
+                    "\n⚠️  WARNING: Component optimization may affect double robustness property."
+                )
+                print(
+                    "   Standard AIPW is consistent if either outcome or propensity model is correct."
+                )
+                print(
+                    "   With optimization, bias may increase if both models are misspecified."
+                )
+
             optimal_alpha = self._optimize_component_balance(
                 g_comp_component, ipw_correction
             )
 
             # Use optimized weights
-            aipw_estimate = float(
-                np.mean(
-                    optimal_alpha * g_comp_component
-                    + (1 - optimal_alpha) * ipw_correction
-                )
+            optimized_aipw = (
+                optimal_alpha * g_comp_component + (1 - optimal_alpha) * ipw_correction
             )
+            self._aipw_components["full_aipw_optimized"] = optimized_aipw
+            self._aipw_components["full_aipw"] = optimized_aipw
+            aipw_estimate = float(np.mean(optimized_aipw))
         else:
             # Standard AIPW formula (equal weights)
-            aipw_estimate = float(np.mean(g_comp_component + ipw_correction))
-
-        # Store full AIPW components
-        self._aipw_components["full_aipw"] = (
-            g_comp_component + ipw_correction
-            if not self.optimize_component_balance
-            else optimal_alpha * g_comp_component + (1 - optimal_alpha) * ipw_correction
-        )
+            self._aipw_components["full_aipw"] = standard_aipw
+            aipw_estimate = float(np.mean(standard_aipw))
 
         return aipw_estimate
 
@@ -916,6 +945,13 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         outcome: OutcomeData,
     ) -> float | None:
         """Compute standard error using influence functions.
+
+        Note:
+            When component optimization is enabled, the influence function
+            calculation assumes standard AIPW weighting (equal weights).
+            The true influence function with optimized weights would require
+            accounting for the optimization procedure itself, which is not
+            currently implemented. Standard errors may be slightly conservative.
 
         Args:
             treatment: Treatment assignment data
