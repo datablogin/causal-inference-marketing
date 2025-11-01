@@ -11,7 +11,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -30,24 +30,24 @@ class BenchmarkResult:
 
     # Timing results
     fit_time: float
-    predict_time: float | None = None
-    ate_time: float | None = None
-    total_time: float | None = None
+    predict_time: Optional[float] = None
+    ate_time: Optional[float] = None
+    total_time: Optional[float] = None
 
     # Memory results
-    peak_memory_mb: float | None = None
-    memory_efficiency: float | None = None  # MB per 1K samples
+    peak_memory_mb: Optional[float] = None
+    memory_efficiency: Optional[float] = None  # MB per 1K samples
 
     # Quality metrics
-    ate_estimate: float | None = None
-    confidence_interval: tuple[float, float] | None = None
+    ate_estimate: Optional[float] = None
+    confidence_interval: Optional[tuple[float, float]] = None
 
     # Scalability metrics
-    time_per_sample_ms: float | None = None
-    samples_per_second: float | None = None
+    time_per_sample_ms: Optional[float] = None
+    samples_per_second: Optional[float] = None
 
     # Error information
-    error: str | None = None
+    error: Optional[str] = None
 
     def __post_init__(self) -> None:
         """Calculate derived metrics."""
@@ -126,8 +126,8 @@ class PerformanceBenchmark:
 
     def __init__(
         self,
-        sample_sizes: list[int] | None = None,
-        n_features_list: list[int] | None = None,
+        sample_sizes: Optional[list[int]] = None,
+        n_features_list: Optional[list[int]] = None,
         n_trials: int = 3,
         random_state: int = 42,
     ):
@@ -149,8 +149,8 @@ class PerformanceBenchmark:
     def benchmark_estimator(
         self,
         estimator_class: type[BaseEstimator],
-        estimator_params: dict[str, Any] | None = None,
-        dataset_params: dict[str, Any] | None = None,
+        estimator_params: Optional[dict[str, Any]] = None,
+        dataset_params: Optional[dict[str, Any]] = None,
     ) -> list[BenchmarkResult]:
         """Benchmark an estimator across different configurations.
 
@@ -312,7 +312,7 @@ class PerformanceBenchmark:
     def compare_estimators(
         self,
         estimator_configs: list[tuple[type[BaseEstimator], dict[str, Any]]],
-        dataset_params: dict[str, Any] | None = None,
+        dataset_params: Optional[dict[str, Any]] = None,
     ) -> pd.DataFrame:
         """Compare multiple estimators side by side.
 

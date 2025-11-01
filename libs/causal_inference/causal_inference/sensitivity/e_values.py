@@ -7,15 +7,15 @@ causal effects.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 from ..diagnostics.sensitivity import evalue_calculation
 
 
 def e_value(
     observed_estimate: float,
-    ci_lower: float | None = None,
-    ci_upper: float | None = None,
+    ci_lower: Optional[float] = None,
+    ci_upper: Optional[float] = None,
     rare_outcome: bool = False,
     effect_type: str = "risk_ratio",
 ) -> dict[str, Any]:

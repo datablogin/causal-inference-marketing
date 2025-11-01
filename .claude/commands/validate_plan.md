@@ -1,0 +1,1 @@
+/Users/robertwelborn/.claude/commands/validate_plan.md

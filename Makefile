@@ -59,11 +59,11 @@ install-docs:
 .PHONY: format
 format:
 	$(UV) run $(RUFF) format libs/ services/ shared/
-	$(UV) run $(RUFF) check --fix libs/ services/ shared/
+	$(UV) run $(RUFF) check --fix libs/ services/ shared/ --ignore UP
 
 .PHONY: lint
 lint:
-	$(UV) run $(RUFF) check libs/ services/ shared/
+	$(UV) run $(RUFF) check libs/ services/ shared/ --ignore UP
 
 .PHONY: typecheck
 typecheck:

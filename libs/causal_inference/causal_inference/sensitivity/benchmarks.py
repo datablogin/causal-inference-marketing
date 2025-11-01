@@ -7,7 +7,7 @@ that sensitivity analysis functions run < 2s on 100k rows.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -236,7 +236,7 @@ def benchmark_sensitivity_functions(
 
 
 def run_performance_validation(
-    print_results: bool = True, save_to_file: str | None = None
+    print_results: bool = True, save_to_file: Optional[str] = None
 ) -> bool:
     """Run performance validation for all sensitivity analysis functions.
 

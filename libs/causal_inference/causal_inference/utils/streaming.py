@@ -10,7 +10,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -49,10 +49,10 @@ class CSVDataStream(DataStream):
 
     def __init__(
         self,
-        file_path: str | Path,
+        file_path: Union[str, Path],
         treatment_col: str,
         outcome_col: str,
-        covariate_cols: list[str] | None = None,
+        covariate_cols: Optional[list[str]] = None,
         batch_size: int = 10000,
         **pd_kwargs: Any,
     ):
@@ -130,10 +130,10 @@ class ParquetDataStream(DataStream):
 
     def __init__(
         self,
-        file_path: str | Path,
+        file_path: Union[str, Path],
         treatment_col: str,
         outcome_col: str,
-        covariate_cols: list[str] | None = None,
+        covariate_cols: Optional[list[str]] = None,
         batch_size: int = 10000,
     ):
         """Initialize Parquet data stream.
@@ -217,7 +217,7 @@ class DataFrameStream(DataStream):
         df: pd.DataFrame,
         treatment_col: str,
         outcome_col: str,
-        covariate_cols: list[str] | None = None,
+        covariate_cols: Optional[list[str]] = None,
         batch_size: int = 10000,
     ):
         """Initialize DataFrame stream.
@@ -289,8 +289,8 @@ class StreamingEstimator:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        sample_weight: NDArray[Any] | None = None,
+        covariates: Optional[CovariateData] = None,
+        sample_weight: Optional[NDArray[Any]] = None,
     ) -> StreamingEstimator:
         """Incrementally fit the estimator with a batch of data.
 
@@ -321,8 +321,8 @@ class StreamingEstimator:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        sample_weight: NDArray[Any] | None = None,
+        covariates: Optional[CovariateData] = None,
+        sample_weight: Optional[NDArray[Any]] = None,
     ) -> None:
         """Implement the actual partial fitting logic.
 
@@ -369,7 +369,7 @@ class StreamingEstimator:
 class ExternalSortMerge:
     """External sort-merge operations for datasets larger than memory."""
 
-    def __init__(self, temp_dir: str | None = None, chunk_size: int = 100000):
+    def __init__(self, temp_dir: Optional[str] = None, chunk_size: int = 100000):
         """Initialize external sort-merge.
 
         Args:
@@ -515,10 +515,10 @@ class ExternalSortMerge:
 
 
 def create_data_stream(
-    data: str | Path | pd.DataFrame,
+    data: Union[str, Path, pd.DataFrame],
     treatment_col: str,
     outcome_col: str,
-    covariate_cols: list[str] | None = None,
+    covariate_cols: Optional[list[str]] = None,
     batch_size: int = 10000,
     **kwargs: Any,
 ) -> DataStream:

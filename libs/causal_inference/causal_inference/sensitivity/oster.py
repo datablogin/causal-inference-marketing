@@ -8,7 +8,7 @@ as a guide for selection on unobservables.
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -26,14 +26,14 @@ from .utils import (
 
 
 def oster_delta(
-    outcome: NDArray[Any] | pd.Series,
-    treatment: NDArray[Any] | pd.Series,
-    covariates_restricted: NDArray[Any] | pd.DataFrame | None = None,
-    covariates_full: NDArray[Any] | pd.DataFrame | None = None,
-    r_max: float | None = None,
+    outcome: Union[NDArray[Any], pd.Series],
+    treatment: Union[NDArray[Any], pd.Series],
+    covariates_restricted: Optional[Union[NDArray[Any], pd.DataFrame]] = None,
+    covariates_full: Optional[Union[NDArray[Any], pd.DataFrame]] = None,
+    r_max: Optional[float] = None,
     delta: float = 1.0,
     bootstrap_samples: int = 0,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> dict[str, Any]:
     """Calculate Oster's δ for assessing omitted variable bias.
 
@@ -295,8 +295,8 @@ def oster_delta(
 def _bootstrap_oster(
     y: NDArray[Any],
     t: NDArray[Any],
-    x_restricted: NDArray[Any] | None,
-    x_full: NDArray[Any] | None,
+    x_restricted: Optional[NDArray[Any]],
+    x_full: Optional[NDArray[Any]],
     r_max: float,
     delta: float,
     n_bootstrap: int,

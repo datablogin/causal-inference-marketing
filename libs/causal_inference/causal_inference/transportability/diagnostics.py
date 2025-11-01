@@ -5,7 +5,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -105,14 +105,14 @@ class CovariateShiftDiagnostics:
 
         # Results storage
         self.distribution_differences: list[DistributionDifference] = []
-        self.overall_shift_score: float | None = None
-        self.discriminative_accuracy: float | None = None
+        self.overall_shift_score: Optional[float] = None
+        self.discriminative_accuracy: Optional[float] = None
 
     def analyze_covariate_shift(
         self,
         source_data: pd.DataFrame | NDArray[Any],
         target_data: pd.DataFrame | NDArray[Any],
-        variable_names: list[str] | None = None,
+        variable_names: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Perform comprehensive covariate shift analysis.
 
@@ -175,7 +175,7 @@ class CovariateShiftDiagnostics:
     def _ensure_dataframe(
         self,
         data: pd.DataFrame | NDArray[Any],
-        variable_names: list[str] | None,
+        variable_names: Optional[list[str]],
     ) -> pd.DataFrame:
         """Convert input data to DataFrame with proper column names."""
         if isinstance(data, pd.DataFrame):

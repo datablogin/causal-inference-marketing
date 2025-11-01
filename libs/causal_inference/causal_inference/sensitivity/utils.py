@@ -7,7 +7,7 @@ and error handling across sensitivity analysis functions.
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 
 
 def standardize_input(
-    data: NDArray[Any] | pd.Series | pd.DataFrame,
+    data: Union[NDArray[Any], pd.Series, pd.DataFrame],
     name: str = "data",
     allow_2d: bool = False,
     min_length: int = 1,
@@ -99,7 +99,7 @@ def standardize_input(
 
 
 def validate_treatment_outcome_lengths(
-    *arrays: NDArray[Any], names: list[str] | None = None
+    *arrays: NDArray[Any], names: Optional[list[str]] = None
 ) -> None:
     """Validate that treatment, outcome, and covariates have consistent lengths.
 
@@ -190,7 +190,7 @@ def check_treatment_variation(
 def check_model_assumptions(
     outcome: NDArray[Any],
     treatment: NDArray[Any],
-    covariates: NDArray[Any] | None = None,
+    covariates: Optional[NDArray[Any]] = None,
     check_linearity: bool = True,
     check_multicollinearity: bool = True,
 ) -> dict[str, Any]:

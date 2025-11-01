@@ -8,7 +8,7 @@ each treatment level conditional on covariates.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -32,12 +32,12 @@ class OverlapResults:
     common_support_range: tuple[float, float]
     units_in_common_support: int
     total_units: int
-    propensity_model_auc: float | None
+    propensity_model_auc: Optional[float]
     extreme_weights_count: int
     recommendation: str
-    calibration_results: dict[str, Any] | None = None
-    trimming_recommendations: dict[str, dict[str, Any]] | None = None
-    roc_curve_data: dict[str, Any] | None = None
+    calibration_results: Optional[dict[str, Any]] = None
+    trimming_recommendations: Optional[dict[str, dict[str, Any]]] = None
+    roc_curve_data: Optional[dict[str, Any]] = None
 
 
 def calculate_propensity_scores(
@@ -320,7 +320,7 @@ class OverlapDiagnostics:
         self,
         violations: list[dict[str, Any]],
         positivity_met: bool,
-        auc_score: float | None,
+        auc_score: Optional[float],
     ) -> str:
         """Generate recommendation based on overlap assessment."""
         if positivity_met and len(violations) == 0:

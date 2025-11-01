@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -58,12 +58,12 @@ class CausalAnalysis:
     def __init__(
         self,
         method: Literal["auto", "g_computation", "ipw", "aipw"] = "auto",
-        treatment_column: str | None = None,
-        outcome_column: str | None = None,
-        covariate_columns: list[str] | None = None,
+        treatment_column: Optional[str] = None,
+        outcome_column: Optional[str] = None,
+        covariate_columns: Optional[list[str]] = None,
         confidence_level: float = 0.95,
         bootstrap_samples: int = 1000,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         **estimator_kwargs: Any,
     ):
         """Initialize the unified causal analysis interface.
@@ -89,18 +89,18 @@ class CausalAnalysis:
 
         # State
         self.is_fitted_ = False
-        self.data_: pd.DataFrame | None = None
-        self.treatment_data_: TreatmentData | None = None
-        self.outcome_data_: OutcomeData | None = None
-        self.covariate_data_: CovariateData | None = None
-        self.estimator_: BaseEstimator | None = None
-        self.effect_: CausalEffect | None = None
+        self.data_: Optional[pd.DataFrame] = None
+        self.treatment_data_: Optional[TreatmentData] = None
+        self.outcome_data_: Optional[OutcomeData] = None
+        self.covariate_data_: Optional[CovariateData] = None
+        self.estimator_: Optional[BaseEstimator] = None
+        self.effect_: Optional[CausalEffect] = None
 
         # Report components
-        self.html_report_: str | None = None
-        self.report_data_: dict[str, Any] | None = None
+        self.html_report_: Optional[str] = None
+        self.report_data_: Optional[dict[str, Any]] = None
 
-    def fit(self, data: pd.DataFrame | str) -> CausalAnalysis:
+    def fit(self, data: Union[pd.DataFrame, str]) -> CausalAnalysis:
         """Fit the causal inference model to data.
 
         Args:
@@ -220,7 +220,7 @@ class CausalAnalysis:
 
     def report(
         self,
-        output_path: str | None = None,
+        output_path: Optional[str] = None,
         include_sensitivity: bool = True,
         include_diagnostics: bool = True,
         template: str = "executive",
@@ -295,7 +295,7 @@ class CausalAnalysis:
             raise ValueError("Must call fit() before estimating effects")
         return self.effect_
 
-    def predict_ite(self, data: pd.DataFrame | None = None) -> NDArray[np.floating]:
+    def predict_ite(self, data: Optional[pd.DataFrame] = None) -> NDArray[np.floating]:
         """Predict individual treatment effects.
 
         Args:

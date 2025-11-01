@@ -90,7 +90,7 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -137,18 +137,18 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         propensity_model_type: str = "logistic",
-        propensity_model_params: dict[str, Any] | None = None,
-        weight_truncation: str | None = None,
+        propensity_model_params: Optional[dict[str, Any]] = None,
+        weight_truncation: Optional[str] = None,
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = False,
-        bootstrap_config: Any | None = None,
-        optimization_config: Any | None = None,
+        bootstrap_config: Optional[Any] = None,
+        optimization_config: Optional[Any] = None,
         check_overlap: bool = True,
         overlap_threshold: float = 0.1,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the IPW estimator.
@@ -192,17 +192,17 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.overlap_threshold = overlap_threshold
 
         # Model storage
-        self.propensity_model: SklearnBaseEstimator | None = None
-        self.propensity_scores: NDArray[Any] | None = None
-        self.weights: NDArray[Any] | None = None
-        self._propensity_features: list[str] | None = None
+        self.propensity_model: Optional[SklearnBaseEstimator] = None
+        self.propensity_scores: Optional[NDArray[Any]] = None
+        self.weights: Optional[NDArray[Any]] = None
+        self._propensity_features: Optional[list[str]] = None
 
         # Diagnostics
-        self._overlap_diagnostics: dict[str, Any] | None = None
-        self._weight_diagnostics: dict[str, Any] | None = None
+        self._overlap_diagnostics: Optional[dict[str, Any]] = None
+        self._weight_diagnostics: Optional[dict[str, Any]] = None
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> IPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -256,7 +256,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             )
 
     def _prepare_propensity_features(
-        self, covariates: CovariateData | None = None
+        self, covariates: Optional[CovariateData] = None
     ) -> pd.DataFrame:
         """Prepare feature matrix for propensity score estimation.
 
@@ -288,7 +288,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _fit_propensity_model(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the propensity score model.
 
@@ -597,7 +597,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the IPW estimator with optional weight optimization.
 
@@ -926,7 +926,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             diagnostics=diagnostics,
         )
 
-    def get_propensity_scores(self) -> NDArray[Any] | None:
+    def get_propensity_scores(self) -> Optional[NDArray[Any]]:
         """Get the estimated propensity scores.
 
         Returns:
@@ -934,7 +934,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         return self.propensity_scores
 
-    def get_weights(self) -> NDArray[Any] | None:
+    def get_weights(self) -> Optional[NDArray[Any]]:
         """Get the computed IPW weights.
 
         Returns:
@@ -942,7 +942,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         return self.weights
 
-    def get_overlap_diagnostics(self) -> dict[str, Any] | None:
+    def get_overlap_diagnostics(self) -> Optional[dict[str, Any]]:
         """Get overlap assumption diagnostics.
 
         Returns:
@@ -950,7 +950,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         return self._overlap_diagnostics
 
-    def get_weight_diagnostics(self) -> dict[str, Any] | None:
+    def get_weight_diagnostics(self) -> Optional[dict[str, Any]]:
         """Get weight distribution diagnostics.
 
         Returns:
@@ -1018,7 +1018,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    ) -> Optional[tuple[float, float, NDArray[Any]]]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:

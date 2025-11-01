@@ -7,7 +7,7 @@ before and after treatment.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,15 +41,15 @@ class DIDResult(CausalEffect):
     def __init__(
         self,
         ate: float,
-        ate_ci_lower: float | None = None,
-        ate_ci_upper: float | None = None,
-        pre_treatment_diff: float | None = None,
-        post_treatment_diff: float | None = None,
-        treated_pre_mean: float | None = None,
-        treated_post_mean: float | None = None,
-        control_pre_mean: float | None = None,
-        control_post_mean: float | None = None,
-        parallel_trends_test_p_value: float | None = None,
+        ate_ci_lower: Optional[float] = None,
+        ate_ci_upper: Optional[float] = None,
+        pre_treatment_diff: Optional[float] = None,
+        post_treatment_diff: Optional[float] = None,
+        treated_pre_mean: Optional[float] = None,
+        treated_post_mean: Optional[float] = None,
+        control_pre_mean: Optional[float] = None,
+        control_post_mean: Optional[float] = None,
+        parallel_trends_test_p_value: Optional[float] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize DID result.
@@ -84,7 +84,7 @@ class DIDResult(CausalEffect):
 
     def plot_parallel_trends(
         self,
-        ax: Any | None = None,
+        ax: Optional[Any] = None,
         figsize: tuple[int, int] = (10, 6),
         show_counterfactual: bool = True,
     ) -> Any:
@@ -203,7 +203,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
     def __init__(
         self,
         parallel_trends_test: bool = True,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the DID estimator.
@@ -215,12 +215,12 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         """
         super().__init__(random_state=random_state, verbose=verbose)
         self.parallel_trends_test = parallel_trends_test
-        self.model: LinearRegression | None = None
-        self._time_data: NDArray[Any] | None = None
-        self._group_data: NDArray[Any] | None = None
-        self._did_result: DIDResult | None = None
-        self._design_matrix: NDArray[Any] | None = None
-        self._fitted_outcome: NDArray[Any] | None = None
+        self.model: Optional[LinearRegression] = None
+        self._time_data: Optional[NDArray[Any]] = None
+        self._group_data: Optional[NDArray[Any]] = None
+        self._did_result: Optional[DIDResult] = None
+        self._design_matrix: Optional[NDArray[Any]] = None
+        self._fitted_outcome: Optional[NDArray[Any]] = None
 
     def _validate_did_data(
         self,
@@ -228,7 +228,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         outcome: OutcomeData,
         time_data: NDArray[Any],
         group_data: NDArray[Any],
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Validate data for DID estimation.
 
@@ -315,7 +315,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the DID model.
 
@@ -386,9 +386,9 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        time_data: NDArray[Any] | None = None,
-        group_data: NDArray[Any] | None = None,
+        covariates: Optional[CovariateData] = None,
+        time_data: Optional[NDArray[Any]] = None,
+        group_data: Optional[NDArray[Any]] = None,
     ) -> DifferenceInDifferencesEstimator:
         """Fit the DID estimator.
 
@@ -581,7 +581,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
 
     def _calculate_confidence_intervals(
         self, confidence_level: float = 0.95
-    ) -> tuple[float | None, float | None]:
+    ) -> Optional[tuple[float, float]]:
         """Calculate confidence intervals for the DID coefficient using standard errors.
 
         Args:
@@ -648,7 +648,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
             # Singular matrix, can't compute standard errors
             return (None, None)
 
-    def _get_did_coefficient_index(self) -> int | None:
+    def _get_did_coefficient_index(self) -> Optional[int]:
         """Get the index of the DID coefficient in the design matrix.
 
         Returns:
@@ -680,8 +680,8 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
     def predict_counterfactual(
         self,
         group_data: NDArray[Any],
-        time_data: NDArray[Any] | None = None,
-        covariates: CovariateData | None = None,
+        time_data: Optional[NDArray[Any]] = None,
+        covariates: Optional[CovariateData] = None,
     ) -> NDArray[Any]:
         """Predict counterfactual outcomes.
 

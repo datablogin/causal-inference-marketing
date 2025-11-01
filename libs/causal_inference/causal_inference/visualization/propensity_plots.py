@@ -7,7 +7,7 @@ including overlap assessment, common support evaluation, and calibration plots.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -48,7 +48,7 @@ class PropensityOverlapResult:
     brier_score: float
     calibration_slope: float
     calibration_intercept: float
-    recommended_trimming: tuple[float, float] | None
+    recommended_trimming: Optional[tuple[float, float]]
 
 
 class PropensityPlotGenerator:
@@ -167,9 +167,9 @@ class PropensityPlotGenerator:
         self,
         overlap_result: PropensityOverlapResult,
         title: str = "Propensity Score Diagnostics",
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> plt.Figure | go.Figure:
+    ) -> Union[plt.Figure, go.Figure]:
         """Create comprehensive propensity score plots.
 
         Args:
@@ -197,7 +197,7 @@ class PropensityPlotGenerator:
         self,
         result: PropensityOverlapResult,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> plt.Figure:
         """Create static matplotlib propensity plots."""
         fig = plt.figure(figsize=(16, 12))
@@ -412,7 +412,7 @@ class PropensityPlotGenerator:
         self,
         result: PropensityOverlapResult,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> go.Figure:
         """Create interactive Plotly propensity plots."""
         fig = make_subplots(
@@ -745,9 +745,9 @@ def create_propensity_plots(
     propensity_scores: NDArray[np.floating[Any]],
     treatment: TreatmentData,
     title: str = "Propensity Score Diagnostics",
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
     interactive: bool = False,
-) -> tuple[plt.Figure | go.Figure, PropensityOverlapResult, list[str]]:
+) -> tuple[Union[plt.Figure, go.Figure], PropensityOverlapResult, list[str]]:
     """Convenience function to create propensity score diagnostic plots.
 
     Args:

@@ -6,7 +6,7 @@ This module implements classes for storing and reporting results from target tri
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -33,16 +33,16 @@ class EmulationDiagnostics:
     lost_to_followup_rate: float
 
     # Grace period analysis (if applicable)
-    grace_period_compliance_rate: float | None = None
-    subjects_treated_in_grace: int | None = None
+    grace_period_compliance_rate: Optional[float] = None
+    subjects_treated_in_grace: Optional[int] = None
 
     # Balance and overlap diagnostics
-    covariate_balance: dict[str, float] | None = None
-    propensity_score_overlap: dict[str, Any] | None = None
+    covariate_balance: Optional[dict[str, float]] = None
+    propensity_score_overlap: Optional[dict[str, Any]] = None
 
     # Emulation quality metrics
-    emulation_quality_score: float | None = None
-    protocol_adherence_score: float | None = None
+    emulation_quality_score: Optional[float] = None
+    protocol_adherence_score: Optional[float] = None
 
 
 @dataclass
@@ -51,7 +51,7 @@ class TargetTrialResults:
 
     # Core causal effects
     intention_to_treat_effect: CausalEffect
-    per_protocol_effect: CausalEffect | None = None
+    per_protocol_effect: Optional[CausalEffect] = None
 
     # Protocol and emulation details
     protocol_summary: str = ""
@@ -59,17 +59,17 @@ class TargetTrialResults:
     estimation_method: str = ""
 
     # Diagnostic information
-    diagnostics: EmulationDiagnostics | None = None
+    diagnostics: Optional[EmulationDiagnostics] = None
 
     # Grace period analysis
-    grace_period_analysis: dict[str, Any] | None = None
+    grace_period_analysis: Optional[dict[str, Any]] = None
 
     # Sensitivity analyses
-    sensitivity_analyses: dict[str, CausalEffect] | None = None
+    sensitivity_analyses: Optional[dict[str, CausalEffect]] = None
 
     # Raw emulation data (for further analysis)
-    emulated_data: pd.DataFrame | None = None
-    cloned_data: pd.DataFrame | None = None
+    emulated_data: Optional[pd.DataFrame] = None
+    cloned_data: Optional[pd.DataFrame] = None
 
     def generate_report(
         self,
@@ -333,8 +333,8 @@ class EmulationReport:
         self,
         sections: dict[str, str],
         intention_to_treat_effect: CausalEffect,
-        per_protocol_effect: CausalEffect | None = None,
-        diagnostics: EmulationDiagnostics | None = None,
+        per_protocol_effect: Optional[CausalEffect] = None,
+        diagnostics: Optional[EmulationDiagnostics] = None,
     ):
         """Initialize emulation report.
 

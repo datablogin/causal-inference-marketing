@@ -15,7 +15,7 @@ Functions:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -52,9 +52,9 @@ class CATEPolicyResult:
 
     cate_result: CATEResult | Any
     policy_result: PolicyResult
-    ope_result: OPEResult | None = None
+    ope_result: Optional[OPEResult] = None
     integration_info: dict[str, Any] = field(default_factory=dict)
-    policy_recommendations: dict[str, Any] | None = None
+    policy_recommendations: Optional[dict[str, Any]] = None
 
     @property
     def treatment_assignment(self) -> NDArray[np.bool_]:
@@ -115,10 +115,10 @@ class PolicyIntegrator:
 
     def __init__(
         self,
-        policy_optimizer: PolicyOptimizer | None = None,
-        off_policy_evaluator: OffPolicyEvaluator | None = None,
-        policy_simulator: PolicySimulator | None = None,
-        default_costs: float | None = 1.0,
+        policy_optimizer: Optional[PolicyOptimizer] = None,
+        off_policy_evaluator: Optional[OffPolicyEvaluator] = None,
+        policy_simulator: Optional[PolicySimulator] = None,
+        default_costs: Optional[float] = 1.0,
         verbose: bool = False,
     ):
         self.policy_optimizer = policy_optimizer or PolicyOptimizer()
@@ -131,11 +131,11 @@ class PolicyIntegrator:
         self,
         cate_estimator: BaseMetaLearner | CausalForest | Any,
         features: NDArray[np.floating],
-        historical_treatments: NDArray[np.bool_] | None = None,
-        historical_outcomes: NDArray[np.floating] | None = None,
-        costs: NDArray[np.floating] | None = None,
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
+        historical_treatments: Optional[NDArray[np.bool_]] = None,
+        historical_outcomes: Optional[NDArray[np.floating]] = None,
+        costs: Optional[NDArray[np.floating]] = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
         evaluate_policy: bool = True,
     ) -> CATEPolicyResult:
         """Integrate CATE estimation with policy learning.
@@ -242,8 +242,8 @@ class PolicyIntegrator:
         features: NDArray[np.floating],
         historical_treatments: NDArray[np.bool_],
         historical_outcomes: NDArray[np.floating],
-        costs: NDArray[np.floating] | None = None,
-        budget: float | None = None,
+        costs: Optional[NDArray[np.floating]] = None,
+        budget: Optional[float] = None,
     ) -> dict[str, Any]:
         """Compare policies from multiple CATE estimators.
 
@@ -321,7 +321,7 @@ class PolicyIntegrator:
         cate_estimator: BaseMetaLearner | CausalForest | Any,
         data_generator: callable,
         n_simulations: int = 100,
-        scenario_params: dict[str, Any] | None = None,
+        scenario_params: Optional[dict[str, Any]] = None,
     ) -> SimulationResult:
         """Simulate CATE-based policy performance.
 
@@ -392,7 +392,7 @@ class PolicyIntegrator:
         policy_result: PolicyResult,
         treatment_effects: NDArray[np.floating],
         costs: NDArray[np.floating],
-        ope_result: OPEResult | None = None,
+        ope_result: Optional[OPEResult] = None,
     ) -> dict[str, Any]:
         """Generate actionable policy recommendations."""
         recommendations = {
@@ -506,7 +506,7 @@ def integrate_with_cate(
     cate_estimator: BaseMetaLearner | CausalForest | Any,
     features: NDArray[np.floating],
     optimization_method: str = "greedy",
-    budget: float | None = None,
+    budget: Optional[float] = None,
 ) -> PolicyResult:
     """Helper function for quick CATE integration.
 

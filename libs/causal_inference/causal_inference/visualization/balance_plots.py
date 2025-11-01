@@ -7,7 +7,7 @@ assessing covariate balance before and after adjustment in causal inference.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -38,7 +38,7 @@ class LovePlotData:
 
     covariate_names: list[str]
     smd_before: NDArray[np.floating[Any]]
-    smd_after: NDArray[np.floating[Any]] | None = None
+    smd_after: Optional[NDArray[np.floating[Any]]] = None
     balance_threshold: float = 0.1
     poor_balance_threshold: float = 0.25
 
@@ -79,8 +79,8 @@ class LovePlotGenerator:
         self,
         covariates: CovariateData,
         treatment: TreatmentData,
-        weights_before: NDArray[np.floating[Any]] | None = None,
-        weights_after: NDArray[np.floating[Any]] | None = None,
+        weights_before: Optional[NDArray[np.floating[Any]]] = None,
+        weights_after: Optional[NDArray[np.floating[Any]]] = None,
     ) -> LovePlotData:
         """Calculate standardized mean differences for Love plot.
 
@@ -168,9 +168,9 @@ class LovePlotGenerator:
         self,
         love_plot_data: LovePlotData,
         title: str = "Covariate Balance (Love Plot)",
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> plt.Figure | go.Figure:
+    ) -> Union[plt.Figure, go.Figure]:
         """Create a Love plot visualization.
 
         Args:
@@ -194,7 +194,7 @@ class LovePlotGenerator:
         self,
         data: LovePlotData,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> plt.Figure:
         """Create static matplotlib Love plot."""
         fig, ax = plt.subplots(figsize=self.figsize)
@@ -308,7 +308,7 @@ class LovePlotGenerator:
         self,
         data: LovePlotData,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> go.Figure:
         """Create interactive Plotly Love plot."""
         fig = go.Figure()
@@ -395,13 +395,13 @@ class LovePlotGenerator:
 def create_love_plot(
     covariates: CovariateData,
     treatment: TreatmentData,
-    weights_before: NDArray[np.floating[Any]] | None = None,
-    weights_after: NDArray[np.floating[Any]] | None = None,
+    weights_before: Optional[NDArray[np.floating[Any]]] = None,
+    weights_after: Optional[NDArray[np.floating[Any]]] = None,
     balance_threshold: float = 0.1,
     title: str = "Covariate Balance (Love Plot)",
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
     interactive: bool = False,
-) -> plt.Figure | go.Figure:
+) -> Union[plt.Figure, go.Figure]:
     """Convenience function to create a Love plot.
 
     Args:

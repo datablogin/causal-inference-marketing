@@ -9,7 +9,7 @@ achieve √n-consistency and efficient inference.
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -73,8 +73,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         stratified: bool = True,
         compute_diagnostics: bool = True,
         propensity_clip_bounds: tuple[float, float] = (0.01, 0.99),
-        performance_config: ParallelCrossFittingConfig | None = None,
-        random_state: int | None = None,
+        performance_config: Optional[ParallelCrossFittingConfig] = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the Doubly Robust ML estimator.
@@ -165,9 +165,9 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         # Storage for fitted models and estimates
         self.outcome_models_: list[Any] = []
         self.propensity_models_: list[Any] = []
-        self.propensity_scores_: NDArray[Any] | None = None
+        self.propensity_scores_: Optional[NDArray[Any]] = None
         self.outcome_predictions_: dict[str, NDArray[Any]] = {}
-        self.influence_function_: NDArray[Any] | None = None
+        self.influence_function_: Optional[NDArray[Any]] = None
 
         # Storage for diagnostic data
         self._diagnostic_data: dict[str, Any] = {}
@@ -179,7 +179,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the Doubly Robust ML estimator to data."""
         if covariates is None:
@@ -237,7 +237,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         X_train: NDArray[Any],
         y_train: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
+        treatment_train: Optional[NDArray[Any]] = None,
     ) -> dict[str, Any]:
         """Fit nuisance parameter models on training data for different treatment types."""
         if treatment_train is None:
@@ -432,8 +432,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         models: dict[str, Any],
         X_val: NDArray[Any],
-        treatment_val: NDArray[Any] | None = None,
-        y_val: NDArray[Any] | None = None,
+        treatment_val: Optional[NDArray[Any]] = None,
+        y_val: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters on validation data for different treatment types."""
         if treatment_val is None:
@@ -458,7 +458,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         models: dict[str, Any],
         X_val: NDArray[Any],
         treatment_val: NDArray[Any],
-        y_val: NDArray[Any] | None = None,
+        y_val: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters for binary treatment."""
         predictions = {}
@@ -525,7 +525,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         models: dict[str, Any],
         X_val: NDArray[Any],
         treatment_val: NDArray[Any],
-        y_val: NDArray[Any] | None = None,
+        y_val: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters for categorical treatment."""
         predictions = {}
@@ -598,7 +598,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         models: dict[str, Any],
         X_val: NDArray[Any],
         treatment_val: NDArray[Any],
-        y_val: NDArray[Any] | None = None,
+        y_val: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters for continuous treatment."""
         predictions = {}
@@ -699,7 +699,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         X: NDArray[Any],
         y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Override to handle residual computation during cross-fitting."""
         # Create cross-fitting splits
@@ -1010,7 +1010,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
     def predict_potential_outcomes(
         self,
         treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        covariates: pd.DataFrame | Optional[NDArray[Any]] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs."""
         if not self.is_fitted:
@@ -1046,7 +1046,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         return Y0_pred, Y1_pred
 
-    def get_variable_importance(self) -> pd.DataFrame | None:
+    def get_variable_importance(self) -> Optional[pd.DataFrame]:
         """Get variable importance from ensemble of learners."""
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted first")
@@ -1083,7 +1083,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
         return avg_importance
 
-    def get_influence_function(self) -> NDArray[Any] | None:
+    def get_influence_function(self) -> Optional[NDArray[Any]]:
         """Get the influence function for statistical inference."""
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted first")
@@ -1591,7 +1591,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         return validation_results
 
     def compare_moment_functions(
-        self, candidate_methods: list[str] | None = None, cv_folds: int = 3
+        self, candidate_methods: Optional[list[str]] = None, cv_folds: int = 3
     ) -> dict[str, Any]:
         """Compare different moment functions using cross-validation.
 
@@ -1628,8 +1628,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
     def select_moment_function(
         self,
-        covariates: CovariateData | None = None,
-        instrument: NDArray[Any] | None = None,
+        covariates: Optional[CovariateData] = None,
+        instrument: Optional[NDArray[Any]] = None,
     ) -> tuple[str, dict[str, Any]]:
         """Select optimal moment function for the current data.
 

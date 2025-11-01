@@ -6,6 +6,8 @@ in causal inference data before analysis.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -19,7 +21,7 @@ class CausalDataValidator:
         self,
         verbose: bool = True,
         outlier_threshold: float = 5.0,
-        sample_size_for_checks: int | None = None,
+        sample_size_for_checks: Optional[int] = None,
     ) -> None:
         """Initialize the validator.
 
@@ -30,7 +32,7 @@ class CausalDataValidator:
         """
         self.verbose: bool = verbose
         self.outlier_threshold: float = outlier_threshold
-        self.sample_size_for_checks: int | None = sample_size_for_checks
+        self.sample_size_for_checks: Optional[int] = sample_size_for_checks
         self.warnings: list[str] = []
         self.errors: list[str] = []
 
@@ -334,7 +336,7 @@ class CausalDataValidator:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
         check_overlap: bool = True,
     ) -> None:
         """Run all validation checks.
@@ -410,11 +412,11 @@ class CausalDataValidator:
 def validate_causal_data(
     treatment: TreatmentData,
     outcome: OutcomeData,
-    covariates: CovariateData | None = None,
+    covariates: Optional[CovariateData] = None,
     check_overlap: bool = True,
     verbose: bool = True,
     outlier_threshold: float = 5.0,
-    sample_size_for_checks: int | None = None,
+    sample_size_for_checks: Optional[int] = None,
 ) -> tuple[list[str], list[str]]:
     """Convenience function to validate causal inference data.
 

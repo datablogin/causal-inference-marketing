@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,7 +25,7 @@ class OptimizationMixin:
     def __init__(
         self,
         *args: Any,
-        optimization_config: OptimizationConfig | None = None,
+        optimization_config: Optional[OptimizationConfig] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize optimization mixin with configuration.
@@ -36,15 +36,15 @@ class OptimizationMixin:
             **kwargs: Keyword arguments for parent class
         """
         super().__init__(*args, **kwargs)
-        self.optimization_config: OptimizationConfig | None = optimization_config
+        self.optimization_config: Optional[OptimizationConfig] = optimization_config
         self._optimization_diagnostics: dict[str, Any] = {}
 
     def optimize_weights_constrained(
         self,
         baseline_weights: NDArray[Any],
         covariates: NDArray[Any],
-        target_means: NDArray[Any] | None = None,
-        variance_constraint: float | None = None,
+        target_means: Optional[NDArray[Any]] = None,
+        variance_constraint: Optional[float] = None,
     ) -> NDArray[Any]:
         """Optimize weights using PyRake-style constrained optimization.
 
@@ -232,7 +232,7 @@ class OptimizationMixin:
         )
         return float(np.max(smd))
 
-    def get_optimization_diagnostics(self) -> dict[str, Any] | None:
+    def get_optimization_diagnostics(self) -> Optional[dict[str, Any]]:
         """Get optimization diagnostics.
 
         Returns:

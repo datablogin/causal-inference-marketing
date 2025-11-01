@@ -5,7 +5,7 @@ from __future__ import annotations
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -57,7 +57,7 @@ class TransportabilityWeighting(ABC):
         max_weight: float = 10.0,
         min_weight: float = 0.1,
         stabilize: bool = True,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ) -> None:
         """Initialize transportability weighting method.
 
@@ -76,7 +76,7 @@ class TransportabilityWeighting(ABC):
 
         # Fitted state
         self.is_fitted = False
-        self.density_ratio_model: SklearnEstimator | None = None
+        self.density_ratio_model: Optional[SklearnEstimator] = None
 
     @abstractmethod
     def _estimate_density_ratio(
@@ -148,7 +148,9 @@ class TransportabilityWeighting(ABC):
         self.is_fitted = True
         return result
 
-    def _ensure_dataframe(self, data: pd.DataFrame | NDArray[Any]) -> pd.DataFrame:
+    def _ensure_dataframe(
+        self, data: Union[pd.DataFrame, NDArray[Any]]
+    ) -> pd.DataFrame:
         """Convert input to DataFrame."""
         if isinstance(data, pd.DataFrame):
             return data
@@ -228,7 +230,7 @@ class DensityRatioEstimator(TransportabilityWeighting):
 
     def __init__(
         self,
-        classifier: SklearnEstimator | None = None,
+        classifier: Optional[SklearnEstimator] = None,
         cross_validate: bool = True,
         cv_folds: int = 5,
         **kwargs: Any,

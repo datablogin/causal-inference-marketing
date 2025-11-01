@@ -22,7 +22,7 @@ Functions:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -61,11 +61,11 @@ class OPEResult:
     policy_value_se: float
     confidence_interval: tuple[float, float]
     method: str
-    bias_estimate: float | None = None
-    variance_estimate: float | None = None
+    bias_estimate: Optional[float] = None
+    variance_estimate: Optional[float] = None
     evaluation_info: dict[str, Any] = field(default_factory=dict)
-    individual_weights: NDArray[np.floating] | None = None
-    individual_predictions: NDArray[np.floating] | None = None
+    individual_weights: Optional[NDArray[np.floating]] = None
+    individual_predictions: Optional[NDArray[np.floating]] = None
 
     @property
     def ci_lower(self) -> float:
@@ -109,12 +109,12 @@ class OffPolicyEvaluator:
     def __init__(
         self,
         method: str = "dr",
-        propensity_model: SklearnBaseEstimator | None = None,
-        outcome_model: SklearnBaseEstimator | None = None,
+        propensity_model: Optional[SklearnBaseEstimator] = None,
+        outcome_model: Optional[SklearnBaseEstimator] = None,
         clip_weights: bool = True,
         weight_clip_threshold: float = 10.0,
         bootstrap_samples: int = 200,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         self.method = method
         self.propensity_model = (
@@ -141,8 +141,8 @@ class OffPolicyEvaluator:
         policy_assignment: NDArray[np.bool_],
         historical_treatments: NDArray[np.bool_],
         historical_outcomes: NDArray[np.floating],
-        features: NDArray[np.floating] | None = None,
-        propensity_scores: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
+        propensity_scores: Optional[NDArray[np.floating]] = None,
     ) -> OPEResult:
         """Evaluate policy using off-policy methods.
 
@@ -200,7 +200,7 @@ class OffPolicyEvaluator:
     def _estimate_propensity_scores(
         self,
         treatments: NDArray[np.bool_],
-        features: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
     ) -> NDArray[np.floating]:
         """Estimate propensity scores using features."""
         if features is None:
@@ -284,7 +284,7 @@ class OffPolicyEvaluator:
         historical_treatments: NDArray[np.bool_],
         historical_outcomes: NDArray[np.floating],
         propensity_scores: NDArray[np.floating],
-        features: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
     ) -> OPEResult:
         """Doubly Robust evaluation."""
         # Estimate outcome models
@@ -352,7 +352,7 @@ class OffPolicyEvaluator:
         historical_treatments: NDArray[np.bool_],
         historical_outcomes: NDArray[np.floating],
         propensity_scores: NDArray[np.floating],
-        features: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
     ) -> OPEResult:
         """Doubly Robust with Self-Normalized weights."""
         # Get regular DR result first
@@ -415,7 +415,7 @@ class OffPolicyEvaluator:
         self,
         treatments: NDArray[np.bool_],
         outcomes: NDArray[np.floating],
-        features: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
     ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
         """Estimate outcome models for treated and control groups."""
         n_individuals = len(treatments)
@@ -476,7 +476,7 @@ class OffPolicyEvaluator:
         policy2_assignment: NDArray[np.bool_],
         historical_treatments: NDArray[np.bool_],
         historical_outcomes: NDArray[np.floating],
-        features: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
     ) -> dict[str, Any]:
         """Compare two policies using off-policy evaluation.
 
@@ -518,8 +518,8 @@ class OffPolicyEvaluator:
     def check_positivity(
         self,
         treatments: NDArray[np.bool_],
-        features: NDArray[np.floating] | None = None,
-        propensity_scores: NDArray[np.floating] | None = None,
+        features: Optional[NDArray[np.floating]] = None,
+        propensity_scores: Optional[NDArray[np.floating]] = None,
         min_propensity: float = 0.01,
         max_propensity: float = 0.99,
     ) -> dict[str, Any]:
@@ -618,7 +618,7 @@ class OffPolicyEvaluator:
         self,
         treatments: NDArray[np.bool_],
         features: NDArray[np.floating],
-        propensity_scores: NDArray[np.floating] | None = None,
+        propensity_scores: Optional[NDArray[np.floating]] = None,
     ) -> dict[str, Any]:
         """Comprehensive diagnostic check for causal inference assumptions.
 
@@ -693,7 +693,7 @@ def dr_estimator(
     historical_treatments: NDArray[np.bool_],
     historical_outcomes: NDArray[np.floating],
     features: NDArray[np.floating],
-    propensity_scores: NDArray[np.floating] | None = None,
+    propensity_scores: Optional[NDArray[np.floating]] = None,
 ) -> float:
     """Simple DR estimator function.
 
@@ -723,7 +723,7 @@ def dr_sn_estimator(
     historical_treatments: NDArray[np.bool_],
     historical_outcomes: NDArray[np.floating],
     features: NDArray[np.floating],
-    propensity_scores: NDArray[np.floating] | None = None,
+    propensity_scores: Optional[NDArray[np.floating]] = None,
 ) -> float:
     """Simple DR-SN estimator function.
 

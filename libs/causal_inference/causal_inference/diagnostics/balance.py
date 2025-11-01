@@ -7,7 +7,7 @@ treatment groups, which is crucial for valid causal inference.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -30,8 +30,8 @@ class BalanceResults:
     imbalanced_covariates: list[str]
     overall_balance_met: bool
     sample_sizes: dict[str, int]
-    ks_test_results: dict[str, dict[str, Any]] | None = None
-    prognostic_score_balance: dict[str, Any] | None = None
+    ks_test_results: Optional[dict[str, dict[str, Any]]] = None
+    prognostic_score_balance: Optional[dict[str, Any]] = None
 
 
 def calculate_standardized_mean_difference(
@@ -305,7 +305,7 @@ class BalanceDiagnostics:
         self,
         treatment: TreatmentData,
         covariates: CovariateData,
-        outcome: OutcomeData | None = None,
+        outcome: Optional[OutcomeData] = None,
         treatment_level_1: Any = 1,
         treatment_level_0: Any = 0,
     ) -> BalanceResults:

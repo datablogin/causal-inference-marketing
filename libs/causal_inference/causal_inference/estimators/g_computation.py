@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import warnings
 from contextlib import nullcontext
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -55,13 +55,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         model_type: str = "auto",
-        model_params: dict[str, Any] | None = None,
-        bootstrap_config: Any | None = None,
-        optimization_config: Any | None = None,
+        model_params: Optional[dict[str, Any]] = None,
+        bootstrap_config: Optional[Any] = None,
+        optimization_config: Optional[Any] = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
         # Large dataset optimization parameters
         chunk_size: int = 10000,
@@ -69,7 +69,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         large_dataset_threshold: int = 100000,
         # Ensemble settings
         use_ensemble: bool = False,
-        ensemble_models: list[str] | None = None,
+        ensemble_models: Optional[list[str]] = None,
         ensemble_variance_penalty: float = 0.1,
     ) -> None:
         """Initialize the G-computation estimator.
@@ -119,10 +119,10 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.ensemble_variance_penalty = ensemble_variance_penalty
 
         # Model storage
-        self.outcome_model: SklearnBaseEstimator | None = None
+        self.outcome_model: Optional[SklearnBaseEstimator] = None
         self.ensemble_models_fitted: dict[str, Any] = {}
-        self.ensemble_weights: NDArray[Any] | None = None
-        self._model_features: list[str] | None = None
+        self.ensemble_weights: Optional[NDArray[Any]] = None
+        self._model_features: Optional[list[str]] = None
 
     def _check_is_fitted(self) -> None:
         """Check if the estimator has been fitted.
@@ -142,7 +142,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             )
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> GComputationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -364,7 +364,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _prepare_features(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> pd.DataFrame:
         """Prepare feature matrix for model fitting.
 
@@ -404,8 +404,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _prepare_features_efficient(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
-        n_samples: int | None = None,
+        covariates: Optional[CovariateData] = None,
+        n_samples: Optional[int] = None,
     ) -> pd.DataFrame:
         """Prepare feature matrix with memory optimizations for large datasets.
 
@@ -449,7 +449,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the outcome model for G-computation.
 
@@ -565,7 +565,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _predict_counterfactuals(
         self,
         treatment_value: float | int,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> NDArray[Any]:
         """Predict counterfactual outcomes for a given treatment value.
 
@@ -607,7 +607,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _predict_counterfactuals_regular(
         self,
         treatment_value: float | int,
-        covariates: CovariateData | None,
+        covariates: Optional[CovariateData],
         n_obs: int,
     ) -> NDArray[Any]:
         """Regular prediction method for smaller datasets."""
@@ -661,7 +661,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _predict_counterfactuals_chunked(
         self,
         treatment_value: float | int,
-        covariates: CovariateData | None,
+        covariates: Optional[CovariateData],
         n_obs: int,
     ) -> NDArray[Any]:
         """Memory-efficient chunked prediction for large datasets.
@@ -949,7 +949,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def predict_potential_outcomes(
         self,
         treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        covariates: pd.DataFrame | Optional[NDArray[Any]] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs.
 
@@ -1013,7 +1013,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    ) -> Optional[tuple[float, float, NDArray[Any]]]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:

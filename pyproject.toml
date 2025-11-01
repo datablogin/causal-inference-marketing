@@ -148,7 +148,8 @@ extend-exclude = ["libs/causal_inference_python_code/**"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "N", "W"]
-ignore = ["E501", "N806", "UP007", "UP038"]
+ignore = ["E501", "N806"]
+extend-ignore = ["UP"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -12,7 +12,7 @@ import time
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -64,23 +64,23 @@ class PerformanceMetrics:
     peak_memory_mb: float
     memory_usage_profile: list[float]
     cpu_usage_percent: float
-    parallel_speedup: float | None = None
-    cache_hit_rate: float | None = None
-    memory_efficiency: float | None = None
+    parallel_speedup: Optional[float] = None
+    cache_hit_rate: Optional[float] = None
+    memory_efficiency: Optional[float] = None
 
 
 class PerformanceProfiler:
     """Performance profiling and monitoring for causal inference estimators."""
 
-    def __init__(self, config: PerformanceConfig | None = None):
+    def __init__(self, config: Optional[PerformanceConfig] = None):
         """Initialize the performance profiler.
 
         Args:
             config: Performance configuration. Uses defaults if None.
         """
         self.config = config or PerformanceConfig()
-        self._baseline_memory: float | None = None
-        self._start_time: float | None = None
+        self._baseline_memory: Optional[float] = None
+        self._start_time: Optional[float] = None
         self._memory_profile: list[float] = []
 
     def profile_runtime(
@@ -220,7 +220,7 @@ class PerformanceProfiler:
         estimator_factory: Callable[[], Any],
         sample_sizes: list[int],
         n_features: int = 10,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ) -> pd.DataFrame:
         """Benchmark estimator scalability across different sample sizes.
 
@@ -314,7 +314,7 @@ class PerformanceProfiler:
         return CovariateData(values=X)
 
     def _generate_synthetic_data(
-        self, n_samples: int, n_features: int, random_state: int | None = None
+        self, n_samples: int, n_features: int, random_state: Optional[int] = None
     ) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
         """Generate synthetic data for benchmarking."""
         if random_state is not None:
@@ -341,10 +341,10 @@ class PerformanceProfiler:
 
 def benchmark_estimator(
     estimator_factory: Callable[[], Any],
-    sample_sizes: list[int] | None = None,
+    sample_sizes: Optional[list[int]] = None,
     n_features: int = 10,
-    performance_config: PerformanceConfig | None = None,
-    random_state: int | None = None,
+    performance_config: Optional[PerformanceConfig] = None,
+    random_state: Optional[int] = None,
 ) -> dict[str, Any]:
     """Comprehensive benchmarking of a causal inference estimator.
 
@@ -386,7 +386,7 @@ def benchmark_estimator(
 def _benchmark_parallel_speedup(
     estimator_factory: Callable[[], Any],
     config: PerformanceConfig,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> dict[str, Any]:
     """Benchmark parallel processing speedup."""
     # Generate test data

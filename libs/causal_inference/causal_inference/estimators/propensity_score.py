@@ -49,7 +49,7 @@ Example Usage:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -100,19 +100,19 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         # Matching parameters
         matching_type: str = "nearest_neighbor",
         n_neighbors: int = 1,
-        caliper: float | None = None,
+        caliper: Optional[float] = None,
         replacement: bool = False,
         # Propensity model parameters
         propensity_model_type: str = "logistic",
-        propensity_model_params: dict[str, Any] | None = None,
+        propensity_model_params: Optional[dict[str, Any]] = None,
         # Bootstrap and diagnostics
-        bootstrap_config: Any | None = None,
+        bootstrap_config: Optional[Any] = None,
         check_overlap: bool = True,
         overlap_threshold: float = 0.1,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the PropensityScoreEstimator.
@@ -173,22 +173,22 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         self.overlap_threshold = overlap_threshold
 
         # Model storage
-        self.propensity_model: SklearnBaseEstimator | None = None
-        self.propensity_scores: NDArray[Any] | None = None
-        self._propensity_features: list[str] | None = None
+        self.propensity_model: Optional[SklearnBaseEstimator] = None
+        self.propensity_scores: Optional[NDArray[Any]] = None
+        self._propensity_features: Optional[list[str]] = None
 
         # Method-specific results
-        self.strata_assignments: NDArray[Any] | None = None
-        self.strata_boundaries: NDArray[Any] | None = None
-        self.matched_pairs: list[tuple[int, list[int]]] | None = None
-        self.matched_indices: dict[str, NDArray[Any]] | None = None
+        self.strata_assignments: Optional[NDArray[Any]] = None
+        self.strata_boundaries: Optional[NDArray[Any]] = None
+        self.matched_pairs: Optional[list[tuple[int, list[int]]]] = None
+        self.matched_indices: Optional[dict[str, NDArray[Any]]] = None
 
         # Diagnostics
-        self.balance_diagnostics: dict[str, Any] | None = None
-        self.common_support_diagnostics: dict[str, Any] | None = None
+        self.balance_diagnostics: Optional[dict[str, Any]] = None
+        self.common_support_diagnostics: Optional[dict[str, Any]] = None
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> PropensityScoreEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -241,7 +241,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
             )
 
     def _prepare_propensity_features(
-        self, covariates: CovariateData | None = None
+        self, covariates: Optional[CovariateData] = None
     ) -> pd.DataFrame:
         """Prepare feature matrix for propensity score estimation.
 
@@ -273,7 +273,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
     def _fit_propensity_model(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the propensity score model.
 
@@ -568,8 +568,8 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         self,
         covariates: pd.DataFrame,
         treatment: NDArray[Any],
-        weights: NDArray[Any] | None = None,
-        strata: int | None = None,
+        weights: Optional[NDArray[Any]] = None,
+        strata: Optional[int] = None,
     ) -> dict[str, float]:
         """Compute standardized mean differences for covariate balance.
 
@@ -720,7 +720,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the PropensityScoreEstimator.
 
@@ -1000,7 +1000,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         return float(ate)
 
     # Public diagnostic methods
-    def get_propensity_scores(self) -> NDArray[Any] | None:
+    def get_propensity_scores(self) -> Optional[NDArray[Any]]:
         """Get the estimated propensity scores.
 
         Returns:
@@ -1008,7 +1008,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         """
         return self.propensity_scores
 
-    def get_balance_diagnostics(self) -> dict[str, Any] | None:
+    def get_balance_diagnostics(self) -> Optional[dict[str, Any]]:
         """Get covariate balance diagnostics.
 
         Returns:
@@ -1016,7 +1016,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         """
         return self.balance_diagnostics
 
-    def get_common_support_diagnostics(self) -> dict[str, Any] | None:
+    def get_common_support_diagnostics(self) -> Optional[dict[str, Any]]:
         """Get common support diagnostics.
 
         Returns:
@@ -1024,7 +1024,7 @@ class PropensityScoreEstimator(BootstrapMixin, BaseEstimator):
         """
         return self.common_support_diagnostics
 
-    def get_matching_diagnostics(self) -> dict[str, Any] | None:
+    def get_matching_diagnostics(self) -> Optional[dict[str, Any]]:
         """Get matching-specific diagnostics.
 
         Returns:

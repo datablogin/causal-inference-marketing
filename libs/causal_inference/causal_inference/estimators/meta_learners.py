@@ -9,7 +9,7 @@ treatment effects that vary with covariates.
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -50,7 +50,7 @@ class CATEResult(CausalEffect):
         ate: float,
         confidence_interval: tuple[float, float],
         cate_estimates: NDArray[Any],
-        cate_std: NDArray[Any] | None = None,
+        cate_std: Optional[NDArray[Any]] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize CATE result.
@@ -73,7 +73,7 @@ class CATEResult(CausalEffect):
 
     def plot_cate_distribution(
         self,
-        ax: Any | None = None,
+        ax: Optional[Any] = None,
         bins: int = 30,
         kde: bool = True,
     ) -> Any:
@@ -132,12 +132,12 @@ class BaseMetaLearner(BaseEstimator):
 
     def __init__(
         self,
-        base_learner: SklearnBaseEstimator | None = None,
-        propensity_learner: SklearnBaseEstimator | None = None,
+        base_learner: Optional[SklearnBaseEstimator] = None,
+        propensity_learner: Optional[SklearnBaseEstimator] = None,
         n_folds: int = 5,
         n_bootstrap: int = 100,
         bootstrap_ci: bool = True,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -170,13 +170,13 @@ class BaseMetaLearner(BaseEstimator):
         self.n_folds = n_folds
         self.n_bootstrap = n_bootstrap
         self.bootstrap_ci = bootstrap_ci
-        self._cate_estimates: NDArray[Any] | None = None
-        self._cate_std: NDArray[Any] | None = None
-        self._bootstrap_samples: list[NDArray[Any]] | None = None
+        self._cate_estimates: Optional[NDArray[Any]] = None
+        self._cate_std: Optional[NDArray[Any]] = None
+        self._bootstrap_samples: Optional[list[NDArray[Any]]] = None
         # Store training data for bootstrap
-        self._training_treatment: NDArray[Any] | None = None
-        self._training_outcome: NDArray[Any] | None = None
-        self._training_covariates: NDArray[Any] | None = None
+        self._training_treatment: Optional[NDArray[Any]] = None
+        self._training_outcome: Optional[NDArray[Any]] = None
+        self._training_covariates: Optional[NDArray[Any]] = None
 
     def _check_is_fitted(self) -> None:
         """Check if the estimator is fitted."""
@@ -221,7 +221,7 @@ class BaseMetaLearner(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None,
+        covariates: Optional[CovariateData],
     ) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
         """Prepare and validate data for meta-learners.
 
@@ -349,7 +349,7 @@ class SLearner(BaseMetaLearner):
 
     def __init__(
         self,
-        base_learner: SklearnBaseEstimator | None = None,
+        base_learner: Optional[SklearnBaseEstimator] = None,
         include_propensity: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -362,14 +362,14 @@ class SLearner(BaseMetaLearner):
         """
         super().__init__(base_learner=base_learner, **kwargs)
         self.include_propensity = include_propensity
-        self._outcome_model: SklearnBaseEstimator | None = None
-        self._propensity_model: SklearnBaseEstimator | None = None
+        self._outcome_model: Optional[SklearnBaseEstimator] = None
+        self._propensity_model: Optional[SklearnBaseEstimator] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit S-learner model.
 
@@ -463,7 +463,7 @@ class TLearner(BaseMetaLearner):
 
     def __init__(
         self,
-        base_learner: SklearnBaseEstimator | None = None,
+        base_learner: Optional[SklearnBaseEstimator] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize T-learner.
@@ -473,14 +473,14 @@ class TLearner(BaseMetaLearner):
             **kwargs: Additional arguments for parent class
         """
         super().__init__(base_learner=base_learner, **kwargs)
-        self._model_treated: SklearnBaseEstimator | None = None
-        self._model_control: SklearnBaseEstimator | None = None
+        self._model_treated: Optional[SklearnBaseEstimator] = None
+        self._model_control: Optional[SklearnBaseEstimator] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit T-learner models.
 
@@ -553,8 +553,8 @@ class XLearner(BaseMetaLearner):
 
     def __init__(
         self,
-        base_learner: SklearnBaseEstimator | None = None,
-        propensity_learner: SklearnBaseEstimator | None = None,
+        base_learner: Optional[SklearnBaseEstimator] = None,
+        propensity_learner: Optional[SklearnBaseEstimator] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize X-learner.
@@ -568,19 +568,19 @@ class XLearner(BaseMetaLearner):
             base_learner=base_learner, propensity_learner=propensity_learner, **kwargs
         )
         # First stage models (same as T-learner)
-        self._model_treated: SklearnBaseEstimator | None = None
-        self._model_control: SklearnBaseEstimator | None = None
+        self._model_treated: Optional[SklearnBaseEstimator] = None
+        self._model_control: Optional[SklearnBaseEstimator] = None
         # Second stage models
-        self._tau_treated: SklearnBaseEstimator | None = None
-        self._tau_control: SklearnBaseEstimator | None = None
+        self._tau_treated: Optional[SklearnBaseEstimator] = None
+        self._tau_control: Optional[SklearnBaseEstimator] = None
         # Propensity model
-        self._propensity_model: SklearnBaseEstimator | None = None
+        self._propensity_model: Optional[SklearnBaseEstimator] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit X-learner models.
 
@@ -700,9 +700,9 @@ class RLearner(BaseMetaLearner):
 
     def __init__(
         self,
-        base_learner: SklearnBaseEstimator | None = None,
-        outcome_learner: SklearnBaseEstimator | None = None,
-        propensity_learner: SklearnBaseEstimator | None = None,
+        base_learner: Optional[SklearnBaseEstimator] = None,
+        outcome_learner: Optional[SklearnBaseEstimator] = None,
+        propensity_learner: Optional[SklearnBaseEstimator] = None,
         regularization_param: float = 0.01,
         residual_threshold: float = 1e-6,
         **kwargs: Any,
@@ -733,15 +733,15 @@ class RLearner(BaseMetaLearner):
         self.regularization_param = regularization_param
         self.residual_threshold = residual_threshold
 
-        self._outcome_model: SklearnBaseEstimator | None = None
-        self._propensity_model: SklearnBaseEstimator | None = None
-        self._cate_model: SklearnBaseEstimator | None = None
+        self._outcome_model: Optional[SklearnBaseEstimator] = None
+        self._propensity_model: Optional[SklearnBaseEstimator] = None
+        self._cate_model: Optional[SklearnBaseEstimator] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit R-learner model.
 

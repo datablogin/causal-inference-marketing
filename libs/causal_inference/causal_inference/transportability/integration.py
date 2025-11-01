@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -59,10 +59,10 @@ class TransportabilityEstimator:
         self.weighting_kwargs = weighting_kwargs
 
         # State tracking
-        self.shift_diagnostics: CovariateShiftDiagnostics | None = None
-        self.transport_weights: NDArray[Any] | None = None
-        self.weighting_result: WeightingResult | None = None
-        self.last_target_data: pd.DataFrame | None = None
+        self.shift_diagnostics: Optional[CovariateShiftDiagnostics] = None
+        self.transport_weights: Optional[NDArray[Any]] = None
+        self.weighting_result: Optional[WeightingResult] = None
+        self.last_target_data: Optional[pd.DataFrame] = None
 
     def estimate_transported_effect(
         self,
@@ -116,7 +116,9 @@ class TransportabilityEstimator:
 
         return transported_effect
 
-    def _ensure_dataframe(self, data: pd.DataFrame | NDArray[Any]) -> pd.DataFrame:
+    def _ensure_dataframe(
+        self, data: Union[pd.DataFrame, NDArray[Any]]
+    ) -> pd.DataFrame:
         """Convert input to DataFrame."""
         if isinstance(data, pd.DataFrame):
             return data
