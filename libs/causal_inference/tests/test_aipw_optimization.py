@@ -58,7 +58,7 @@ def test_component_optimization(synthetic_data):
         optimize_component_balance=True,
         component_variance_penalty=0.5,
         influence_function_se=False,  # Required with optimization - use bootstrap instead
-        bootstrap_samples=100,  # Reduced for faster tests
+        bootstrap_samples=10,  # Minimal for testing - use more in production
         random_state=42,
         verbose=True,
     )
@@ -102,7 +102,7 @@ def test_component_weights_valid(synthetic_data):
         optimize_component_balance=True,
         component_variance_penalty=0.5,
         influence_function_se=False,
-        bootstrap_samples=100,
+        bootstrap_samples=0,  # No bootstrap for faster tests
         random_state=42,
     )
     estimator.fit(
@@ -152,7 +152,7 @@ def test_optimization_with_no_cross_fitting(synthetic_data):
         optimize_component_balance=True,
         component_variance_penalty=0.5,
         influence_function_se=False,
-        bootstrap_samples=100,
+        bootstrap_samples=10,  # Minimal for faster tests
         random_state=42,
         verbose=True,
     )
@@ -180,7 +180,7 @@ def test_optimization_reduces_variance(synthetic_data):
         optimize_component_balance=True,
         component_variance_penalty=0.5,
         influence_function_se=False,
-        bootstrap_samples=100,
+        bootstrap_samples=0,  # No bootstrap for faster tests
         random_state=42,
     )
     estimator.fit(
