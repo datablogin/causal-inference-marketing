@@ -7,7 +7,7 @@ no causal relationship with the main treatment/outcome.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -19,15 +19,15 @@ from ..core.base import CovariateData, OutcomeData, TreatmentData
 
 
 def negative_control(
-    treatment: TreatmentData | NDArray[Any] | pd.Series,
-    outcome: OutcomeData | NDArray[Any] | pd.Series,
-    negative_control_outcome: NDArray[Any] | pd.Series | None = None,
-    negative_control_exposure: NDArray[Any] | pd.Series | None = None,
-    covariates: CovariateData | NDArray[Any] | pd.DataFrame | None = None,
+    treatment: Union[TreatmentData, NDArray[Any], pd.Series],
+    outcome: Union[OutcomeData, NDArray[Any], pd.Series],
+    negative_control_outcome: Optional[Union[NDArray[Any], pd.Series]] = None,
+    negative_control_exposure: Optional[Union[NDArray[Any], pd.Series]] = None,
+    covariates: Optional[Union[CovariateData, NDArray[Any], pd.DataFrame]] = None,
     alpha: float = 0.05,
     effect_threshold: float = 0.1,
     bootstrap_samples: int = 1000,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> dict[str, Any]:
     """Perform negative control analysis to test causal inference assumptions.
 
@@ -208,7 +208,7 @@ def negative_control(
 def _test_treatment_negative_outcome(
     treatment: NDArray[Any],
     negative_outcome: NDArray[Any],
-    covariates: NDArray[Any] | None,
+    covariates: Optional[NDArray[Any]],
     alpha: float,
     effect_threshold: float,
     bootstrap_samples: int,
@@ -320,7 +320,7 @@ def _test_treatment_negative_outcome(
 def _test_negative_exposure_outcome(
     negative_exposure: NDArray[Any],
     outcome: NDArray[Any],
-    covariates: NDArray[Any] | None,
+    covariates: Optional[NDArray[Any]],
     alpha: float,
     effect_threshold: float,
     bootstrap_samples: int,

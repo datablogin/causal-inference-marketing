@@ -8,7 +8,7 @@ reduce bias for the parameter of interest.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -65,7 +65,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         convergence_threshold: float = 1e-6,
         targeted_regularization: bool = True,
         stratified: bool = True,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the TMLE estimator.
@@ -119,10 +119,10 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self.outcome_models_: list[Any] = []
         self.propensity_models_: list[Any] = []
         self.targeting_models_: list[LogisticRegression] = []
-        self.initial_outcome_estimates_: NDArray[Any] | None = None
-        self.targeted_outcome_estimates_: NDArray[Any] | None = None
-        self.propensity_scores_: NDArray[Any] | None = None
-        self.efficient_influence_function_: NDArray[Any] | None = None
+        self.initial_outcome_estimates_: Optional[NDArray[Any]] = None
+        self.targeted_outcome_estimates_: Optional[NDArray[Any]] = None
+        self.propensity_scores_: Optional[NDArray[Any]] = None
+        self.efficient_influence_function_: Optional[NDArray[Any]] = None
 
         # Convergence tracking for iterative TMLE
         self.convergence_history_: list[dict[str, float]] = []
@@ -133,7 +133,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the TMLE estimator to data."""
         if covariates is None:
@@ -158,7 +158,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         X_train: NDArray[Any],
         y_train: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
+        treatment_train: Optional[NDArray[Any]] = None,
     ) -> dict[str, Any]:
         """Fit nuisance parameter models on training data."""
         if treatment_train is None:
@@ -184,7 +184,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
         self,
         models: dict[str, Any],
         X_val: NDArray[Any],
-        treatment_val: NDArray[Any] | None = None,
+        treatment_val: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters on validation data."""
         if treatment_val is None:
@@ -508,7 +508,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
     def predict_potential_outcomes(
         self,
         treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        covariates: pd.DataFrame | Optional[NDArray[Any]] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs."""
         if not self.is_fitted:
@@ -568,7 +568,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
         return results
 
-    def get_variable_importance(self) -> pd.DataFrame | None:
+    def get_variable_importance(self) -> Optional[pd.DataFrame]:
         """Get variable importance from ensemble of learners."""
         if not self.is_fitted:
             raise EstimationError("Estimator must be fitted first")
@@ -605,7 +605,7 @@ class TMLEEstimator(CrossFittingEstimator, BaseEstimator):
 
         return avg_importance
 
-    def get_convergence_info(self) -> dict[str, Any] | None:
+    def get_convergence_info(self) -> Optional[dict[str, Any]]:
         """Get convergence information for iterative TMLE.
 
         Returns:

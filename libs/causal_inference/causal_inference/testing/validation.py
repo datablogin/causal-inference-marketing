@@ -7,7 +7,7 @@ properties of DML estimators as specified in the DoubleML framework.
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -340,7 +340,7 @@ class DMLValidator:
     def validate_consistency(
         self,
         estimator: BaseEstimator,
-        sample_sizes: list[int] | None = None,
+        sample_sizes: Optional[list[int]] = None,
         n_simulations: int = 50,
         n_features: int = 5,
         true_ate: float = 2.0,
@@ -540,7 +540,7 @@ class DMLBenchmark:
     def benchmark_runtime(
         self,
         estimator: BaseEstimator,
-        sample_sizes: list[int] | None = None,
+        sample_sizes: Optional[list[int]] = None,
         n_features: int = 5,
         true_ate: float = 2.0,
         seed: int = 42,

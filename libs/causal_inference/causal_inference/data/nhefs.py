@@ -7,7 +7,7 @@ particularly in the "Causal Inference: What If" book by Hernán and Robins.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 import pandas as pd
 
@@ -26,7 +26,7 @@ class NHEFSDataLoader:
     - Various covariates for confounding adjustment
     """
 
-    def __init__(self, data_path: str | None = None):
+    def __init__(self, data_path: Optional[str] = None):
         """Initialize the NHEFS data loader.
 
         Args:
@@ -34,10 +34,10 @@ class NHEFSDataLoader:
                       in the current directory and parent directories.
         """
         self.data_path = self._find_nhefs_file(data_path)
-        self._raw_data: pd.DataFrame | None = None
-        self._processed_data: pd.DataFrame | None = None
+        self._raw_data: Optional[pd.DataFrame] = None
+        self._processed_data: Optional[pd.DataFrame] = None
 
-    def _find_nhefs_file(self, data_path: str | None) -> Path:
+    def _find_nhefs_file(self, data_path: Optional[str]) -> Path:
         """Find the NHEFS dataset file.
 
         Args:
@@ -87,7 +87,7 @@ class NHEFSDataLoader:
         self,
         outcome: str = "wt82_71",
         treatment: str = "qsmk",
-        confounders: list[str] | None = None,
+        confounders: Optional[list[str]] = None,
         exclude_missing_outcome: bool = True,
         exclude_missing_treatment: bool = True,
     ) -> pd.DataFrame:
@@ -167,7 +167,7 @@ class NHEFSDataLoader:
         self,
         outcome: str = "wt82_71",
         treatment: str = "qsmk",
-        confounders: list[str] | None = None,
+        confounders: Optional[list[str]] = None,
         **kwargs: Any,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Get the NHEFS data as causal inference data objects.
@@ -283,13 +283,13 @@ class NHEFSDataLoader:
 
 
 def load_nhefs(
-    data_path: str | None = None,
+    data_path: Optional[str] = None,
     outcome: str = "wt82_71",
     treatment: str = "qsmk",
-    confounders: list[str] | None = None,
+    confounders: Optional[list[str]] = None,
     return_objects: bool = True,
     **kwargs: Any,
-) -> tuple[TreatmentData, OutcomeData, CovariateData] | pd.DataFrame:
+) -> Union[tuple[TreatmentData, OutcomeData, CovariateData], pd.DataFrame]:
     """Convenience function to load NHEFS data.
 
     Args:

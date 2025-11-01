@@ -6,7 +6,7 @@ for testing causal inference methods and creating educational examples.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from ..core.base import CovariateData, OutcomeData, TreatmentData
 class SyntheticDataGenerator:
     """Generator for synthetic causal inference datasets."""
 
-    def __init__(self, random_state: int | None = None):
+    def __init__(self, random_state: Optional[int] = None):
         """Initialize the synthetic data generator.
 
         Args:
@@ -167,7 +167,7 @@ class SyntheticDataGenerator:
     def generate_marketing_campaign_data(
         self,
         n_samples: int = 5000,
-        campaign_types: list[str] | None = None,
+        campaign_types: Optional[list[str]] = None,
         include_seasonality: bool = True,
     ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
         """Generate synthetic marketing campaign dataset.
@@ -436,7 +436,7 @@ def generate_simple_rct(
     n_samples: int = 1000,
     treatment_effect: float = 2.0,
     noise_std: float = 1.0,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
     """Generate simple randomized controlled trial data.
 
@@ -487,7 +487,7 @@ def generate_confounded_observational(
     treatment_effect: float = 2.0,
     confounding_strength: float = 1.0,
     selection_bias: float = 0.5,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> tuple[TreatmentData, OutcomeData, CovariateData]:
     """Generate confounded observational data.
 

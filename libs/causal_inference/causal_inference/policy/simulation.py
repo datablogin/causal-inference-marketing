@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -53,9 +53,9 @@ class SimulationResult:
     mean_policy_value: float
     std_policy_value: float
     confidence_interval: tuple[float, float]
-    regret_vs_oracle: float | None = None
+    regret_vs_oracle: Optional[float] = None
     simulation_info: dict[str, Any] = field(default_factory=dict)
-    scenario_results: dict[str, Any] | None = None
+    scenario_results: Optional[dict[str, Any]] = None
 
     @property
     def ci_lower(self) -> float:
@@ -100,7 +100,7 @@ class PolicySimulator:
         self,
         n_simulations: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ):
         self.n_simulations = n_simulations
@@ -116,7 +116,7 @@ class PolicySimulator:
         data_generator: Callable,
         policy_optimizer: PolicyOptimizer,
         evaluator: OffPolicyEvaluator,
-        scenario_params: dict[str, Any] | None = None,
+        scenario_params: Optional[dict[str, Any]] = None,
     ) -> SimulationResult:
         """Simulate policy performance using Monte Carlo.
 
@@ -510,7 +510,7 @@ def monte_carlo_policy_evaluation(
     policy_assignment: NDArray[np.bool_],
     data_generator: Callable,
     n_simulations: int = 1000,
-    evaluator: OffPolicyEvaluator | None = None,
+    evaluator: Optional[OffPolicyEvaluator] = None,
 ) -> tuple[float, float]:
     """Monte Carlo evaluation of policy performance.
 

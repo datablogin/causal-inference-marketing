@@ -7,7 +7,7 @@ are modeled as a function of both own treatment and neighbor treatment exposure.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -39,27 +39,27 @@ class SpilloverResults:
     spillover_effect: float  # Moved required field up
 
     # Optional fields with defaults
-    direct_effect_se: float | None = None
-    direct_effect_ci_lower: float | None = None
-    direct_effect_ci_upper: float | None = None
-    direct_effect_pvalue: float | None = None
+    direct_effect_se: Optional[float] = None
+    direct_effect_ci_lower: Optional[float] = None
+    direct_effect_ci_upper: Optional[float] = None
+    direct_effect_pvalue: Optional[float] = None
 
     # Spillover effects (neighbor treatment)
-    spillover_effect_se: float | None = None
-    spillover_effect_ci_lower: float | None = None
-    spillover_effect_ci_upper: float | None = None
-    spillover_effect_pvalue: float | None = None
+    spillover_effect_se: Optional[float] = None
+    spillover_effect_ci_lower: Optional[float] = None
+    spillover_effect_ci_upper: Optional[float] = None
+    spillover_effect_pvalue: Optional[float] = None
 
     # Total effects (direct + spillover) - optional fields with defaults
-    total_effect_se: float | None = None
-    total_effect_ci_lower: float | None = None
-    total_effect_ci_upper: float | None = None
+    total_effect_se: Optional[float] = None
+    total_effect_ci_lower: Optional[float] = None
+    total_effect_ci_upper: Optional[float] = None
 
     # Model diagnostics
-    model_r_squared: float | None = None
-    model_aic: float | None = None
-    model_bic: float | None = None
-    residual_std: float | None = None
+    model_r_squared: Optional[float] = None
+    model_aic: Optional[float] = None
+    model_bic: Optional[float] = None
+    residual_std: Optional[float] = None
 
     # Spillover-specific diagnostics
     spillover_mechanism: str = "additive"
@@ -140,7 +140,7 @@ class SpilloverEstimator(BaseEstimator):
         exposure_mapping: ExposureMapping,
         estimator_type: str = "linear",
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ):
         """Initialize spillover estimator.
@@ -161,15 +161,15 @@ class SpilloverEstimator(BaseEstimator):
         self.confidence_level = confidence_level
 
         # Internal state
-        self._fitted_model: Any | None = None
-        self._spillover_exposure: NDArray[Any] | None = None
-        self._spillover_results: SpilloverResults | None = None
+        self._fitted_model: Optional[Any] = None
+        self._spillover_exposure: Optional[NDArray[Any]] = None
+        self._spillover_results: Optional[SpilloverResults] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit spillover estimation model."""
         # Validate that treatment units match exposure mapping
@@ -257,7 +257,7 @@ class SpilloverEstimator(BaseEstimator):
         return spillover_exposure
 
     def _create_design_matrix(
-        self, treatment: TreatmentData, covariates: CovariateData | None = None
+        self, treatment: TreatmentData, covariates: Optional[CovariateData] = None
     ) -> NDArray[Any]:
         """Create design matrix for spillover estimation."""
         features = []
@@ -472,12 +472,14 @@ class SpilloverEstimator(BaseEstimator):
 
         return {"direct": float(direct_effect), "spillover": float(spillover_effect)}
 
-    def get_spillover_results(self) -> SpilloverResults | None:
+    def get_spillover_results(self) -> Optional[SpilloverResults]:
         """Get detailed spillover estimation results."""
         return self._spillover_results
 
     def predict_spillover_effects(
-        self, treatment_scenario: NDArray[Any], covariates: NDArray[Any] | None = None
+        self,
+        treatment_scenario: NDArray[Any],
+        covariates: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict outcomes under different spillover scenarios.
 
@@ -524,7 +526,7 @@ class SpilloverEstimator(BaseEstimator):
         self,
         treatment: NDArray[Any],
         spillover_exposure: NDArray[Any],
-        covariates: NDArray[Any] | None = None,
+        covariates: Optional[NDArray[Any]] = None,
     ) -> NDArray[Any]:
         """Create design matrix from numpy arrays."""
         features = [treatment.reshape(-1, 1), spillover_exposure.reshape(-1, 1)]

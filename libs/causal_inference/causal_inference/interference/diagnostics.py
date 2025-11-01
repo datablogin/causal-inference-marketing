@@ -7,7 +7,7 @@ assessing exposure balance, and validating interference assumptions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,18 +37,18 @@ class SpilloverDetectionResults:
     # Network connectivity diagnostics
     network_density: float
     clustering_coefficient: float
-    average_path_length: float | None = None
-    modularity: float | None = None
+    average_path_length: Optional[float] = None
+    modularity: Optional[float] = None
 
     # Statistical tests
-    moran_i_statistic: float | None = None
-    moran_i_pvalue: float | None = None
-    geary_c_statistic: float | None = None
-    geary_c_pvalue: float | None = None
+    moran_i_statistic: Optional[float] = None
+    moran_i_pvalue: Optional[float] = None
+    geary_c_statistic: Optional[float] = None
+    geary_c_pvalue: Optional[float] = None
 
     # Power analysis
-    estimated_power: float | None = None
-    minimum_detectable_effect: float | None = None
+    estimated_power: Optional[float] = None
+    minimum_detectable_effect: Optional[float] = None
 
     # Warnings and recommendations
     warnings: list[str] = None
@@ -66,7 +66,7 @@ class InterferenceDiagnostics:
     """Comprehensive diagnostics for interference and spillover effects."""
 
     def __init__(
-        self, exposure_mapping: ExposureMapping, random_state: int | None = None
+        self, exposure_mapping: ExposureMapping, random_state: Optional[int] = None
     ):
         """Initialize interference diagnostics.
 
@@ -84,8 +84,8 @@ class InterferenceDiagnostics:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        unit_data: pd.DataFrame | None = None,
+        covariates: Optional[CovariateData] = None,
+        unit_data: Optional[pd.DataFrame] = None,
     ) -> SpilloverDetectionResults:
         """Run comprehensive spillover detection diagnostics.
 
@@ -233,7 +233,9 @@ class InterferenceDiagnostics:
 
         return results
 
-    def _calculate_average_path_length(self, adjacency: NDArray[Any]) -> float | None:
+    def _calculate_average_path_length(
+        self, adjacency: NDArray[Any]
+    ) -> Optional[float]:
         """Calculate average shortest path length."""
         n = adjacency.shape[0]
 
@@ -480,7 +482,7 @@ class InterferenceDiagnostics:
 def plot_cluster_exposure_balance(
     exposure_mapping: ExposureMapping,
     treatment: TreatmentData,
-    clusters: NDArray[Any] | None = None,
+    clusters: Optional[NDArray[Any]] = None,
     figsize: tuple[int, int] = (10, 6),
 ) -> plt.Figure:
     """Plot exposure balance across clusters.
@@ -543,7 +545,7 @@ def plot_cluster_exposure_balance(
 
 def plot_network_connectivity(
     exposure_mapping: ExposureMapping,
-    treatment: TreatmentData | None = None,
+    treatment: Optional[TreatmentData] = None,
     layout: str = "spring",
     figsize: tuple[int, int] = (12, 8),
 ) -> plt.Figure:
@@ -623,7 +625,7 @@ def plot_network_connectivity(
 
 def _plot_adjacency_matrix(
     exposure_mapping: ExposureMapping,
-    treatment: TreatmentData | None = None,
+    treatment: Optional[TreatmentData] = None,
     figsize: tuple[int, int] = (10, 8),
 ) -> plt.Figure:
     """Fallback plot using adjacency matrix heatmap."""

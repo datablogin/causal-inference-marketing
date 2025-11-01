@@ -53,7 +53,7 @@ import abc
 import warnings
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -332,7 +332,7 @@ class BootstrapMixin(abc.ABC):
     """
 
     # Class-level thread pool for efficient worker reuse
-    _thread_pool: ThreadPoolExecutor | None = None
+    _thread_pool: Optional[ThreadPoolExecutor] = None
     _thread_pool_workers: int = 4
 
     @classmethod
@@ -353,7 +353,7 @@ class BootstrapMixin(abc.ABC):
             cls._thread_pool = None
 
     def __init__(
-        self, *args: Any, bootstrap_config: Any | None = None, **kwargs: Any
+        self, *args: Any, bootstrap_config: Optional[Any] = None, **kwargs: Any
     ) -> None:
         """Initialize bootstrap mixin with configuration."""
         # Handle bootstrap config parameter for super() call
@@ -368,7 +368,7 @@ class BootstrapMixin(abc.ABC):
         elif not isinstance(self.bootstrap_config, BootstrapConfig):
             # Convert if it's not already a BootstrapConfig
             self.bootstrap_config = BootstrapConfig()
-        self._bootstrap_result: BootstrapResult | None = None
+        self._bootstrap_result: Optional[BootstrapResult] = None
 
         # Enable telemetry if configured
         if self.bootstrap_config.enable_telemetry:
@@ -697,7 +697,7 @@ class BootstrapMixin(abc.ABC):
         batch_indices: NDArray[Any],
         treatment_data: Any,
         outcome_data: Any,
-        covariate_data: Any | None,
+        covariate_data: Optional[Any],
     ) -> list[float]:
         """Process a batch of bootstrap indices efficiently.
 
@@ -746,7 +746,7 @@ class BootstrapMixin(abc.ABC):
         bootstrap_indices: NDArray[Any],
         treatment_data: Any,
         outcome_data: Any,
-        covariate_data: Any | None,
+        covariate_data: Optional[Any],
         sample_idx: int,
     ) -> float:
         """Generate bootstrap estimate from pre-computed indices.

@@ -207,3 +207,4 @@ marimo/_lsp/
 __marimo__/
 # This comment triggers CI
 .DS_Store
+.claude.backup/

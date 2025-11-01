@@ -14,7 +14,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol
 
 import numpy as np
 import pandas as pd
@@ -75,8 +75,8 @@ class CrossFitData:
     X_val_folds: list[NDArray[Any]]
     y_train_folds: list[NDArray[Any]]
     y_val_folds: list[NDArray[Any]]
-    treatment_train_folds: list[NDArray[Any]] | None = None
-    treatment_val_folds: list[NDArray[Any]] | None = None
+    treatment_train_folds: Optional[list[NDArray[Any]]] = None
+    treatment_val_folds: Optional[list[NDArray[Any]]] = None
 
 
 class NuisanceLearner(Protocol):
@@ -102,8 +102,8 @@ class CrossFittingEstimator(ABC):
         self,
         cv_folds: int = 5,
         stratified: bool = True,
-        random_state: int | None = None,
-        parallel_config: ParallelCrossFittingConfig | None = None,
+        random_state: Optional[int] = None,
+        parallel_config: Optional[ParallelCrossFittingConfig] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize cross-fitting estimator.
@@ -121,13 +121,13 @@ class CrossFittingEstimator(ABC):
         self.parallel_config = parallel_config or ParallelCrossFittingConfig()
 
         # Storage for cross-fitting results
-        self.cross_fit_data_: CrossFitData | None = None
+        self.cross_fit_data_: Optional[CrossFitData] = None
         self.nuisance_estimates_: dict[str, NDArray[Any]] = {}
 
         # Performance monitoring
         self._fold_timings_: list[float] = []
         self._fold_memory_usage_: list[float] = []
-        self._parallel_speedup_: float | None = None
+        self._parallel_speedup_: Optional[float] = None
 
         # Model caching for performance optimization
         self._model_cache_: dict[str, Any] = {}
@@ -139,7 +139,7 @@ class CrossFittingEstimator(ABC):
         self,
         X_train: NDArray[Any],
         y_train: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
+        treatment_train: Optional[NDArray[Any]] = None,
     ) -> dict[str, Any]:
         """Fit nuisance parameter models on training data.
 
@@ -158,7 +158,7 @@ class CrossFittingEstimator(ABC):
         self,
         models: dict[str, Any],
         X_val: NDArray[Any],
-        treatment_val: NDArray[Any] | None = None,
+        treatment_val: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Predict nuisance parameters on validation data.
 
@@ -195,7 +195,7 @@ class CrossFittingEstimator(ABC):
         self,
         X: NDArray[Any],
         y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        treatment: Optional[NDArray[Any]] = None,
     ) -> CrossFitData:
         """Create cross-fitting data splits.
 
@@ -261,7 +261,7 @@ class CrossFittingEstimator(ABC):
         self,
         X: NDArray[Any],
         y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Perform cross-fitting to estimate nuisance parameters.
 
@@ -297,7 +297,7 @@ class CrossFittingEstimator(ABC):
         self,
         X: NDArray[Any],
         y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Sequential cross-fitting implementation (original approach)."""
         n_samples = X.shape[0]
@@ -394,7 +394,7 @@ class CrossFittingEstimator(ABC):
         self,
         X: NDArray[Any],
         y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Parallel cross-fitting implementation using joblib."""
         n_samples = X.shape[0]
@@ -494,9 +494,9 @@ class CrossFittingEstimator(ABC):
         X_train: NDArray[Any],
         y_train: NDArray[Any],
         X_val: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
-        treatment_val: NDArray[Any] | None = None,
-    ) -> tuple[dict[str, NDArray[Any]] | None, float]:
+        treatment_train: Optional[NDArray[Any]] = None,
+        treatment_val: Optional[NDArray[Any]] = None,
+    ) -> Optional[tuple[dict[str, NDArray[Any]]], float]:
         """Fit a single fold - designed to be called in parallel.
 
         Args:
@@ -556,7 +556,7 @@ class CrossFittingEstimator(ABC):
         self,
         X: NDArray[Any],
         y: NDArray[Any],
-        treatment: NDArray[Any] | None = None,
+        treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Cross-fitting with chunked processing for large datasets.
 
@@ -592,7 +592,7 @@ class CrossFittingEstimator(ABC):
         return nuisance_estimates
 
     def _process_chunked_fold(
-        self, fold_idx: int, treatment: NDArray[Any] | None
+        self, fold_idx: int, treatment: Optional[NDArray[Any]]
     ) -> dict[str, NDArray[Any]]:
         """Process a single fold using chunked validation data."""
         # Get fold data
@@ -630,7 +630,7 @@ class CrossFittingEstimator(ABC):
         self,
         fitted_models: dict[str, Any],
         X_val: NDArray[Any],
-        treatment_val: NDArray[Any] | None,
+        treatment_val: Optional[NDArray[Any]],
     ) -> dict[str, list[NDArray[Any]]]:
         """Predict on validation data in chunks to manage memory."""
         chunk_size = self.parallel_config.chunk_size
@@ -781,7 +781,7 @@ class CrossFittingEstimator(ABC):
         return base_metrics
 
     def _compute_data_hash(
-        self, X: NDArray[Any], y: NDArray[Any], treatment: NDArray[Any] | None = None
+        self, X: NDArray[Any], y: NDArray[Any], treatment: Optional[NDArray[Any]] = None
     ) -> str:
         """Compute hash for caching purposes based on input data."""
         if not self.parallel_config.enable_caching:
@@ -809,7 +809,7 @@ class CrossFittingEstimator(ABC):
         self,
         X_train: NDArray[Any],
         y_train: NDArray[Any],
-        treatment_train: NDArray[Any] | None = None,
+        treatment_train: Optional[NDArray[Any]] = None,
         fold_idx: int = 0,
     ) -> dict[str, Any]:
         """Fit nuisance models with caching support."""
@@ -860,11 +860,11 @@ class CrossFittingEstimator(ABC):
 def create_cross_fit_data(
     X: NDArray[Any] | pd.DataFrame,
     y: NDArray[Any] | pd.Series,
-    treatment: NDArray[Any] | pd.Series | None = None,
+    treatment: NDArray[Any] | Optional[pd.Series] = None,
     cv_folds: int = 5,
     stratified: bool = True,
-    random_state: int | None = None,
-    parallel_config: ParallelCrossFittingConfig | None = None,
+    random_state: Optional[int] = None,
+    parallel_config: Optional[ParallelCrossFittingConfig] = None,
 ) -> CrossFitData:
     """Create cross-fitting data splits.
 

@@ -7,7 +7,7 @@ types of relationships: spatial, network-based, and temporal.
 from __future__ import annotations
 
 import abc
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -85,7 +85,7 @@ class ExposureMapping(BaseModel):
 class ExposureMapper(abc.ABC):
     """Abstract base class for exposure mapping algorithms."""
 
-    def __init__(self, random_state: int | None = None):
+    def __init__(self, random_state: Optional[int] = None):
         """Initialize exposure mapper.
 
         Args:
@@ -203,7 +203,7 @@ class NetworkExposureMapper(ExposureMapper):
         unit_data: pd.DataFrame,
         network_edges: pd.DataFrame,
         directed: bool = False,
-        weight_column: str | None = None,
+        weight_column: Optional[str] = None,
         max_hops: int = 1,
         **kwargs: Any,
     ) -> ExposureMapping:
@@ -311,9 +311,9 @@ class SpatialExposureMapper(ExposureMapper):
     def map_exposure(
         self,
         unit_data: pd.DataFrame,
-        cluster_column: str | None = None,
+        cluster_column: Optional[str] = None,
         coordinate_columns: tuple[str, str] = ("latitude", "longitude"),
-        n_clusters: int | None = None,
+        n_clusters: Optional[int] = None,
         intra_cluster_exposure: float = 1.0,
         inter_cluster_exposure: float = 0.1,
         **kwargs: Any,

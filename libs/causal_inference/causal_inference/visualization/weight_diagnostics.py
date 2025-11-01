@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -51,18 +51,18 @@ class WeightDiagnosticsResult:
     kurtosis: float
     extreme_weight_count: int
     extreme_weight_percentage: float
-    recommended_trimming_threshold: float | None
+    recommended_trimming_threshold: Optional[float]
     effective_sample_size: float
     weight_summary: dict[str, float]
 
     # Distribution comparison tests
-    ks_test_exponential_stat: float | None = None
-    ks_test_exponential_pvalue: float | None = None
-    ks_test_lognormal_stat: float | None = None
-    ks_test_lognormal_pvalue: float | None = None
-    ks_test_gamma_stat: float | None = None
-    ks_test_gamma_pvalue: float | None = None
-    best_fit_distribution: str | None = None
+    ks_test_exponential_stat: Optional[float] = None
+    ks_test_exponential_pvalue: Optional[float] = None
+    ks_test_lognormal_stat: Optional[float] = None
+    ks_test_lognormal_pvalue: Optional[float] = None
+    ks_test_gamma_stat: Optional[float] = None
+    ks_test_gamma_pvalue: Optional[float] = None
+    best_fit_distribution: Optional[str] = None
 
 
 class WeightDiagnostics:
@@ -266,9 +266,9 @@ class WeightDiagnostics:
         self,
         diagnostics_result: WeightDiagnosticsResult,
         title: str = "Weight Distribution Diagnostics",
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> plt.Figure | go.Figure:
+    ) -> Union[plt.Figure, go.Figure]:
         """Create comprehensive weight distribution plots.
 
         Args:
@@ -296,7 +296,7 @@ class WeightDiagnostics:
         self,
         result: WeightDiagnosticsResult,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> plt.Figure:
         """Create static matplotlib weight plots."""
         fig = plt.figure(figsize=(16, 12))
@@ -483,7 +483,7 @@ class WeightDiagnostics:
         self,
         result: WeightDiagnosticsResult,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> go.Figure:
         """Create interactive Plotly weight plots."""
         fig = make_subplots(
@@ -690,10 +690,10 @@ def create_weight_plots(
     weights: NDArray[np.floating[Any]],
     extreme_weight_threshold: float = 10.0,
     title: str = "Weight Distribution Diagnostics",
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
     interactive: bool = False,
     enable_distribution_tests: bool = True,
-) -> tuple[plt.Figure | go.Figure, WeightDiagnosticsResult, list[str]]:
+) -> tuple[Union[plt.Figure, go.Figure], WeightDiagnosticsResult, list[str]]:
     """Convenience function to create weight diagnostic plots.
 
     Args:

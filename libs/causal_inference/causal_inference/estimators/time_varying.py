@@ -7,7 +7,7 @@ for longitudinal data with sequential treatment assignments.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -41,7 +41,7 @@ class StrategyOutcome:
         mean_outcome: float,
         outcome_trajectory: NDArray[Any],
         individual_outcomes: NDArray[Any],
-        confidence_interval: tuple[float, float] | None = None,
+        confidence_interval: Optional[tuple[float, float]] = None,
     ):
         self.strategy_name = strategy_name
         self.mean_outcome = mean_outcome
@@ -69,7 +69,7 @@ class StrategyComparison:
 
     def get_strategy_effect(
         self, strategy1: str, strategy2: str
-    ) -> CausalEffect | None:
+    ) -> Optional[CausalEffect]:
         """Get the causal effect comparing two strategies."""
         contrast_name = f"{strategy1}_vs_{strategy2}"
         return self.strategy_contrasts.get(contrast_name)
@@ -93,13 +93,13 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
     def __init__(
         self,
         method: str = "g_formula",
-        outcome_model: SklearnBaseEstimator | None = None,
-        treatment_model: SklearnBaseEstimator | None = None,
-        time_horizon: int | None = None,
+        outcome_model: Optional[SklearnBaseEstimator] = None,
+        treatment_model: Optional[SklearnBaseEstimator] = None,
+        time_horizon: Optional[int] = None,
         weight_stabilization: bool = True,
-        weight_truncation: float | None = None,
+        weight_truncation: Optional[float] = None,
         bootstrap_samples: int = 500,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
         # Configurable statistical thresholds
         feedback_threshold: float = 0.1,
@@ -158,8 +158,8 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         # Storage for fitted models and results
         self.fitted_outcome_models_: dict[int, SklearnBaseEstimator] = {}
         self.fitted_treatment_models_: dict[int, SklearnBaseEstimator] = {}
-        self.longitudinal_data_: LongitudinalData | None = None
-        self.strategy_results_: StrategyComparison | None = None
+        self.longitudinal_data_: Optional[LongitudinalData] = None
+        self.strategy_results_: Optional[StrategyComparison] = None
 
     def _fit_implementation(
         self,
@@ -181,10 +181,10 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
             raise EstimationError("Estimator must be fitted before ATE estimation")
 
         # Define simple always treat vs never treat strategies
-        def always_treat(data_df: pd.DataFrame, time: int | str) -> NDArray[Any]:
+        def always_treat(data_df: pd.DataFrame, time: Union[int, str]) -> NDArray[Any]:
             return np.ones(len(data_df))
 
-        def never_treat(data_df: pd.DataFrame, time: int | str) -> NDArray[Any]:
+        def never_treat(data_df: pd.DataFrame, time: Union[int, str]) -> NDArray[Any]:
             return np.zeros(len(data_df))
 
         strategies = {
@@ -610,7 +610,7 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
 
     def _calculate_ipw_weights(
         self, strategy: TreatmentStrategy
-    ) -> dict[int | str, float]:
+    ) -> dict[Union[int, str], float]:
         """Calculate inverse probability weights for a treatment strategy.
 
         Implements proper dynamic regime weights by computing the cumulative product
@@ -768,7 +768,7 @@ class TimeVaryingEstimator(BaseEstimator, BootstrapMixin):
         return weights
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> TimeVaryingEstimator:
         """Create a bootstrap estimator instance.
 

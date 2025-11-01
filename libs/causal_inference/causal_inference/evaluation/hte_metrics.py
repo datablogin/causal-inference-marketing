@@ -22,7 +22,7 @@ with domain expertise and additional validation methods when possible.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -71,7 +71,7 @@ def policy_value(
     treatments: NDArray[Any],
     cate_estimates: NDArray[Any],
     policy_threshold: float = 0.0,
-    propensity_scores: NDArray[Any] | None = None,
+    propensity_scores: Optional[NDArray[Any]] = None,
 ) -> float:
     """Compute expected outcome under learned treatment assignment policy.
 
@@ -300,7 +300,7 @@ def qini_score(
 def calibration_score(
     y_true: NDArray[Any],
     y_pred: NDArray[Any],
-    confidence_intervals: NDArray[Any] | None = None,
+    confidence_intervals: Optional[NDArray[Any]] = None,
     n_bins: int = 10,
 ) -> dict[str, float]:
     """Compute calibration score for CATE predictions.
@@ -368,7 +368,7 @@ class HTEEvaluator:
         self,
         confidence_level: float = 0.95,
         n_bootstrap: int = 100,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         """Initialize HTE evaluator.
 
@@ -385,11 +385,11 @@ class HTEEvaluator:
         self,
         y_true: NDArray[Any],
         y_pred: NDArray[Any],
-        outcomes: NDArray[Any] | None = None,
-        treatments: NDArray[Any] | None = None,
-        propensity_scores: NDArray[Any] | None = None,
-        confidence_intervals: NDArray[Any] | None = None,
-        true_ate: float | None = None,
+        outcomes: Optional[NDArray[Any]] = None,
+        treatments: Optional[NDArray[Any]] = None,
+        propensity_scores: Optional[NDArray[Any]] = None,
+        confidence_intervals: Optional[NDArray[Any]] = None,
+        true_ate: Optional[float] = None,
     ) -> dict[str, Any]:
         """Compute comprehensive evaluation metrics.
 
@@ -486,8 +486,8 @@ class HTEEvaluator:
         self,
         y_true: NDArray[Any],
         y_pred: NDArray[Any],
-        confidence_intervals: NDArray[Any] | None = None,
-        ax: Any | None = None,
+        confidence_intervals: Optional[NDArray[Any]] = None,
+        ax: Optional[Any] = None,
     ) -> Any:
         """Create scatter plot of true vs predicted CATE.
 

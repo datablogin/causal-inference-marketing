@@ -9,7 +9,7 @@ finite-sample properties and alternative estimation strategies.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -57,7 +57,7 @@ class OrthogonalMoments:
         treatment: NDArray[Any],
         outcome: NDArray[Any],
         required_estimates: list[str],
-        instrument: NDArray[Any] | None = None,
+        instrument: Optional[NDArray[Any]] = None,
         treatment_type: str = "binary",
     ) -> None:
         """Validate inputs for orthogonal moment functions.
@@ -455,7 +455,7 @@ class OrthogonalMoments:
         treatment: NDArray[Any],
         outcome: NDArray[Any],
         treatment_type: str = "binary",
-        instrument: NDArray[Any] | None = None,
+        instrument: Optional[NDArray[Any]] = None,
         **kwargs: Any,
     ) -> NDArray[Any]:
         """Compute interactive IV orthogonal scores.
@@ -601,7 +601,7 @@ class OrthogonalMoments:
         treatment: NDArray[Any],
         outcome: NDArray[Any],
         treatment_type: str = "binary",
-        instrument: NDArray[Any] | None = None,
+        instrument: Optional[NDArray[Any]] = None,
         **kwargs: Any,
     ) -> NDArray[Any]:
         """Compute Partially Linear IV orthogonal scores.
@@ -730,7 +730,7 @@ class OrthogonalMoments:
         treatment: NDArray[Any],
         outcome: NDArray[Any],
         treatment_type: str = "binary",
-        instrument: NDArray[Any] | None = None,
+        instrument: Optional[NDArray[Any]] = None,
         **kwargs: Any,
     ) -> NDArray[Any]:
         """Compute orthogonal scores using specified method for different treatment types.
@@ -839,8 +839,8 @@ class OrthogonalMoments:
         nuisance_estimates: dict[str, NDArray[Any]],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
-        covariates: NDArray[Any] | None = None,
-        instrument: NDArray[Any] | None = None,
+        covariates: Optional[NDArray[Any]] = None,
+        instrument: Optional[NDArray[Any]] = None,
         sample_size_threshold: int = None,
         dimensionality_threshold: int = None,
         **kwargs: Any,
@@ -961,7 +961,7 @@ class OrthogonalMoments:
         treatment: NDArray[Any],
         outcome: NDArray[Any],
         cv_folds: int = 5,
-        instrument: NDArray[Any] | None = None,
+        instrument: Optional[NDArray[Any]] = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Cross-validate different orthogonal moment methods.

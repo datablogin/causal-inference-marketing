@@ -7,7 +7,7 @@ causal inference assumptions and detect potential violations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -21,10 +21,10 @@ class FalsificationResults:
 
     placebo_outcome_test: dict[str, Any]
     placebo_treatment_test: dict[str, Any]
-    future_outcome_test: dict[str, Any] | None
-    negative_control_test: dict[str, Any] | None
-    pre_treatment_balance: dict[str, Any] | None
-    dose_response_test: dict[str, Any] | None
+    future_outcome_test: Optional[dict[str, Any]]
+    negative_control_test: Optional[dict[str, Any]]
+    pre_treatment_balance: Optional[dict[str, Any]]
+    dose_response_test: Optional[dict[str, Any]]
     overall_assessment: str
     recommendations: list[str]
 
@@ -482,9 +482,9 @@ class FalsificationTester:
         outcome: OutcomeData,
         covariates: CovariateData,
         estimator: Any,
-        pre_treatment_outcome: OutcomeData | None = None,
-        negative_control_outcome: OutcomeData | None = None,
-        pre_treatment_covariates: CovariateData | None = None,
+        pre_treatment_outcome: Optional[OutcomeData] = None,
+        negative_control_outcome: Optional[OutcomeData] = None,
+        pre_treatment_covariates: Optional[CovariateData] = None,
     ) -> FalsificationResults:
         """Run comprehensive falsification tests.
 
@@ -714,9 +714,9 @@ def run_all_falsification_tests(
     outcome: OutcomeData,
     covariates: CovariateData,
     estimator: Any,
-    pre_treatment_outcome: OutcomeData | None = None,
-    negative_control_outcome: OutcomeData | None = None,
-    pre_treatment_covariates: CovariateData | None = None,
+    pre_treatment_outcome: Optional[OutcomeData] = None,
+    negative_control_outcome: Optional[OutcomeData] = None,
+    pre_treatment_covariates: Optional[CovariateData] = None,
 ) -> FalsificationResults:
     """Convenience function for running all falsification tests."""
     tester = FalsificationTester()

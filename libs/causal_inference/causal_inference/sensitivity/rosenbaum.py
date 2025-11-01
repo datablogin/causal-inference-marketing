@@ -6,7 +6,7 @@ analysis for matched data following Rosenbaum (2002) methodology.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -15,8 +15,8 @@ from ..diagnostics.sensitivity import rosenbaum_bounds as _rosenbaum_bounds_impl
 
 
 def rosenbaum_bounds(
-    treated_outcomes: NDArray[Any] | list[float],
-    control_outcomes: NDArray[Any] | list[float],
+    treated_outcomes: Union[NDArray[Any], list[float]],
+    control_outcomes: Union[NDArray[Any], list[float]],
     gamma_range: tuple[float, float] = (1.0, 3.0),
     gamma_steps: int = 20,
     alpha: float = 0.05,

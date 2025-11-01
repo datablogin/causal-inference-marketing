@@ -7,7 +7,7 @@ and causal effects.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -60,10 +60,10 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
     def __init__(
         self,
         survival_model: str = "cox",
-        time_horizon: float | None = None,
+        time_horizon: Optional[float] = None,
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize G-computation survival estimator.
@@ -120,7 +120,7 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the G-computation survival model.
 
@@ -156,8 +156,8 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
     def _predict_survival_curve(
         self,
         treatment_value: int,
-        covariates_df: pd.DataFrame | None = None,
-        times: np.ndarray | None = None,
+        covariates_df: Optional[pd.DataFrame] = None,
+        times: Optional[np.ndarray] = None,
     ) -> pd.DataFrame:
         """Predict survival curve for given treatment and covariates.
 
@@ -350,7 +350,7 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
         self,
         treatment_value: int,
         covariates: pd.DataFrame,
-        times: np.ndarray | None = None,
+        times: Optional[np.ndarray] = None,
     ) -> pd.DataFrame:
         """Predict survival curve for specific individuals.
 
@@ -383,7 +383,7 @@ class SurvivalGComputationEstimator(SurvivalEstimator):
         return pd.concat(results, ignore_index=True)
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> SurvivalGComputationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 

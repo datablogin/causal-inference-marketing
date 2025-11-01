@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import abc
 import warnings
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -60,10 +60,10 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self,
         method: str = "cox",
         survival_model: str = "cox",
-        time_horizon: float | None = None,
+        time_horizon: Optional[float] = None,
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize survival estimator.
@@ -89,9 +89,9 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self.confidence_level = confidence_level
 
         # Override data container types from base class
-        self.treatment_data: TreatmentData | None = None
-        self.outcome_data: SurvivalOutcomeData | None = None
-        self.covariate_data: CovariateData | None = None
+        self.treatment_data: Optional[TreatmentData] = None
+        self.outcome_data: Optional[SurvivalOutcomeData] = None
+        self.covariate_data: Optional[CovariateData] = None
 
         # Fitted models
         self.treated_model: Any = None
@@ -100,9 +100,9 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self.propensity_model: Any = None
 
         # Cached results
-        self._survival_curves: dict[str, Any] | None = None
-        self._hazard_ratio: float | None = None
-        self._rmst_results: dict[str, float] | None = None
+        self._survival_curves: Optional[dict[str, Any]] = None
+        self._hazard_ratio: Optional[float] = None
+        self._rmst_results: Optional[dict[str, float]] = None
 
         # Validate availability of required libraries
         if not LIFELINES_AVAILABLE:
@@ -142,7 +142,7 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Validate inputs specific to survival analysis.
 
@@ -231,8 +231,8 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData,
-        covariates: CovariateData | None = None,
-        treatment_value: int | None = None,
+        covariates: Optional[CovariateData] = None,
+        treatment_value: Optional[int] = None,
     ) -> pd.DataFrame:
         """Create DataFrame for survival analysis.
 
@@ -707,7 +707,7 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Implement the specific fitting logic for this survival estimator.
 
@@ -733,7 +733,7 @@ class SurvivalEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData | Any,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> SurvivalEstimator:
         """Fit the survival estimator to data.
 

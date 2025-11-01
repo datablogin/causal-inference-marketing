@@ -8,7 +8,7 @@ should exist, helping to validate identification assumptions.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -19,15 +19,15 @@ from ..core.base import CovariateData, OutcomeData, TreatmentData
 
 
 def placebo_test(
-    treatment: TreatmentData | NDArray[Any] | pd.Series,
-    outcome: OutcomeData | NDArray[Any] | pd.Series,
-    covariates: CovariateData | NDArray[Any] | pd.DataFrame | None = None,
-    estimator: Callable | None = None,
+    treatment: Union[TreatmentData, NDArray[Any], pd.Series],
+    outcome: Union[OutcomeData, NDArray[Any], pd.Series],
+    covariates: Optional[Union[CovariateData, NDArray[Any], pd.DataFrame]] = None,
+    estimator: Optional[Callable] = None,
     placebo_type: str = "random_treatment",
     n_placebo_tests: int = 100,
     alpha: float = 0.05,
     effect_threshold: float = 0.1,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
     **estimator_kwargs: Any,
 ) -> dict[str, Any]:
     """Perform placebo tests to validate causal inference assumptions.
@@ -297,7 +297,7 @@ def placebo_test(
 def _simple_difference_estimator(
     treatment: NDArray[Any],
     outcome: NDArray[Any],
-    covariates: NDArray[Any] | None = None,
+    covariates: Optional[NDArray[Any]] = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Simple difference in means estimator for placebo tests."""

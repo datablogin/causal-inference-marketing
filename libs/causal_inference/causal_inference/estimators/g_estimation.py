@@ -10,7 +10,7 @@ zero in the counterfactual world where treatment was assigned randomly.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -64,13 +64,13 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         ] = "grid_search",
         parameter_range: tuple[float, float] = (-10.0, 10.0),
         n_grid_points: int = 1000,
-        treatment_model_params: dict[str, Any] | None = None,
-        covariates_for_interaction: list[str] | None = None,
-        bootstrap_config: BootstrapConfig | None = None,
+        treatment_model_params: Optional[dict[str, Any]] = None,
+        covariates_for_interaction: Optional[list[str]] = None,
+        bootstrap_config: Optional[BootstrapConfig] = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the G-estimation estimator.
@@ -112,10 +112,10 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         self.covariates_for_interaction = covariates_for_interaction or []
 
         # Model and results storage
-        self.propensity_model: SklearnBaseEstimator | None = None
-        self.propensity_scores: NDArray[Any] | None = None
-        self.optimization_result: dict[str, Any] | None = None
-        self.estimated_parameters: dict[str, float] | None = None
+        self.propensity_model: Optional[SklearnBaseEstimator] = None
+        self.propensity_scores: Optional[NDArray[Any]] = None
+        self.optimization_result: Optional[dict[str, Any]] = None
+        self.estimated_parameters: Optional[dict[str, float]] = None
 
         # Validation
         if not isinstance(parameter_range, tuple) or len(parameter_range) != 2:
@@ -124,7 +124,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             raise ValueError("parameter_range min must be less than max")
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> GEstimationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -174,7 +174,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             raise ValueError(f"Unknown treatment model: {self.treatment_model}")
 
     def _fit_propensity_model(
-        self, treatment: TreatmentData, covariates: CovariateData | None = None
+        self, treatment: TreatmentData, covariates: Optional[CovariateData] = None
     ) -> None:
         """Fit propensity score model for treatment prediction.
 
@@ -229,7 +229,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
     def _create_structural_model_matrix(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> pd.DataFrame:
         """Create design matrix for structural nested model.
 
@@ -269,7 +269,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         outcome: NDArray[Any],
         treatment: NDArray[Any],
         parameters: dict[str, float],
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> NDArray[Any]:
         """Apply structural nested model to adjust outcomes.
 
@@ -337,7 +337,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         outcome: NDArray[Any],
         treatment: NDArray[Any],
         propensity_scores: NDArray[Any],
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> float:
         """Objective function for G-estimation optimization.
 
@@ -423,7 +423,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         outcome: NDArray[Any],
         treatment: NDArray[Any],
         propensity_scores: NDArray[Any],
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> dict[str, Any]:
         """Perform grid search optimization.
 
@@ -468,7 +468,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         outcome: NDArray[Any],
         treatment: NDArray[Any],
         propensity_scores: NDArray[Any],
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> dict[str, Any]:
         """Perform root finding optimization using Brent's method.
 
@@ -524,7 +524,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         outcome: NDArray[Any],
         treatment: NDArray[Any],
         propensity_scores: NDArray[Any],
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> dict[str, Any]:
         """Perform gradient-based optimization.
 
@@ -592,7 +592,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the G-estimation model.
 
@@ -775,7 +775,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
             bootstrap_acceleration=bootstrap_acceleration,
         )
 
-    def get_optimization_results(self) -> dict[str, Any] | None:
+    def get_optimization_results(self) -> Optional[dict[str, Any]]:
         """Get optimization results from G-estimation.
 
         Returns:
@@ -783,7 +783,7 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
         """
         return self.optimization_result
 
-    def get_estimated_parameters(self) -> dict[str, float] | None:
+    def get_estimated_parameters(self) -> Optional[dict[str, float]]:
         """Get estimated parameters from G-estimation.
 
         Returns:
@@ -911,10 +911,10 @@ class GEstimationEstimator(BootstrapMixin, BaseEstimator):
 
     def compare_with_other_methods(
         self,
-        treatment: TreatmentData | None = None,
-        outcome: OutcomeData | None = None,
-        covariates: CovariateData | None = None,
-        methods: list[str] | None = None,
+        treatment: Optional[TreatmentData] = None,
+        outcome: Optional[OutcomeData] = None,
+        covariates: Optional[CovariateData] = None,
+        methods: Optional[list[str]] = None,
     ) -> dict[str, dict[str, Any]]:
         """Compare G-estimation results with other causal inference methods.
 

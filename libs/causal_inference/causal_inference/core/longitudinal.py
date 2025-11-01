@@ -8,7 +8,7 @@ This module provides data models and utilities for handling longitudinal
 from __future__ import annotations
 
 # Use typing_extensions for Python 3.9 compatibility
-from typing import Any, Union
+from typing import Any, Union, Optional
 from typing_extensions import TypeAlias
 from collections.abc import Callable
 
@@ -293,7 +293,7 @@ class LongitudinalData(BaseModel):
         return result_data
 
     def check_sequential_exchangeability(
-        self, treatment_col: str | None = None
+        self, treatment_col: Optional[str] = None
     ) -> dict[str, Any]:
         """Check indicators of sequential exchangeability assumption.
 
@@ -355,7 +355,7 @@ class LongitudinalData(BaseModel):
         return results
 
     def test_treatment_confounder_feedback(
-        self, treatment_col: str | None = None
+        self, treatment_col: Optional[str] = None
     ) -> dict[str, Any]:
         """Test for treatment-confounder feedback.
 

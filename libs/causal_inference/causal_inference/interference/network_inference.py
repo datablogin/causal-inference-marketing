@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -31,15 +31,15 @@ class InferenceResults:
     estimated_effect: float
 
     # Optional fields with defaults
-    critical_value: float | None = None
-    effect_se: float | None = None
-    effect_ci_lower: float | None = None
-    effect_ci_upper: float | None = None
+    critical_value: Optional[float] = None
+    effect_se: Optional[float] = None
+    effect_ci_lower: Optional[float] = None
+    effect_ci_upper: Optional[float] = None
 
     # Inference method details
     method: str = "unknown"
-    n_permutations: int | None = None
-    n_clusters: int | None = None
+    n_permutations: Optional[int] = None
+    n_clusters: Optional[int] = None
     alpha: float = 0.05
 
     # Randomization details
@@ -70,7 +70,7 @@ class NetworkInference(abc.ABC):
         self,
         exposure_mapping: ExposureMapping,
         alpha: float = 0.05,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         """Initialize network inference.
 
@@ -91,7 +91,7 @@ class NetworkInference(abc.ABC):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
         **kwargs: Any,
     ) -> InferenceResults:
         """Test for treatment effects under interference.
@@ -118,10 +118,10 @@ class TwoStageRandomizationInference(NetworkInference):
     def __init__(
         self,
         exposure_mapping: ExposureMapping,
-        cluster_column: str | None = None,
-        n_clusters: int | None = None,
+        cluster_column: Optional[str] = None,
+        n_clusters: Optional[int] = None,
         alpha: float = 0.05,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         """Initialize two-stage randomization inference.
 
@@ -135,14 +135,14 @@ class TwoStageRandomizationInference(NetworkInference):
         super().__init__(exposure_mapping, alpha, random_state)
         self.cluster_column = cluster_column
         self.n_clusters = n_clusters
-        self._clusters: NDArray[Any] | None = None
+        self._clusters: Optional[NDArray[Any]] = None
 
     def test_treatment_effect(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        unit_data: pd.DataFrame | None = None,
+        covariates: Optional[CovariateData] = None,
+        unit_data: Optional[pd.DataFrame] = None,
         **kwargs: Any,
     ) -> InferenceResults:
         """Test treatment effect using two-stage randomization.
@@ -229,8 +229,8 @@ class TwoStageRandomizationInference(NetworkInference):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        unit_data: pd.DataFrame | None = None,
+        covariates: Optional[CovariateData] = None,
+        unit_data: Optional[pd.DataFrame] = None,
     ) -> NDArray[Any]:
         """Create clusters based on network structure or covariates."""
         n_units = len(treatment.values)
@@ -308,8 +308,8 @@ class ClusterRandomizationInference(NetworkInference):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-        clusters: NDArray[Any] | None = None,
+        covariates: Optional[CovariateData] = None,
+        clusters: Optional[NDArray[Any]] = None,
         **kwargs: Any,
     ) -> InferenceResults:
         """Test treatment effect under cluster randomization.
@@ -417,7 +417,7 @@ class NetworkPermutationTest(NetworkInference):
         n_permutations: int = 1000,
         test_statistic: str = "difference_in_means",
         alpha: float = 0.05,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         """Initialize network permutation test.
 
@@ -436,7 +436,7 @@ class NetworkPermutationTest(NetworkInference):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
         **kwargs: Any,
     ) -> InferenceResults:
         """Test treatment effect using network-aware permutation test.
@@ -562,7 +562,7 @@ def conduct_interference_power_analysis(
     sample_sizes: list[int],
     n_simulations: int = 1000,
     alpha: float = 0.05,
-    random_state: int | None = None,
+    random_state: Optional[int] = None,
 ) -> pd.DataFrame:
     """Conduct power analysis for interference detection.
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Optional
 
 import pandas as pd
 
@@ -30,11 +31,11 @@ class DiagnosticReport:
     outcome_type: str
 
     # Diagnostic results
-    balance_results: BalanceResults | None = None
-    overlap_results: OverlapResults | None = None
-    assumption_results: AssumptionResults | None = None
-    specification_results: SpecificationResults | None = None
-    sensitivity_results: SensitivityResults | None = None
+    balance_results: Optional[BalanceResults] = None
+    overlap_results: Optional[OverlapResults] = None
+    assumption_results: Optional[AssumptionResults] = None
+    specification_results: Optional[SpecificationResults] = None
+    sensitivity_results: Optional[SensitivityResults] = None
 
     # Summary assessments
     overall_assessment: str = ""
@@ -73,7 +74,7 @@ class DiagnosticReportGenerator:
         treatment: TreatmentData,
         outcome: OutcomeData,
         covariates: CovariateData,
-        causal_effect: CausalEffect | None = None,
+        causal_effect: Optional[CausalEffect] = None,
         verbose: bool = True,
     ) -> DiagnosticReport:
         """Generate comprehensive diagnostic report.
@@ -486,7 +487,7 @@ def generate_diagnostic_report(
     treatment: TreatmentData,
     outcome: OutcomeData,
     covariates: CovariateData,
-    causal_effect: CausalEffect | None = None,
+    causal_effect: Optional[CausalEffect] = None,
     include_sensitivity: bool = False,
     verbose: bool = True,
 ) -> DiagnosticReport:

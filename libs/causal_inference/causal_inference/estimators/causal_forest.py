@@ -31,7 +31,7 @@ References:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -66,10 +66,10 @@ class HonestTree:
         self,
         min_samples_split: int = 20,
         min_samples_leaf: int = 5,
-        max_depth: int | None = None,
-        max_features: str | int | float | None = "sqrt",
+        max_depth: Optional[int] = None,
+        max_features: str | int | Optional[float] = "sqrt",
         honest_ratio: float = 0.5,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         """Initialize honest tree.
 
@@ -88,7 +88,7 @@ class HonestTree:
         self.honest_ratio = honest_ratio
         self.random_state = random_state
 
-        self.tree_: DecisionTreeRegressor | str | None = None
+        self.tree_: DecisionTreeRegressor | Optional[str] = None
         self.is_fitted_ = False
 
     def fit(
@@ -284,13 +284,13 @@ class CausalForest(BaseEstimator):
         n_estimators: int = 100,
         min_samples_split: int = 20,
         min_samples_leaf: int = 5,
-        max_depth: int | None = None,
-        max_features: str | int | float | None = "sqrt",
+        max_depth: Optional[int] = None,
+        max_features: str | int | Optional[float] = "sqrt",
         honest_ratio: float = 0.5,
         subsample_ratio: float = 0.8,
         n_bootstrap: int = 100,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
         **kwargs: Any,
     ):
@@ -323,18 +323,18 @@ class CausalForest(BaseEstimator):
         self.confidence_level = confidence_level
 
         self.trees_: list[HonestTree] = []
-        self.feature_importances_: NDArray[Any] | None = None
+        self.feature_importances_: Optional[NDArray[Any]] = None
 
         # Store training data for bootstrap
-        self._training_treatment: NDArray[Any] | None = None
-        self._training_outcome: NDArray[Any] | None = None
-        self._training_covariates: NDArray[Any] | None = None
+        self._training_treatment: Optional[NDArray[Any]] = None
+        self._training_outcome: Optional[NDArray[Any]] = None
+        self._training_covariates: Optional[NDArray[Any]] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the causal forest.
 
@@ -445,7 +445,7 @@ class CausalForest(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None,
+        covariates: Optional[CovariateData],
     ) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
         """Prepare and validate data for causal forest."""
         # Extract arrays
@@ -586,7 +586,7 @@ class CausalForest(BaseEstimator):
         return self.feature_importances_
 
     def variable_importance(
-        self, x: pd.DataFrame | NDArray[Any] | None = None
+        self, x: pd.DataFrame | Optional[NDArray[Any]] = None
     ) -> NDArray[Any]:
         """Compute variable importance for effect modification.
 

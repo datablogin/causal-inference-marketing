@@ -5,7 +5,7 @@ This module provides common validation functions used across different estimator
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from ..core.base import DataValidationError
 def validate_input_dimensions(
     treatment: NDArray[Any],
     outcome: NDArray[Any],
-    covariates: NDArray[Any] | None = None,
+    covariates: Optional[NDArray[Any]] = None,
 ) -> None:
     """Validate dimensions of input arrays.
 
@@ -58,7 +58,7 @@ def validate_input_dimensions(
 
 
 def validate_binary_treatment(
-    treatment: NDArray[Any] | pd.Series,
+    treatment: Union[NDArray[Any], pd.Series],
 ) -> NDArray[Any]:
     """Validate and convert treatment to binary 0/1 array.
 

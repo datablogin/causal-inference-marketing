@@ -92,7 +92,7 @@ Notes:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -108,11 +108,12 @@ from ..core.base import (
     TreatmentData,
 )
 from ..core.bootstrap import BootstrapConfig, BootstrapMixin
+from ..core.optimization_mixin import OptimizationMixin
 from .g_computation import GComputationEstimator
 from .ipw import IPWEstimator
 
 
-class AIPWEstimator(BootstrapMixin, BaseEstimator):
+class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     """Augmented Inverse Probability Weighting estimator for causal inference.
 
     AIPW combines G-computation and IPW to create a doubly robust estimator.
@@ -138,21 +139,25 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         outcome_model_type: str = "auto",
-        outcome_model_params: dict[str, Any] | None = None,
+        outcome_model_params: Optional[dict[str, Any]] = None,
         propensity_model_type: str = "logistic",
-        propensity_model_params: dict[str, Any] | None = None,
+        propensity_model_params: Optional[dict[str, Any]] = None,
         cross_fitting: bool = True,
         n_folds: int = 5,
         stratify_folds: bool = True,
         influence_function_se: bool = True,
-        weight_truncation: str | None = "percentile",
+        weight_truncation: Optional[str] = "percentile",
         truncation_threshold: float = 0.01,
         stabilized_weights: bool = True,
-        bootstrap_config: Any | None = None,
+        bootstrap_config: Optional[Any] = None,
+        optimization_config: Optional[Any] = None,
+        # Component optimization settings
+        optimize_component_balance: bool = False,
+        component_variance_penalty: float = 0.5,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the AIPW estimator.
@@ -170,6 +175,9 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
             truncation_threshold: Threshold for weight truncation
             stabilized_weights: Whether to use stabilized IPW weights
             bootstrap_config: Configuration for bootstrap confidence intervals
+            optimization_config: Configuration for optimization strategies
+            optimize_component_balance: Optimize G-computation vs IPW balance
+            component_variance_penalty: Penalty for deviating from 50/50 balance
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
             confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
@@ -185,6 +193,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
         super().__init__(
             bootstrap_config=bootstrap_config,
+            optimization_config=optimization_config,
             random_state=random_state,
             verbose=verbose,
         )
@@ -203,9 +212,27 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self.bootstrap_samples = bootstrap_samples
         self.confidence_level = confidence_level
 
+        # Component optimization settings
+        self.optimize_component_balance = optimize_component_balance
+        self.component_variance_penalty = component_variance_penalty
+
+        # Validate component optimization settings
+        if component_variance_penalty < 0:
+            raise ValueError(
+                f"component_variance_penalty must be non-negative, got {component_variance_penalty}"
+            )
+
+        if optimize_component_balance and influence_function_se:
+            raise ValueError(
+                "Cannot use influence_function_se=True with optimize_component_balance=True. "
+                "Influence function standard errors are invalid with component optimization. "
+                "Either set influence_function_se=False or disable optimization. "
+                "Use bootstrap_config to compute valid confidence intervals with optimization."
+            )
+
         # Component estimators
-        self.outcome_estimator: GComputationEstimator | None = None
-        self.propensity_estimator: IPWEstimator | None = None
+        self.outcome_estimator: Optional[GComputationEstimator] = None
+        self.propensity_estimator: Optional[IPWEstimator] = None
 
         # Cross-fitting storage
         self._fold_models: list[dict[str, Any]] = []
@@ -213,7 +240,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
         # AIPW results
         self._aipw_components: dict[str, NDArray[Any]] = {}
-        self._influence_functions: NDArray[Any] | None = None
+        self._influence_functions: Optional[NDArray[Any]] = None
         self._component_diagnostics: dict[str, Any] = {}
 
     def _create_component_estimators(
@@ -249,7 +276,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         return outcome_estimator, propensity_estimator
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> AIPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -373,7 +400,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit models using cross-fitting to reduce overfitting bias.
 
@@ -669,7 +696,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit models without cross-fitting (standard approach).
 
@@ -742,6 +769,134 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
             "ipw_weights": ipw_weights,
         }
 
+    def _optimize_component_balance(
+        self,
+        g_comp_components: NDArray[Any],
+        ipw_components: NDArray[Any],
+    ) -> float:
+        """Optimize balance between G-computation and IPW components.
+
+        Optimization Objective:
+            Minimizes the estimated variance of the weighted AIPW estimator:
+
+                Var(τ̂_opt) = Var(α·g_comp + (1-α)·ipw) / n
+
+            where g_comp and ipw are the unit-level AIPW components. The weight
+            α is constrained to [0.3, 0.7] with a penalty for deviations from 0.5
+            to ensure both components contribute meaningfully.
+
+        Mathematical Formulation:
+            The weighted AIPW estimator is:
+
+                τ̂_opt = 1/n Σ[α·(μ₁(X_i) - μ₀(X_i)) + (1-α)·IPW_corr_i]
+
+            We minimize:
+                objective(α) = Var(components) / n + λ·(α - 0.5)²
+
+            where λ is the component_variance_penalty.
+
+        Theoretical Tradeoffs:
+            **Standard AIPW (α=1)** is doubly robust: consistent if EITHER the
+            outcome model OR propensity model is correct. The IPW correction
+            exactly cancels bias when the outcome model is wrong.
+
+            **Optimized AIPW (α ≠ 1)** trades double robustness for efficiency:
+            - Lower variance when both models are reasonably correct
+            - Potential bias increase if both models are misspecified
+            - Still benefits from having two models, but not fully doubly robust
+
+        When to Use:
+            ✓ Both models are well-specified (validated through diagnostics)
+            ✓ Sample size is large enough for precise variance estimation
+            ✓ Primary concern is efficiency over robustness
+            ✓ Using bootstrap for valid confidence intervals
+
+        When NOT to Use:
+            ✗ Strong concern about model misspecification
+            ✗ Small samples (n < 200)
+            ✗ Poor covariate overlap (extreme propensity scores)
+            ✗ Relying on influence function standard errors
+
+        Args:
+            g_comp_components: G-computation component values (μ₁ - μ₀) for each unit
+            ipw_components: IPW correction component values for each unit
+
+        Returns:
+            Optimal weight for G-computation component (alpha), bounded to [0.3, 0.7]
+
+        References:
+            - PyRake: https://github.com/rwilson4/PyRake
+            - Doubly robust estimation: Bang & Robins (2005), Biometrics
+            - Variance-optimal weighting: van der Laan & Rose (2011), Targeted Learning
+        """
+        from scipy.optimize import minimize_scalar
+
+        def objective(alpha: float) -> float:
+            """Weighted AIPW estimator variance with balance penalty.
+
+            Minimizes Var(α·ḡ + (1-α)·īpw) = Var(components) / n
+            where components = α·g_comp + (1-α)·ipw for each unit.
+            """
+            # alpha is weight on G-computation (0 to 1)
+            # (1 - alpha) is implicit weight on IPW
+
+            combined = alpha * g_comp_components + (1 - alpha) * ipw_components
+            n = len(combined)
+
+            # Variance of the mean estimator = Var(components) / n
+            component_variance = float(np.var(combined, ddof=1))
+            estimator_variance = component_variance / n
+
+            # Penalty for extreme weights (force meaningful contribution from both)
+            balance_penalty = self.component_variance_penalty * (alpha - 0.5) ** 2
+
+            return estimator_variance + balance_penalty
+
+        result = minimize_scalar(
+            objective,
+            bounds=(0.3, 0.7),  # Ensure both components contribute
+            method="bounded",
+        )
+
+        optimal_alpha = float(result.x)
+
+        # Store diagnostics
+        n = len(g_comp_components)
+        optimized_components = (
+            optimal_alpha * g_comp_components + (1 - optimal_alpha) * ipw_components
+        )
+        standard_components = g_comp_components + ipw_components
+
+        self._optimization_diagnostics = {
+            "optimal_g_computation_weight": optimal_alpha,
+            "optimal_ipw_weight": 1 - optimal_alpha,
+            "optimized_estimator_variance": float(
+                np.var(optimized_components, ddof=1) / n
+            ),
+            "standard_estimator_variance": float(
+                np.var(standard_components, ddof=1) / n
+            ),
+            # Also store component-level variances for reference
+            "optimized_component_variance": float(np.var(optimized_components, ddof=1)),
+            "standard_component_variance": float(np.var(standard_components, ddof=1)),
+        }
+
+        if self.verbose:
+            print("\n=== Component Balance Optimization ===")
+            print(f"Optimal G-computation weight: {optimal_alpha:.4f}")
+            print(f"Optimal IPW weight: {1 - optimal_alpha:.4f}")
+            std_var = self._optimization_diagnostics["standard_estimator_variance"]
+            opt_var = self._optimization_diagnostics["optimized_estimator_variance"]
+            variance_reduction = std_var - opt_var
+            rel_reduction = (variance_reduction / std_var * 100) if std_var > 0 else 0.0
+            print(
+                f"Estimator variance reduction: {variance_reduction:.6f} ({rel_reduction:.2f}%)"
+            )
+            print(f"Standard estimator variance: {std_var:.6f}")
+            print(f"Optimized estimator variance: {opt_var:.6f}")
+
+        return optimal_alpha
+
     def _compute_aipw_estimate(
         self,
         treatment: TreatmentData,
@@ -807,20 +962,54 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self._aipw_components = {
             "g_computation": g_comp_component,
             "ipw_correction": ipw_correction,
-            "full_aipw": g_comp_component + ipw_correction,
         }
 
-        # AIPW estimate
-        aipw_estimate = np.mean(g_comp_component + ipw_correction)
+        # Standard AIPW (always computed for reference)
+        standard_aipw = g_comp_component + ipw_correction
+        self._aipw_components["full_aipw_standard"] = standard_aipw
 
-        return float(aipw_estimate)
+        # Optimize component balance if enabled
+        if self.optimize_component_balance:
+            if self.verbose:
+                print(
+                    "\n⚠️  WARNING: Component optimization may affect double robustness property."
+                )
+                print(
+                    "   Standard AIPW is consistent if either outcome or propensity model is correct."
+                )
+                print(
+                    "   With optimization, bias may increase if both models are misspecified."
+                )
+
+            optimal_alpha = self._optimize_component_balance(
+                g_comp_component, ipw_correction
+            )
+
+            # Use optimized weights
+            optimized_aipw = (
+                optimal_alpha * g_comp_component + (1 - optimal_alpha) * ipw_correction
+            )
+            self._aipw_components["full_aipw_optimized"] = optimized_aipw
+            self._aipw_components["full_aipw"] = optimized_aipw
+            aipw_estimate = float(np.mean(optimized_aipw))
+        else:
+            # Standard AIPW formula (equal weights)
+            self._aipw_components["full_aipw"] = standard_aipw
+            aipw_estimate = float(np.mean(standard_aipw))
+
+        return aipw_estimate
 
     def _compute_influence_function_se(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-    ) -> float | None:
+    ) -> Optional[float]:
         """Compute standard error using influence functions.
+
+        Note:
+            Influence function standard errors are not valid with component
+            optimization because they don't account for the data-driven weight
+            selection. Use bootstrap confidence intervals instead.
 
         Args:
             treatment: Treatment assignment data
@@ -828,9 +1017,23 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
         Returns:
             Standard error estimate
+
+        Raises:
+            EstimationError: If component optimization is enabled and influence
+                function SEs are requested
         """
         if not self.influence_function_se:
             return None
+
+        # Critical: Influence function SEs are invalid with optimization
+        if self.optimize_component_balance:
+            raise EstimationError(
+                "Influence function standard errors are not valid with component "
+                "optimization because they don't account for data-driven weight selection. "
+                "This would lead to anti-conservative confidence intervals. "
+                "Use bootstrap_config with n_samples > 0 to compute valid confidence intervals, "
+                "or disable optimization (optimize_component_balance=False) to use influence function SEs."
+            )
 
         if isinstance(treatment.values, pd.Series):
             treatment_values = treatment.values.values
@@ -865,7 +1068,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the AIPW estimator.
 
@@ -963,7 +1166,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> tuple[float | None, float | None, NDArray[Any] | None]:
+    ) -> Optional[tuple[float, float, NDArray[Any]]]:
         """Calculate bootstrap confidence intervals for AIPW estimate.
 
         Returns:
@@ -1145,7 +1348,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
         """
         return self._cross_fit_predictions
 
-    def get_influence_functions(self) -> NDArray[Any] | None:
+    def get_influence_functions(self) -> Optional[NDArray[Any]]:
         """Get influence function values for each observation.
 
         Returns:
@@ -1156,7 +1359,7 @@ class AIPWEstimator(BootstrapMixin, BaseEstimator):
     def predict_potential_outcomes(
         self,
         treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | NDArray[Any] | None = None,
+        covariates: pd.DataFrame | Optional[NDArray[Any]] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes using the fitted AIPW model.
 

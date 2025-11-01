@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -25,22 +25,22 @@ from .rosenbaum import rosenbaum_bounds
 def generate_sensitivity_report(
     treatment_data: Any,
     outcome_data: Any,
-    covariates_data: Any | None = None,
-    observed_effect: float | None = None,
-    ci_lower: float | None = None,
-    ci_upper: float | None = None,
+    covariates_data: Optional[Any] = None,
+    observed_effect: Optional[float] = None,
+    ci_lower: Optional[float] = None,
+    ci_upper: Optional[float] = None,
     include_rosenbaum: bool = True,
     include_evalue: bool = True,
     include_oster: bool = False,
     include_negative_controls: bool = False,
     include_placebo: bool = False,
-    negative_control_outcome: Any | None = None,
-    negative_control_exposure: Any | None = None,
-    covariates_restricted: Any | None = None,
+    negative_control_outcome: Optional[Any] = None,
+    negative_control_exposure: Optional[Any] = None,
+    covariates_restricted: Optional[Any] = None,
     output_format: str = "html",
-    output_path: str | None = None,
+    output_path: Optional[str] = None,
     report_title: str = "Sensitivity Analysis Report",
-    analyst_name: str | None = None,
+    analyst_name: Optional[str] = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Generate comprehensive sensitivity analysis report.
@@ -370,7 +370,7 @@ def _generate_html_report(
     recommendations: list[str],
     overall_assessment: str,
     report_title: str,
-    analyst_name: str | None,
+    analyst_name: Optional[str],
     treatment_data: Any,
     outcome_data: Any,
 ) -> str:

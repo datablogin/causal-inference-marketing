@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -58,22 +58,22 @@ class MediationEffect(CausalEffect):
     """
 
     # Mediation-specific estimates
-    nde: float | None = None  # Natural Direct Effect
-    nie: float | None = None  # Natural Indirect Effect
-    mediated_proportion: float | None = None  # Proportion mediated
+    nde: Optional[float] = None  # Natural Direct Effect
+    nie: Optional[float] = None  # Natural Indirect Effect
+    mediated_proportion: Optional[float] = None  # Proportion mediated
 
     # Confidence intervals for mediation effects
-    nde_ci_lower: float | None = None
-    nde_ci_upper: float | None = None
-    nie_ci_lower: float | None = None
-    nie_ci_upper: float | None = None
-    mediated_prop_ci_lower: float | None = None
-    mediated_prop_ci_upper: float | None = None
+    nde_ci_lower: Optional[float] = None
+    nde_ci_upper: Optional[float] = None
+    nie_ci_lower: Optional[float] = None
+    nie_ci_upper: Optional[float] = None
+    mediated_prop_ci_lower: Optional[float] = None
+    mediated_prop_ci_upper: Optional[float] = None
 
     # Standard errors for mediation effects
-    nde_se: float | None = None
-    nie_se: float | None = None
-    mediated_prop_se: float | None = None
+    nde_se: Optional[float] = None
+    nie_se: Optional[float] = None
+    mediated_prop_se: Optional[float] = None
 
     def __post_init__(self) -> None:
         """Validate mediation effect estimates."""
@@ -123,12 +123,12 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         self,
         mediator_model_type: str = "auto",
         outcome_model_type: str = "auto",
-        mediator_model_params: dict[str, Any] | None = None,
-        outcome_model_params: dict[str, Any] | None = None,
-        bootstrap_config: Any | None = None,
+        mediator_model_params: Optional[dict[str, Any]] = None,
+        outcome_model_params: Optional[dict[str, Any]] = None,
+        bootstrap_config: Optional[Any] = None,
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize the mediation estimator.
@@ -164,14 +164,14 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         self.outcome_model_params = outcome_model_params or {}
 
         # Models will be set during fitting
-        self.mediator_model: SklearnBaseEstimator | None = None
-        self.outcome_model: SklearnBaseEstimator | None = None
+        self.mediator_model: Optional[SklearnBaseEstimator] = None
+        self.outcome_model: Optional[SklearnBaseEstimator] = None
 
         # Store mediator data
-        self.mediator_data: MediatorData | None = None
+        self.mediator_data: Optional[MediatorData] = None
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> MediationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -236,7 +236,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         treatment: TreatmentData,
         outcome: OutcomeData,
         mediator: MediatorData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> MediationEstimator:
         """Fit the mediation estimator to data.
 
@@ -261,7 +261,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Implement the specific fitting logic for mediation analysis.
 
@@ -298,7 +298,7 @@ class MediationEstimator(BootstrapMixin, BaseEstimator):
     def _prepare_feature_matrices(
         self,
         treatment: TreatmentData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Prepare feature matrices for mediator and outcome models.
 

@@ -8,7 +8,7 @@ identification.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -40,8 +40,8 @@ class ResidualAnalysisResult:
     fitted_values: NDArray[np.floating[Any]]
     standardized_residuals: NDArray[np.floating[Any]]
     studentized_residuals: NDArray[np.floating[Any]]
-    leverage_values: NDArray[np.floating[Any]] | None
-    cooks_distance: NDArray[np.floating[Any]] | None
+    leverage_values: Optional[NDArray[np.floating[Any]]]
+    cooks_distance: Optional[NDArray[np.floating[Any]]]
 
     # Normality tests
     shapiro_stat: float
@@ -52,8 +52,8 @@ class ResidualAnalysisResult:
     # Heteroscedasticity tests
     breusch_pagan_stat: float
     breusch_pagan_pvalue: float
-    white_stat: float | None
-    white_pvalue: float | None
+    white_stat: Optional[float]
+    white_pvalue: Optional[float]
 
     # Summary statistics
     outlier_count: int
@@ -72,7 +72,7 @@ class ResidualAnalyzer:
     def __init__(
         self,
         outlier_threshold: float = 2.5,
-        leverage_threshold: float | None = None,
+        leverage_threshold: Optional[float] = None,
         influence_threshold: float = 1.0,
         figsize: tuple[int, int] = (15, 12),
         style: str = "whitegrid",
@@ -104,7 +104,7 @@ class ResidualAnalyzer:
         self,
         residuals: NDArray[np.floating[Any]],
         fitted_values: NDArray[np.floating[Any]],
-        design_matrix: NDArray[Any] | None = None,
+        design_matrix: Optional[NDArray[Any]] = None,
     ) -> ResidualAnalysisResult:
         """Perform comprehensive residual analysis.
 
@@ -311,9 +311,9 @@ class ResidualAnalyzer:
         self,
         analysis_result: ResidualAnalysisResult,
         title: str = "Residual Analysis",
-        save_path: str | None = None,
+        save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> plt.Figure | go.Figure:
+    ) -> Union[plt.Figure, go.Figure]:
         """Create comprehensive residual diagnostic plots.
 
         Args:
@@ -339,7 +339,7 @@ class ResidualAnalyzer:
         self,
         result: ResidualAnalysisResult,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> plt.Figure:
         """Create static matplotlib residual plots."""
         fig = plt.figure(figsize=(16, 12))
@@ -609,7 +609,7 @@ class ResidualAnalyzer:
         self,
         result: ResidualAnalysisResult,
         title: str,
-        save_path: str | None,
+        save_path: Optional[str],
     ) -> go.Figure:
         """Create interactive Plotly residual plots."""
         fig = make_subplots(
@@ -903,11 +903,11 @@ class ResidualAnalyzer:
 def create_residual_plots(
     residuals: NDArray[np.floating[Any]],
     fitted_values: NDArray[np.floating[Any]],
-    design_matrix: NDArray[Any] | None = None,
+    design_matrix: Optional[NDArray[Any]] = None,
     title: str = "Residual Analysis",
-    save_path: str | None = None,
+    save_path: Optional[str] = None,
     interactive: bool = False,
-) -> tuple[plt.Figure | go.Figure, ResidualAnalysisResult, list[str]]:
+) -> tuple[Union[plt.Figure, go.Figure], ResidualAnalysisResult, list[str]]:
     """Convenience function to create residual diagnostic plots.
 
     Args:

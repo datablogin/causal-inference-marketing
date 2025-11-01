@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -36,8 +36,8 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
 
     def __init__(
         self,
-        outcome_model: SklearnEstimator | None = None,
-        treatment_model: SklearnEstimator | None = None,
+        outcome_model: Optional[SklearnEstimator] = None,
+        treatment_model: Optional[SklearnEstimator] = None,
         transport_weighting_method: str = "classification",
         max_transport_iterations: int = 100,
         transport_tolerance: float = 1e-6,
@@ -45,7 +45,7 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
         max_weight: float = 10.0,
         cross_fit: bool = True,
         n_folds: int = 5,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize TMTL estimator.
@@ -89,16 +89,16 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
         self.n_folds = n_folds
 
         # Fitted components
-        self.transport_weights: NDArray[Any] | None = None
-        self.transport_weighting_result: WeightingResult | None = None
-        self.initial_estimates: dict[str, Any] | None = None
-        self.targeted_estimates: dict[str, Any] | None = None
+        self.transport_weights: Optional[NDArray[Any]] = None
+        self.transport_weighting_result: Optional[WeightingResult] = None
+        self.initial_estimates: Optional[dict[str, Any]] = None
+        self.targeted_estimates: Optional[dict[str, Any]] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the TMTL estimator to source data.
 
@@ -321,7 +321,7 @@ class TargetedMaximumTransportedLikelihood(BaseEstimator):
         q_1: NDArray[Any],
         g: NDArray[Any],
         weights: NDArray[Any],
-    ) -> dict[str, NDArray[Any] | bool | int]:
+    ) -> dict[str, Union[NDArray[Any], bool, int]]:
         """Perform iterative targeting with transport weights."""
         q_0_updated = q_0.copy()
         q_1_updated = q_1.copy()

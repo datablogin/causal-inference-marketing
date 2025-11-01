@@ -9,7 +9,7 @@ from __future__ import annotations
 import base64
 import io
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,7 +37,7 @@ class HTMLReportGenerator:
         data: pd.DataFrame,
         treatment_column: str,
         outcome_column: str,
-        covariate_columns: list[str] | None = None,
+        covariate_columns: Optional[list[str]] = None,
         method_name: str = "causal_analysis",
         confidence_level: float = 0.95,
     ):
@@ -76,8 +76,8 @@ class HTMLReportGenerator:
         template: str = "executive",
         include_sensitivity: bool = True,
         include_diagnostics: bool = True,
-        title: str | None = None,
-        analyst_name: str | None = None,
+        title: Optional[str] = None,
+        analyst_name: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
         """Generate complete HTML report.
@@ -513,7 +513,7 @@ class HTMLReportGenerator:
         title: str,
         sections: dict[str, Any],
         template: str,
-        analyst_name: str | None = None,
+        analyst_name: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
         """Compile all sections into final HTML report."""
@@ -800,7 +800,7 @@ class HTMLReportGenerator:
 
         return html
 
-    def _sanitize_user_input(self, text: str | None) -> str:
+    def _sanitize_user_input(self, text: Optional[str]) -> str:
         """Sanitize user input for HTML output to prevent XSS."""
         if not text:
             return ""

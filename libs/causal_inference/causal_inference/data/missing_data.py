@@ -6,7 +6,7 @@ datasets, including listwise deletion, imputation methods, and missing data diag
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ from ..core.base import CovariateData, OutcomeData, TreatmentData
 def _create_combined_dataframe(
     treatment: TreatmentData,
     outcome: OutcomeData,
-    covariates: CovariateData | None = None,
+    covariates: Optional[CovariateData] = None,
 ) -> pd.DataFrame:
     """Create a combined DataFrame from treatment, outcome, and covariate data.
 
@@ -71,7 +71,7 @@ class MissingDataHandler:
         """
         self.strategy = strategy
         self.verbose = verbose
-        self.imputer: SimpleImputer | KNNImputer | IterativeImputer | None = None
+        self.imputer: SimpleImputer | KNNImputer | Optional[IterativeImputer] = None
         self._fitted: bool = False
 
         # Validate strategy
@@ -83,7 +83,7 @@ class MissingDataHandler:
 
     def _create_imputer(
         self, data: pd.DataFrame
-    ) -> SimpleImputer | KNNImputer | IterativeImputer:
+    ) -> Union[SimpleImputer, KNNImputer, IterativeImputer]:
         """Create appropriate imputer based on strategy.
 
         Args:
@@ -109,7 +109,7 @@ class MissingDataHandler:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> MissingDataHandler:
         """Fit the missing data handler on the provided data.
 
@@ -143,8 +143,8 @@ class MissingDataHandler:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-    ) -> tuple[TreatmentData, OutcomeData, CovariateData | None]:
+        covariates: Optional[CovariateData] = None,
+    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
         """Apply missing data handling to the provided data.
 
         Args:
@@ -167,8 +167,8 @@ class MissingDataHandler:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-    ) -> tuple[TreatmentData, OutcomeData, CovariateData | None]:
+        covariates: Optional[CovariateData] = None,
+    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
         """Fit and transform data in one step.
 
         Args:
@@ -187,8 +187,8 @@ class MissingDataHandler:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-    ) -> tuple[TreatmentData, OutcomeData, CovariateData | None]:
+        covariates: Optional[CovariateData] = None,
+    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
         """Apply listwise deletion to remove any observation with missing data.
 
         Args:
@@ -247,8 +247,8 @@ class MissingDataHandler:
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-    ) -> tuple[TreatmentData, OutcomeData, CovariateData | None]:
+        covariates: Optional[CovariateData] = None,
+    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
         """Apply imputation to handle missing data.
 
         Args:
@@ -320,7 +320,7 @@ class MissingDataHandler:
 def diagnose_missing_data(
     treatment: TreatmentData,
     outcome: OutcomeData,
-    covariates: CovariateData | None = None,
+    covariates: Optional[CovariateData] = None,
 ) -> dict[str, object]:
     """Diagnose missing data patterns in causal inference dataset.
 
@@ -366,7 +366,7 @@ def diagnose_missing_data(
 def print_missing_data_report(
     treatment: TreatmentData,
     outcome: OutcomeData,
-    covariates: CovariateData | None = None,
+    covariates: Optional[CovariateData] = None,
 ) -> None:
     """Print a comprehensive missing data report.
 
@@ -443,10 +443,10 @@ def print_missing_data_report(
 def handle_missing_data(
     treatment: TreatmentData,
     outcome: OutcomeData,
-    covariates: CovariateData | None = None,
+    covariates: Optional[CovariateData] = None,
     strategy: str = "listwise",
     verbose: bool = True,
-) -> tuple[TreatmentData, OutcomeData, CovariateData | None]:
+) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
     """Convenience function to handle missing data.
 
     Args:

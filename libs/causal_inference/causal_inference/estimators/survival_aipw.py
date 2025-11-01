@@ -7,7 +7,7 @@ to create a doubly robust estimator.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -50,11 +50,11 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         survival_model: str = "cox",
         propensity_model: str = "logistic",
         weight_stabilization: bool = True,
-        weight_trimming: float | None = 0.01,
-        time_horizon: float | None = None,
+        weight_trimming: Optional[float] = 0.01,
+        time_horizon: Optional[float] = None,
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize AIPW survival estimator.
@@ -100,15 +100,15 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
 
         # Initialize IPW attributes without calling its __init__ (to avoid conflicts)
         self.propensity_model: Any = None
-        self.propensity_scores: np.ndarray | None = None
-        self.weights: np.ndarray | None = None
-        self.stabilized_weights: np.ndarray | None = None
+        self.propensity_scores: Optional[np.ndarray] = None
+        self.weights: Optional[np.ndarray] = None
+        self.stabilized_weights: Optional[np.ndarray] = None
 
     def _fit_implementation(
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit both outcome and propensity models for AIPW.
 
@@ -144,7 +144,7 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
             )
 
     def _compute_aipw_survival_curve(
-        self, treatment_value: int, times: np.ndarray | None = None
+        self, treatment_value: int, times: Optional[np.ndarray] = None
     ) -> pd.DataFrame:
         """Compute AIPW-adjusted survival curve.
 
@@ -571,7 +571,7 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
 
         return comparison
 
-    def _find_median_survival(self, curve: pd.DataFrame) -> float | None:
+    def _find_median_survival(self, curve: pd.DataFrame) -> Optional[float]:
         """Find median survival time from survival curve.
 
         Args:
@@ -586,7 +586,7 @@ class SurvivalAIPWEstimator(SurvivalGComputationEstimator, SurvivalIPWEstimator)
         return None
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> SurvivalAIPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 

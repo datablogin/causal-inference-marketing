@@ -7,7 +7,7 @@ causal effects.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -67,11 +67,11 @@ class SurvivalIPWEstimator(SurvivalEstimator):
         self,
         propensity_model: str = "logistic",
         weight_stabilization: bool = True,
-        weight_trimming: float | None = 0.01,
-        time_horizon: float | None = None,
+        weight_trimming: Optional[float] = 0.01,
+        time_horizon: Optional[float] = None,
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ) -> None:
         """Initialize IPW survival estimator.
@@ -107,9 +107,9 @@ class SurvivalIPWEstimator(SurvivalEstimator):
 
         # Fitted models and weights
         self.propensity_model: Any = None
-        self.propensity_scores: np.ndarray | None = None
-        self.weights: np.ndarray | None = None
-        self.stabilized_weights: np.ndarray | None = None
+        self.propensity_scores: Optional[np.ndarray] = None
+        self.weights: Optional[np.ndarray] = None
+        self.stabilized_weights: Optional[np.ndarray] = None
 
     def _fit_propensity_model(
         self,
@@ -201,7 +201,7 @@ class SurvivalIPWEstimator(SurvivalEstimator):
         self,
         treatment: TreatmentData,
         outcome: SurvivalOutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the IPW survival model.
 
@@ -558,7 +558,7 @@ class SurvivalIPWEstimator(SurvivalEstimator):
         }
 
     def _create_bootstrap_estimator(
-        self, random_state: int | None = None
+        self, random_state: Optional[int] = None
     ) -> SurvivalIPWEstimator:
         """Create a new estimator instance for bootstrap sampling.
 

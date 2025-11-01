@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import warnings
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import arviz as az
 import numpy as np
@@ -58,19 +58,19 @@ class BayesianCausalEffect(CausalEffect):
     """
 
     # Posterior samples and diagnostics
-    posterior_samples: NDArray[Any] | None = None
+    posterior_samples: Optional[NDArray[Any]] = None
     credible_interval_level: float = 0.95
-    effective_sample_size: float | None = None
-    r_hat: float | None = None
+    effective_sample_size: Optional[float] = None
+    r_hat: Optional[float] = None
 
     # Bayesian-specific intervals
-    ate_credible_lower: float | None = None
-    ate_credible_upper: float | None = None
+    ate_credible_lower: Optional[float] = None
+    ate_credible_upper: Optional[float] = None
 
     # Model information
-    model_summary: dict[str, Any] | None = None
-    prior_specification: dict[str, Any] | None = None
-    mcmc_diagnostics: dict[str, Any] | None = None
+    model_summary: Optional[dict[str, Any]] = None
+    prior_specification: Optional[dict[str, Any]] = None
+    mcmc_diagnostics: Optional[dict[str, Any]] = None
 
     def __post_init__(self) -> None:
         """Initialize Bayesian-specific fields."""
@@ -127,7 +127,7 @@ class BayesianEstimator(BaseEstimator):
         mcmc_tune: int = 1000,
         mcmc_chains: int = 4,
         credible_level: float = 0.95,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -179,14 +179,14 @@ class BayesianEstimator(BaseEstimator):
         self.credible_level = credible_level
 
         # Storage for fitted model and results
-        self.model_: pm.Model | None = None
-        self.trace_: az.InferenceData | None = None
+        self.model_: Optional[pm.Model] = None
+        self.trace_: Optional[az.InferenceData] = None
 
     def _validate_data(
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Validate input data for Bayesian estimation.
 
@@ -238,8 +238,8 @@ class BayesianEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
-    ) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any] | None]:
+        covariates: Optional[CovariateData] = None,
+    ) -> Optional[tuple[NDArray[Any], NDArray[Any], NDArray[Any]]]:
         """Prepare data arrays for Bayesian modeling.
 
         Args:
@@ -270,7 +270,7 @@ class BayesianEstimator(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit the Bayesian causal model.
 
@@ -437,7 +437,7 @@ class BayesianEstimator(BaseEstimator):
         )
 
     def plot_posterior(
-        self, var_names: list[str] | None = None, figsize: tuple[int, int] = (10, 6)
+        self, var_names: Optional[list[str]] = None, figsize: tuple[int, int] = (10, 6)
     ) -> Any:
         """Plot posterior distributions.
 
@@ -459,7 +459,7 @@ class BayesianEstimator(BaseEstimator):
         )
 
     def plot_trace(
-        self, var_names: list[str] | None = None, figsize: tuple[int, int] = (12, 8)
+        self, var_names: Optional[list[str]] = None, figsize: tuple[int, int] = (12, 8)
     ) -> Any:
         """Plot MCMC traces for convergence diagnostics.
 

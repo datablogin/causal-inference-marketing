@@ -6,7 +6,7 @@ the emulation of randomized trials using observational data.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -38,7 +38,7 @@ class TargetTrialEmulator:
         protocol: TargetTrialProtocol,
         estimation_method: str = "g_computation",
         adherence_adjustment: str = "intention_to_treat",
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ):
         """Initialize target trial emulator.
@@ -69,8 +69,8 @@ class TargetTrialEmulator:
 
         # Internal state
         self._fitted_estimators: dict[str, Any] = {}
-        self._emulated_data: pd.DataFrame | None = None
-        self._cloned_data: pd.DataFrame | None = None
+        self._emulated_data: Optional[pd.DataFrame] = None
+        self._cloned_data: Optional[pd.DataFrame] = None
 
     def emulate(
         self,

@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -56,10 +56,10 @@ class DiagnosticReportData:
     covariate_columns: list[str]
 
     # Analysis results
-    love_plot_data: LovePlotData | None = None
-    weight_diagnostics: WeightDiagnosticsResult | None = None
-    propensity_overlap: PropensityOverlapResult | None = None
-    residual_analysis: ResidualAnalysisResult | None = None
+    love_plot_data: Optional[LovePlotData] = None
+    weight_diagnostics: Optional[WeightDiagnosticsResult] = None
+    propensity_overlap: Optional[PropensityOverlapResult] = None
+    residual_analysis: Optional[ResidualAnalysisResult] = None
 
     # Recommendations
     love_plot_recommendations: list[str] = None
@@ -70,9 +70,9 @@ class DiagnosticReportData:
     # Additional metadata
     analysis_date: datetime = None
     estimator_name: str = "Unknown"
-    ate_estimate: float | None = None
-    ate_ci_lower: float | None = None
-    ate_ci_upper: float | None = None
+    ate_estimate: Optional[float] = None
+    ate_ci_lower: Optional[float] = None
+    ate_ci_upper: Optional[float] = None
 
 
 class DiagnosticReportGenerator:
@@ -80,7 +80,7 @@ class DiagnosticReportGenerator:
 
     def __init__(
         self,
-        template_dir: Path | None = None,
+        template_dir: Optional[Path] = None,
         include_interactive: bool = True,
         max_file_size_mb: float = 5.0,
         performance_mode: bool = False,
@@ -119,16 +119,16 @@ class DiagnosticReportGenerator:
         self,
         treatment_data: TreatmentData,
         outcome_data: OutcomeData,
-        covariates: CovariateData | None = None,
-        weights: NDArray[np.floating[Any]] | None = None,
-        propensity_scores: NDArray[np.floating[Any]] | None = None,
-        residuals: NDArray[np.floating[Any]] | None = None,
-        fitted_values: NDArray[np.floating[Any]] | None = None,
+        covariates: Optional[CovariateData] = None,
+        weights: Optional[NDArray[np.floating[Any]]] = None,
+        propensity_scores: Optional[NDArray[np.floating[Any]]] = None,
+        residuals: Optional[NDArray[np.floating[Any]]] = None,
+        fitted_values: Optional[NDArray[np.floating[Any]]] = None,
         estimator_name: str = "Causal Estimator",
-        ate_estimate: float | None = None,
-        ate_ci_lower: float | None = None,
-        ate_ci_upper: float | None = None,
-        save_path: str | None = None,
+        ate_estimate: Optional[float] = None,
+        ate_ci_lower: Optional[float] = None,
+        ate_ci_upper: Optional[float] = None,
+        save_path: Optional[str] = None,
         template_type: str = "comprehensive",
     ) -> str:
         """Generate a comprehensive diagnostic report.
@@ -209,15 +209,15 @@ class DiagnosticReportGenerator:
         self,
         treatment_data: TreatmentData,
         outcome_data: OutcomeData,
-        covariates: CovariateData | None,
-        weights: NDArray[np.floating[Any]] | None,
-        propensity_scores: NDArray[np.floating[Any]] | None,
-        residuals: NDArray[np.floating[Any]] | None,
-        fitted_values: NDArray[np.floating[Any]] | None,
+        covariates: Optional[CovariateData],
+        weights: Optional[NDArray[np.floating[Any]]],
+        propensity_scores: Optional[NDArray[np.floating[Any]]],
+        residuals: Optional[NDArray[np.floating[Any]]],
+        fitted_values: Optional[NDArray[np.floating[Any]]],
         estimator_name: str,
-        ate_estimate: float | None,
-        ate_ci_lower: float | None,
-        ate_ci_upper: float | None,
+        ate_estimate: Optional[float],
+        ate_ci_lower: Optional[float],
+        ate_ci_upper: Optional[float],
     ) -> DiagnosticReportData:
         """Collect all data needed for the report."""
         n_observations = len(treatment_data.values)
@@ -314,11 +314,11 @@ class DiagnosticReportGenerator:
         self,
         treatment_data: TreatmentData,
         outcome_data: OutcomeData,
-        covariates: CovariateData | None,
-        weights: NDArray[np.floating[Any]] | None,
-        propensity_scores: NDArray[np.floating[Any]] | None,
-        residuals: NDArray[np.floating[Any]] | None,
-        fitted_values: NDArray[np.floating[Any]] | None,
+        covariates: Optional[CovariateData],
+        weights: Optional[NDArray[np.floating[Any]]],
+        propensity_scores: Optional[NDArray[np.floating[Any]]],
+        residuals: Optional[NDArray[np.floating[Any]]],
+        fitted_values: Optional[NDArray[np.floating[Any]]],
         report_data: DiagnosticReportData,
     ) -> dict[str, str]:
         """Generate all plots and return as base64-encoded images."""
@@ -914,16 +914,16 @@ class DiagnosticReportGenerator:
 def generate_diagnostic_report(
     treatment_data: TreatmentData,
     outcome_data: OutcomeData,
-    covariates: CovariateData | None = None,
-    weights: NDArray[np.floating[Any]] | None = None,
-    propensity_scores: NDArray[np.floating[Any]] | None = None,
-    residuals: NDArray[np.floating[Any]] | None = None,
-    fitted_values: NDArray[np.floating[Any]] | None = None,
+    covariates: Optional[CovariateData] = None,
+    weights: Optional[NDArray[np.floating[Any]]] = None,
+    propensity_scores: Optional[NDArray[np.floating[Any]]] = None,
+    residuals: Optional[NDArray[np.floating[Any]]] = None,
+    fitted_values: Optional[NDArray[np.floating[Any]]] = None,
     estimator_name: str = "Causal Estimator",
-    ate_estimate: float | None = None,
-    ate_ci_lower: float | None = None,
-    ate_ci_upper: float | None = None,
-    save_path: str | None = None,
+    ate_estimate: Optional[float] = None,
+    ate_ci_lower: Optional[float] = None,
+    ate_ci_upper: Optional[float] = None,
+    save_path: Optional[str] = None,
     template_type: str = "comprehensive",
     performance_mode: bool = False,
 ) -> str:

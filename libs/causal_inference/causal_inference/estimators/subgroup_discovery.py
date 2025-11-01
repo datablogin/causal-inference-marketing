@@ -25,7 +25,7 @@ designed specifically for treatment effect heterogeneity.
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Optional
 
 import numpy as np
 import pandas as pd
@@ -127,11 +127,11 @@ class VirtualTwins(BaseEstimator):
 
     def __init__(
         self,
-        benefit_learner: SklearnBaseEstimator | None = None,
-        subgroup_learner: SklearnBaseEstimator | None = None,
+        benefit_learner: Optional[SklearnBaseEstimator] = None,
+        subgroup_learner: Optional[SklearnBaseEstimator] = None,
         min_subgroup_size: int = 30,
         significance_level: float = 0.05,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
         **kwargs: Any,
     ):
         """Initialize Virtual Twins.
@@ -169,7 +169,7 @@ class VirtualTwins(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None = None,
+        covariates: Optional[CovariateData] = None,
     ) -> None:
         """Fit Virtual Twins model.
 
@@ -219,7 +219,7 @@ class VirtualTwins(BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: CovariateData | None,
+        covariates: Optional[CovariateData],
     ) -> tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
         """Prepare data for Virtual Twins."""
         # Extract arrays
@@ -286,7 +286,7 @@ class VirtualTwins(BaseEstimator):
         )
 
     def discover_subgroups(
-        self, covariates: pd.DataFrame | NDArray[Any] | None = None
+        self, covariates: pd.DataFrame | Optional[NDArray[Any]] = None
     ) -> SubgroupResult:
         """Discover subgroups with differential treatment effects.
 
@@ -458,7 +458,7 @@ class SIDES:
 
     def __init__(
         self,
-        base_learner: SklearnBaseEstimator | None = None,
+        base_learner: Optional[SklearnBaseEstimator] = None,
         min_subgroup_size: int = 50,
         significance_level: float = 0.05,
         **kwargs: Any,

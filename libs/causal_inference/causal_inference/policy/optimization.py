@@ -19,7 +19,7 @@ Functions:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -60,8 +60,8 @@ class PolicyResult:
     total_cost: float
     policy_type: str
     optimization_info: dict[str, Any] = field(default_factory=dict)
-    individual_uplifts: NDArray[np.floating] | None = None
-    individual_costs: NDArray[np.floating] | None = None
+    individual_uplifts: Optional[NDArray[np.floating]] = None
+    individual_costs: Optional[NDArray[np.floating]] = None
     constraints_satisfied: bool = True
 
     @property
@@ -105,7 +105,7 @@ class PolicyOptimizer:
         optimization_method: str = "greedy",
         solver: str = "ECOS",
         verbose: bool = False,
-        random_state: int | None = None,
+        random_state: Optional[int] = None,
     ):
         self.optimization_method = optimization_method
         self.solver = solver
@@ -123,11 +123,11 @@ class PolicyOptimizer:
     def optimize_policy(
         self,
         uplifts: NDArray[np.floating],
-        costs: NDArray[np.floating] | None = None,
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
-        fairness_constraints: dict[str, Any] | None = None,
-        features: NDArray[np.floating] | None = None,
+        costs: Optional[NDArray[np.floating]] = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
+        fairness_constraints: Optional[dict[str, Any]] = None,
+        features: Optional[NDArray[np.floating]] = None,
     ) -> PolicyResult:
         """Optimize treatment assignment policy.
 
@@ -178,8 +178,8 @@ class PolicyOptimizer:
         self,
         uplifts: NDArray[np.floating],
         costs: NDArray[np.floating],
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
     ) -> PolicyResult:
         """Greedy optimization by uplift-to-cost ratio."""
         n_individuals = len(uplifts)
@@ -228,9 +228,9 @@ class PolicyOptimizer:
         self,
         uplifts: NDArray[np.floating],
         costs: NDArray[np.floating],
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
-        fairness_constraints: dict[str, Any] | None = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
+        fairness_constraints: Optional[dict[str, Any]] = None,
     ) -> PolicyResult:
         """Integer Linear Programming optimization."""
         if not HAS_CVXPY:
@@ -317,9 +317,9 @@ class PolicyOptimizer:
         self,
         uplifts: NDArray[np.floating],
         costs: NDArray[np.floating],
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
-        fairness_constraints: dict[str, Any] | None = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
+        fairness_constraints: Optional[dict[str, Any]] = None,
     ) -> PolicyResult:
         """Multi-objective optimization balancing value, cost, and fairness."""
         # For now, use weighted combination approach
@@ -361,8 +361,8 @@ class PolicyOptimizer:
         uplifts: NDArray[np.floating],
         costs: NDArray[np.floating],
         features: NDArray[np.floating],
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
     ) -> PolicyResult:
         """Dynamic policy optimization using contextual information."""
         # Simplified dynamic policy: adjust uplifts based on features
@@ -390,8 +390,8 @@ class PolicyOptimizer:
         scores: NDArray[np.floating],
         uplifts: NDArray[np.floating],
         costs: NDArray[np.floating],
-        budget: float | None = None,
-        max_treatment_rate: float | None = None,
+        budget: Optional[float] = None,
+        max_treatment_rate: Optional[float] = None,
     ) -> PolicyResult:
         """Helper method for greedy selection by arbitrary scores."""
         n_individuals = len(scores)
@@ -436,8 +436,8 @@ class PolicyOptimizer:
 
 def greedy_policy(
     uplifts: NDArray[np.floating],
-    k: int | None = None,
-    treatment_rate: float | None = None,
+    k: Optional[int] = None,
+    treatment_rate: Optional[float] = None,
 ) -> NDArray[np.bool_]:
     """Simple greedy policy: treat top-k individuals by uplift.
 
