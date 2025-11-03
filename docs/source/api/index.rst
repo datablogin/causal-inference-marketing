@@ -51,6 +51,31 @@ All causal inference estimators inherit from :class:`~causal_inference.core.base
 - :class:`~causal_inference.estimators.survival_ipw.SurvivalIPW` - Survival IPW
 - :class:`~causal_inference.estimators.survival_aipw.SurvivalAIPW` - Survival AIPW
 
+Optimization
+============
+
+.. toctree::
+   :maxdepth: 2
+
+   optimization
+
+PyRake-style optimization framework for improving estimator efficiency:
+
+**Weight Optimization:**
+- IPW weight optimization to reduce variance while maintaining balance
+- Configurable distance metrics (L2, KL divergence, Chi-squared)
+- Automatic fallback to analytical weights if optimization fails
+
+**Model Ensemble Optimization:**
+- G-computation ensemble weighting across multiple outcome models
+- Minimize cross-validated prediction error
+- Support for diverse model types (linear, logistic, random forest)
+
+**Component Balance Optimization:**
+- AIPW optimization of G-computation vs IPW component weighting
+- Data-adaptive balance between outcome modeling and propensity weighting
+- Variance reduction while maintaining double robustness
+
 Diagnostics
 ===========
 

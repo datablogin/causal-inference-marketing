@@ -24,6 +24,36 @@ Benefits of optimization:
 3. **Improved effective sample size** through better weight distribution
 4. **Better covariate balance** through explicit balance constraints
 
+## Optimization Timing by Estimator
+
+**Important**: Different estimators run optimization at different stages. Always check when diagnostics become available:
+
+| Estimator | Optimization Type | Optimization Timing | Diagnostics Available After | Notes |
+|-----------|------------------|---------------------|----------------------------|-------|
+| **IPW** | Weight optimization | `fit()` | `fit()` | Optimizes IPW weights during fitting |
+| **G-computation** | Ensemble weighting | `fit()` | `fit()` | Optimizes model ensemble during fitting |
+| **AIPW** | Component balance | `estimate_ate()` | `estimate_ate()` | ⚠️ Optimizes during estimation, not fitting |
+
+**Why is AIPW different?**
+- IPW and G-computation optimize individual components (weights or models) during fitting
+- AIPW optimizes the *combination* of G-computation and IPW components, which requires both to be computed
+- Both components are computed during `estimate_ate()`, so optimization must happen then too
+
+**Practical implication**:
+```python
+# IPW - diagnostics available after fit()
+ipw = IPWEstimator(optimization_config=config)
+ipw.fit(treatment, outcome, covariates)
+diag = ipw.get_optimization_diagnostics()  # ✅ Available
+
+# AIPW - diagnostics only after estimate_ate()
+aipw = AIPWEstimator(optimize_component_balance=True)
+aipw.fit(treatment, outcome, covariates)
+diag = aipw.get_optimization_diagnostics()  # ❌ Returns None
+effect = aipw.estimate_ate()
+diag = aipw.get_optimization_diagnostics()  # ✅ Now available
+```
+
 ## Configuration
 
 Use `OptimizationConfig` to control optimization behavior:
@@ -296,6 +326,28 @@ Component optimization finds optimal weights α (for G-comp) and (1-α) (for IPW
 - Higher values keep weights closer to 0.5 (more conservative)
 - Lower values allow more extreme weights (more adaptive)
 - Range: 0.0 to 1.0
+
+### Important: Standard Error Computation
+
+> **Warning**: Component optimization is **incompatible** with `influence_function_se=True`.
+>
+> **Why?** Influence function standard errors assume a fixed estimator formula (50/50 component weighting).
+> Component optimization data-adaptively chooses weights, which invalidates this assumption. The influence
+> function would need to account for the weight selection process, which is statistically complex.
+>
+> **Solution**: Use bootstrap confidence intervals instead:
+> ```python
+> from causal_inference.core.base import BootstrapConfig
+>
+> estimator = AIPWEstimator(
+>     optimize_component_balance=True,
+>     influence_function_se=False,  # Required with optimization
+>     bootstrap_config=BootstrapConfig(n_samples=1000, confidence_level=0.95)
+> )
+> ```
+>
+> Bootstrap resampling naturally accounts for the weight selection process and provides valid
+> confidence intervals under optimization.
 
 ### Diagnostics
 

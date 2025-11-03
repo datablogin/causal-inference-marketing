@@ -239,7 +239,9 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         if optimize_component_balance and influence_function_se:
             raise ValueError(
                 "Cannot use influence_function_se=True with optimize_component_balance=True. "
-                "Influence function standard errors are invalid with component optimization. "
+                "Influence function standard errors assume a fixed estimator formula (50/50 weighting), "
+                "but component optimization data-adaptively chooses weights, invalidating this assumption. "
+                "The influence function would need to account for the weight selection process, which is complex. "
                 "Either set influence_function_se=False or disable optimization. "
                 "Use bootstrap_config to compute valid confidence intervals with optimization."
             )
@@ -1243,7 +1245,7 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     stratify_folds=self.stratify_folds,
                     optimize_component_balance=self.optimize_component_balance,
                     component_variance_penalty=self.component_variance_penalty,
-                    influence_function_se=False,  # Must be False with optimization
+                    influence_function_se=False,  # Required: influence function SE incompatible with optimization (see __init__ validation)
                     bootstrap_samples=0,  # Don't bootstrap within bootstrap
                     random_state=None,  # Use different random state for each bootstrap
                     verbose=False,
