@@ -128,6 +128,18 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     - e(X) is the propensity score
     - T_i, Y_i are treatment and outcome for unit i
 
+    Important Note on Component Optimization:
+        When optimize_component_balance=True, the optimization happens during
+        estimate_ate(), NOT during fit(). This is because component optimization
+        requires both G-computation and IPW components, which are computed during
+        estimation. Therefore, get_optimization_diagnostics() will return None
+        until after estimate_ate() is called.
+
+        Correct usage:
+            estimator.fit(treatment, outcome, covariates)  # No optimization yet
+            effect = estimator.estimate_ate()             # Optimization happens here
+            diagnostics = estimator.get_optimization_diagnostics()  # Now available
+
     Attributes:
         outcome_estimator: G-computation estimator for outcome models
         propensity_estimator: IPW estimator for propensity scores
@@ -176,7 +188,9 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             stabilized_weights: Whether to use stabilized IPW weights
             bootstrap_config: Configuration for bootstrap confidence intervals
             optimization_config: Configuration for optimization strategies
-            optimize_component_balance: Optimize G-computation vs IPW balance
+            optimize_component_balance: Optimize G-computation vs IPW balance. Note: optimization
+                happens during estimate_ate(), so diagnostics are only available after calling
+                estimate_ate(). This differs from IPW, where optimization happens during fit().
             component_variance_penalty: Penalty for deviating from 50/50 balance
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
             confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
@@ -1227,6 +1241,9 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     cross_fitting=self.cross_fitting,
                     n_folds=self.n_folds,
                     stratify_folds=self.stratify_folds,
+                    optimize_component_balance=self.optimize_component_balance,
+                    component_variance_penalty=self.component_variance_penalty,
+                    influence_function_se=False,  # Must be False with optimization
                     bootstrap_samples=0,  # Don't bootstrap within bootstrap
                     random_state=None,  # Use different random state for each bootstrap
                     verbose=False,
