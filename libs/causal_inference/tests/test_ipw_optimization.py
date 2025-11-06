@@ -9,6 +9,36 @@ from causal_inference.core.optimization_config import OptimizationConfig
 from causal_inference.estimators.ipw import IPWEstimator
 
 
+def compute_smd(covariates, treatment, weights):
+    """Compute standardized mean difference for each covariate.
+
+    Args:
+        covariates: Covariate matrix (n x p)
+        treatment: Binary treatment vector
+        weights: Weight vector
+
+    Returns:
+        Array of SMD values for each covariate
+    """
+    treated_mask = treatment == 1
+    control_mask = treatment == 0
+
+    # Weighted means
+    weighted_mean_treated = np.average(
+        covariates[treated_mask], weights=weights[treated_mask], axis=0
+    )
+    weighted_mean_control = np.average(
+        covariates[control_mask], weights=weights[control_mask], axis=0
+    )
+
+    # Pooled standard deviation
+    std_pooled = np.std(covariates, axis=0)
+
+    # SMD
+    smd = np.abs(weighted_mean_treated - weighted_mean_control) / (std_pooled + 1e-10)
+    return smd
+
+
 @pytest.fixture
 def synthetic_data_with_confounding():
     """Generate synthetic data with known treatment effect and confounding."""
@@ -207,6 +237,26 @@ def test_ipw_optimization_variance_reduction(synthetic_data_with_confounding):
     # Verify ESS improvement or stability
     # Note: ESS might not always increase due to the variance-balance tradeoff
     assert weight_diag_opt["effective_sample_size"] > 0, "ESS should be positive"
+
+    # Compute covariate balance using SMD
+    covariates = synthetic_data_with_confounding["covariates"].values
+    treatment = synthetic_data_with_confounding["treatment"].values
+
+    smd_standard = compute_smd(covariates, treatment, estimator_standard.weights)
+    smd_optimized = compute_smd(covariates, treatment, estimator_optimized.weights)
+
+    # Verify balance improvement
+    # Note: Due to variance constraint, balance may not reach exact tolerance
+    # The key test is that balance improves relative to standard IPW
+    assert np.max(smd_optimized) <= np.max(smd_standard), (
+        f"Balance should not worsen: optimized max SMD={np.max(smd_optimized):.4f}, "
+        f"standard max SMD={np.max(smd_standard):.4f}"
+    )
+    # Verify balance is reasonable (within a practical threshold)
+    assert np.max(smd_optimized) <= 0.1, (
+        f"Optimized balance (max SMD={np.max(smd_optimized):.4f}) should be "
+        f"reasonably good (< 0.1 is generally acceptable)"
+    )
 
 
 def test_ipw_optimization_different_distance_metrics(synthetic_data_with_confounding):
