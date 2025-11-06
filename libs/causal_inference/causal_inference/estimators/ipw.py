@@ -600,9 +600,35 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     ) -> None:
         """Print optimization diagnostics summary.
 
+        This method provides verbose output about weight diagnostics before and after
+        optimization, including improvement metrics.
+
         Args:
-            baseline_diag: Baseline weight diagnostics
-            opt_diag: Optimization diagnostics (if optimization was performed)
+            baseline_diag: Baseline weight diagnostics dictionary containing:
+                - weight_variance: Variance of baseline weights
+                - effective_sample_size: ESS of baseline weights
+            opt_diag: Optimization diagnostics (if optimization was performed) containing:
+                - success: Whether optimization converged
+                - final_objective: Final objective function value
+                - n_iterations: Number of optimization iterations
+                - constraint_violation: Maximum covariate imbalance (SMD)
+                - weight_variance: Variance of optimized weights
+                - effective_sample_size: ESS of optimized weights
+
+        Example Output:
+            === Baseline Weight Diagnostics ===
+            Baseline weight variance: 2.3456
+            Baseline effective sample size: 850.2
+
+            === Weight Optimization Results ===
+            Optimization converged: True
+            Final objective value: 1.234567
+            Iterations: 15
+            Max covariate imbalance (SMD): 0.0234
+            Optimized weight variance: 1.2345
+            Optimized effective sample size: 920.5
+            Variance reduction: 47.4%
+            ESS improvement: 8.3%
         """
         if not self.verbose:
             return
@@ -628,22 +654,29 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 f"Optimized effective sample size: {opt_diag['effective_sample_size']:.1f}"
             )
 
-            # Show improvement metrics
-            variance_improvement = (
-                (baseline_diag["weight_variance"] - opt_diag["weight_variance"])
-                / baseline_diag["weight_variance"]
-                * 100
-            )
-            ess_improvement = (
-                (
-                    opt_diag["effective_sample_size"]
-                    - baseline_diag["effective_sample_size"]
+            # Show improvement metrics with safeguards for division by zero
+            if baseline_diag["weight_variance"] > 0:
+                variance_improvement = (
+                    (baseline_diag["weight_variance"] - opt_diag["weight_variance"])
+                    / baseline_diag["weight_variance"]
+                    * 100
                 )
-                / baseline_diag["effective_sample_size"]
-                * 100
-            )
-            print(f"Variance reduction: {variance_improvement:.1f}%")
-            print(f"ESS improvement: {ess_improvement:.1f}%")
+                print(f"Variance reduction: {variance_improvement:.1f}%")
+            else:
+                print("Variance reduction: N/A (baseline variance is zero)")
+
+            if baseline_diag["effective_sample_size"] > 0:
+                ess_improvement = (
+                    (
+                        opt_diag["effective_sample_size"]
+                        - baseline_diag["effective_sample_size"]
+                    )
+                    / baseline_diag["effective_sample_size"]
+                    * 100
+                )
+                print(f"ESS improvement: {ess_improvement:.1f}%")
+            else:
+                print("ESS improvement: N/A (baseline ESS is zero)")
 
     def _fit_implementation(
         self,
