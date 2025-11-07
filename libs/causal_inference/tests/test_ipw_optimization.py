@@ -1,7 +1,10 @@
 """Integration tests for IPW with PyRake-style optimization."""
 
+from typing import Any
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
 from causal_inference.core.bootstrap import BootstrapConfig
@@ -13,7 +16,9 @@ from causal_inference.estimators.ipw import IPWEstimator
 ACCEPTABLE_SMD_THRESHOLD = 0.15
 
 
-def compute_smd(covariates, treatment, weights):
+def compute_smd(
+    covariates: NDArray[Any], treatment: NDArray[Any], weights: NDArray[Any]
+) -> NDArray[Any]:
     """Compute standardized mean difference for each covariate.
 
     SMD is a scale-free measure of covariate balance commonly used in
