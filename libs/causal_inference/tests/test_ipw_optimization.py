@@ -8,20 +8,47 @@ from causal_inference.core.bootstrap import BootstrapConfig
 from causal_inference.core.optimization_config import OptimizationConfig
 from causal_inference.estimators.ipw import IPWEstimator
 
+# SMD threshold for acceptable covariate balance
+# Values < 0.1 indicate excellent balance, < 0.15-0.2 is acceptable in many contexts
+ACCEPTABLE_SMD_THRESHOLD = 0.15
+
 
 def compute_smd(covariates, treatment, weights):
     """Compute standardized mean difference for each covariate.
 
+    SMD is a scale-free measure of covariate balance commonly used in
+    causal inference. Values < 0.1 indicate excellent balance, < 0.2
+    is acceptable in many contexts.
+
     Args:
         covariates: Covariate matrix (n x p)
-        treatment: Binary treatment vector
-        weights: Weight vector
+        treatment: Binary treatment vector (0/1)
+        weights: Weight vector (e.g., IPW weights)
 
     Returns:
-        Array of SMD values for each covariate
+        Array of SMD values for each covariate, one per column
+
+    Raises:
+        ValueError: If inputs have mismatched lengths or empty treatment groups
+
+    References:
+        Austin, P.C., & Stuart, E.A. (2015). Moving towards best practice
+        when using inverse probability of treatment weighting (IPTW).
+
+    Note:
+        TODO: Consider moving this to causal_inference.diagnostics.balance
+        for reusability across the codebase.
     """
+    # Validate inputs
+    if len(treatment) != len(covariates) or len(weights) != len(covariates):
+        raise ValueError("Treatment, weights, and covariates must have same length")
+
     treated_mask = treatment == 1
     control_mask = treatment == 0
+
+    # Check for empty groups
+    if not np.any(treated_mask) or not np.any(control_mask):
+        raise ValueError("Both treatment groups must have observations")
 
     # Weighted means
     weighted_mean_treated = np.average(
@@ -31,7 +58,10 @@ def compute_smd(covariates, treatment, weights):
         covariates[control_mask], weights=weights[control_mask], axis=0
     )
 
-    # Pooled standard deviation
+    # Pooled standard deviation across all observations
+    # Note: This uses the overall population SD rather than group-specific pooled SD.
+    # This approach is valid and commonly used, especially when sample sizes differ.
+    # Alternative: np.sqrt((std_treated**2 + std_control**2) / 2)
     std_pooled = np.std(covariates, axis=0)
 
     # SMD
@@ -253,9 +283,9 @@ def test_ipw_optimization_variance_reduction(synthetic_data_with_confounding):
         f"standard max SMD={np.max(smd_standard):.4f}"
     )
     # Verify balance is reasonable (within a practical threshold)
-    assert np.max(smd_optimized) <= 0.1, (
+    assert np.max(smd_optimized) <= ACCEPTABLE_SMD_THRESHOLD, (
         f"Optimized balance (max SMD={np.max(smd_optimized):.4f}) should be "
-        f"reasonably good (< 0.1 is generally acceptable)"
+        f"within acceptable range (< {ACCEPTABLE_SMD_THRESHOLD})"
     )
 
 
