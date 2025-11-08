@@ -464,6 +464,9 @@ def test_ipw_optimization_single_covariate():
     assert "success" in opt_diag, "Diagnostics should contain success flag"
 
     # Verify estimate is reasonable (within 1.0 of true ATE)
+    # Note: Tolerance of 1.0 (50% of true ATE=2.0) is appropriate for edge case testing
+    # with a single covariate. The primary goal is verifying proper 1D array handling
+    # and optimization completion, not achieving optimal statistical accuracy.
     assert (
         abs(effect.ate - true_ate) < 1.0
     ), f"ATE estimate {effect.ate} should be close to true ATE {true_ate}"
@@ -472,9 +475,25 @@ def test_ipw_optimization_single_covariate():
     assert estimator.weights is not None, "Weights should be computed"
     assert len(estimator.weights) == n, "Weights length should match sample size"
 
+    # Verify covariate balance is achieved after optimization
+    # Reshape X for SMD computation (compute_smd expects 2D array)
+    X_2d = X.reshape(-1, 1)
+    smd = compute_smd(X_2d, treatment, estimator.weights)
+    assert np.max(smd) <= ACCEPTABLE_SMD_THRESHOLD, (
+        f"Single covariate should achieve acceptable balance: "
+        f"SMD={np.max(smd):.4f}, threshold={ACCEPTABLE_SMD_THRESHOLD}"
+    )
+
 
 def test_ipw_optimization_convergence_failure():
-    """Test graceful handling of optimization failure."""
+    """Test graceful handling of optimization failure.
+
+    This test validates that the estimator handles pathological cases gracefully
+    by either: (1) completing successfully with a suboptimal solution, or
+    (2) raising an appropriate EstimationError (not crashing with unexpected errors).
+
+    Both outcomes are acceptable for edge case handling.
+    """
     np.random.seed(42)
     n = 100
 
@@ -509,14 +528,15 @@ def test_ipw_optimization_convergence_failure():
         verbose=False,
     )
 
-    # Fit the estimator - may have convergence issues but should not crash
+    # Test graceful handling: should either succeed or raise EstimationError
+    # (not crash with unexpected errors like AttributeError, TypeError, etc.)
     try:
         estimator.fit(treatment_data, outcome_data, covariate_data)
 
         # Estimate ATE - should work even if optimization didn't converge
         effect = estimator.estimate_ate()
 
-        # Verify we got a result
+        # Verify we got a result (Outcome 1: Success path)
         assert (
             effect.ate is not None
         ), "Should get ATE estimate even if optimization struggled"
@@ -526,13 +546,17 @@ def test_ipw_optimization_convergence_failure():
         if opt_diag is not None:
             # If optimization ran, check that diagnostics are reasonable
             assert "success" in opt_diag, "Diagnostics should contain success flag"
-            # Note: success might be False, which is OK - we're testing graceful handling
+            # Note: success might be False, which is acceptable for graceful handling
 
+    except EstimationError:
+        # Outcome 2: Proper error path - this is acceptable for pathological cases
+        # The key is that we get a meaningful EstimationError, not an unexpected crash
+        pass
     except Exception as e:
-        # If we get an error, it should be an EstimationError (not a crash)
-        assert isinstance(
-            e, EstimationError
-        ), f"Should raise EstimationError, got {type(e)}"
+        # Outcome 3: Unexpected error - this is a test failure
+        pytest.fail(
+            f"Should either succeed or raise EstimationError, got {type(e).__name__}: {e}"
+        )
 
 
 def test_ipw_optimization_extreme_propensity_scores():
@@ -599,6 +623,11 @@ def test_ipw_optimization_extreme_propensity_scores():
     assert weight_diag is not None, "Weight diagnostics should be available"
 
     # Weights should be bounded even with extreme propensity scores
+    # Note: The threshold of 1000 comes from the IPW estimator's propensity score
+    # clipping mechanism. In _compute_weights (ipw.py:541), propensity scores are
+    # bounded to [0.001, 0.999], giving maximum theoretical weights of:
+    # - For treated: 1/0.001 = 1000 (weight = 1/PS)
+    # - For control: 1/(1-0.999) = 1000 (weight = 1/(1-PS))
     assert (
         weight_diag["max_weight"] < 1000
     ), "Weights should be bounded to prevent extreme values"
