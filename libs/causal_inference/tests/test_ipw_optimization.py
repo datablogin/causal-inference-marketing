@@ -6,7 +6,12 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+from causal_inference.core.base import (
+    CovariateData,
+    EstimationError,
+    OutcomeData,
+    TreatmentData,
+)
 from causal_inference.core.bootstrap import BootstrapConfig
 from causal_inference.core.optimization_config import OptimizationConfig
 from causal_inference.estimators.ipw import IPWEstimator
@@ -406,3 +411,246 @@ def test_ipw_optimization_diagnostics_accessible(synthetic_data_with_confounding
     assert isinstance(opt_diag["constraint_violation"], (float, np.floating))
     assert isinstance(opt_diag["weight_variance"], (float, np.floating))
     assert isinstance(opt_diag["effective_sample_size"], (float, np.floating))
+
+
+def test_ipw_optimization_single_covariate():
+    """Test optimization with single covariate (1D array handling)."""
+    np.random.seed(42)
+    n = 500
+
+    # Generate data with only ONE covariate
+    X = np.random.randn(n)  # 1D array
+
+    # Treatment with confounding
+    propensity = 1 / (1 + np.exp(-X))
+    treatment = np.random.binomial(1, propensity)
+
+    # Outcome with treatment effect = 2.0
+    true_ate = 2.0
+    outcome = 2.0 * treatment + X + np.random.randn(n) * 0.5
+
+    # Create data objects - CovariateData should handle 1D array
+    treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+    outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+    covariate_data = CovariateData(values=X, names=["X1"])
+
+    # Create optimization config
+    opt_config = OptimizationConfig(
+        optimize_weights=True,
+        variance_constraint=2.0,
+        balance_constraints=True,
+        balance_tolerance=0.01,
+        distance_metric="l2",
+        verbose=False,
+    )
+
+    # Create IPW estimator with optimization
+    estimator = IPWEstimator(
+        propensity_model_type="logistic",
+        optimization_config=opt_config,
+        random_state=42,
+        verbose=False,
+    )
+
+    # Fit the estimator - should handle 1D array properly
+    estimator.fit(treatment_data, outcome_data, covariate_data)
+
+    # Estimate ATE
+    effect = estimator.estimate_ate()
+
+    # Verify optimization ran successfully
+    opt_diag = estimator.get_optimization_diagnostics()
+    assert opt_diag is not None, "Optimization diagnostics should be available"
+    assert "success" in opt_diag, "Diagnostics should contain success flag"
+
+    # Verify estimate is reasonable (within 1.0 of true ATE)
+    # Note: Tolerance of 1.0 (50% of true ATE=2.0) is appropriate for edge case testing
+    # with a single covariate. The primary goal is verifying proper 1D array handling
+    # and optimization completion, not achieving optimal statistical accuracy.
+    assert (
+        abs(effect.ate - true_ate) < 1.0
+    ), f"ATE estimate {effect.ate} should be close to true ATE {true_ate}"
+
+    # Verify weights are computed
+    assert estimator.weights is not None, "Weights should be computed"
+    assert len(estimator.weights) == n, "Weights length should match sample size"
+
+    # Verify covariate balance is achieved after optimization
+    # Reshape X for SMD computation (compute_smd expects 2D array)
+    X_2d = X.reshape(-1, 1)
+    smd = compute_smd(X_2d, treatment, estimator.weights)
+    assert np.max(smd) <= ACCEPTABLE_SMD_THRESHOLD, (
+        f"Single covariate should achieve acceptable balance: "
+        f"SMD={np.max(smd):.4f}, threshold={ACCEPTABLE_SMD_THRESHOLD}"
+    )
+
+
+def test_ipw_optimization_convergence_failure():
+    """Test graceful handling of optimization failure.
+
+    This test validates that the estimator handles pathological cases gracefully
+    by either: (1) completing successfully with a suboptimal solution, or
+    (2) raising an appropriate EstimationError (not crashing with unexpected errors).
+
+    Both outcomes are acceptable for edge case handling.
+    """
+    np.random.seed(42)
+    n = 100
+
+    # Create pathological data that causes convergence issues
+    # Use perfectly separable data
+    X = np.random.randn(n, 2)
+    # Make treatment perfectly predictable from covariates
+    treatment = (X[:, 0] + X[:, 1] > 0).astype(int)
+
+    # Outcome - simple relationship
+    outcome = 2.0 * treatment + X[:, 0] + np.random.randn(n) * 0.1
+
+    treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+    outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+    covariate_data = CovariateData(values=X, names=["X1", "X2"])
+
+    # Create optimization config with very tight constraints
+    opt_config = OptimizationConfig(
+        optimize_weights=True,
+        variance_constraint=0.5,  # Very tight constraint
+        balance_constraints=True,
+        balance_tolerance=0.001,  # Very tight tolerance
+        distance_metric="l2",
+        verbose=False,
+    )
+
+    # Create IPW estimator with optimization
+    estimator = IPWEstimator(
+        propensity_model_type="logistic",
+        optimization_config=opt_config,
+        random_state=42,
+        verbose=False,
+    )
+
+    # Test graceful handling: should either succeed or raise EstimationError
+    # (not crash with unexpected errors like AttributeError, TypeError, etc.)
+    try:
+        estimator.fit(treatment_data, outcome_data, covariate_data)
+
+        # Estimate ATE - should work even if optimization didn't converge
+        effect = estimator.estimate_ate()
+
+        # Verify we got a result (Outcome 1: Success path)
+        assert (
+            effect.ate is not None
+        ), "Should get ATE estimate even if optimization struggled"
+
+        # Check diagnostics - may or may not have succeeded
+        opt_diag = estimator.get_optimization_diagnostics()
+        if opt_diag is not None:
+            # If optimization ran, check that diagnostics are reasonable
+            assert "success" in opt_diag, "Diagnostics should contain success flag"
+            # Note: success might be False, which is acceptable for graceful handling
+
+    except EstimationError:
+        # Outcome 2: Proper error path - this is acceptable for pathological cases
+        # The key is that we get a meaningful EstimationError, not an unexpected crash
+        pass
+    except Exception as e:
+        # Outcome 3: Unexpected error - this is a test failure
+        pytest.fail(
+            f"Should either succeed or raise EstimationError, got {type(e).__name__}: {e}"
+        )
+
+
+def test_ipw_optimization_extreme_propensity_scores():
+    """Test optimization with extreme propensity scores."""
+    np.random.seed(42)
+    n = 500
+
+    # Covariates
+    X = np.random.randn(n, 3)
+
+    # Create treatment with extreme propensity scores
+    # Use large coefficients to push propensities to extremes
+    propensity_logit = 3.0 * X[:, 0] + 2.0 * X[:, 1]
+    propensity = 1 / (1 + np.exp(-propensity_logit))
+    treatment = np.random.binomial(1, propensity)
+
+    # Outcome (no true ATE needed for this test - we're testing error handling)
+    outcome = 2.0 * treatment + X[:, 0] + 0.5 * X[:, 1] + np.random.randn(n) * 0.5
+
+    treatment_data = TreatmentData(values=treatment, treatment_type="binary")
+    outcome_data = OutcomeData(values=outcome, outcome_type="continuous")
+    covariate_data = CovariateData(values=X, names=["X1", "X2", "X3"])
+
+    # Create optimization config
+    opt_config = OptimizationConfig(
+        optimize_weights=True,
+        variance_constraint=2.0,
+        balance_constraints=True,
+        balance_tolerance=0.05,
+        distance_metric="l2",
+        verbose=False,
+    )
+
+    # Create IPW estimator with optimization and overlap checking
+    estimator = IPWEstimator(
+        propensity_model_type="logistic",
+        optimization_config=opt_config,
+        check_overlap=True,
+        overlap_threshold=0.1,
+        random_state=42,
+        verbose=False,
+    )
+
+    # Fit the estimator - should handle extreme propensity scores
+    estimator.fit(treatment_data, outcome_data, covariate_data)
+
+    # Check overlap diagnostics - should have warnings
+    overlap_diag = estimator.get_overlap_diagnostics()
+    assert overlap_diag is not None, "Overlap diagnostics should be available"
+
+    # May or may not satisfy overlap depending on data generation
+    # The key is that we get diagnostics and warnings
+    if not overlap_diag["overlap_satisfied"]:
+        assert (
+            len(overlap_diag["violations"]) > 0
+        ), "Should have overlap violations listed"
+
+    # Estimate ATE - should work despite extreme propensity scores
+    effect = estimator.estimate_ate()
+    assert effect.ate is not None, "Should get ATE estimate"
+
+    # Verify weights are bounded (clipped to prevent extreme values)
+    weight_diag = estimator.get_weight_diagnostics()
+    assert weight_diag is not None, "Weight diagnostics should be available"
+
+    # Weights should be bounded even with extreme propensity scores
+    # Note: The threshold of 1000 comes from the IPW estimator's propensity score
+    # clipping mechanism. In _compute_weights (ipw.py:541), propensity scores are
+    # bounded to [0.001, 0.999], giving maximum theoretical weights of:
+    # - For treated: 1/0.001 = 1000 (weight = 1/PS)
+    # - For control: 1/(1-0.999) = 1000 (weight = 1/(1-PS))
+    assert (
+        weight_diag["max_weight"] < 1000
+    ), "Weights should be bounded to prevent extreme values"
+
+
+def test_ipw_optimization_empty_groups():
+    """Test handling of edge case with no variation in treatment."""
+    np.random.seed(42)
+    n = 100
+
+    # All treated (no control units)
+    treatment = np.ones(n, dtype=int)
+
+    # Should raise ValueError when creating TreatmentData with only one treatment level
+    # This is caught at the data validation layer (even before estimation)
+    with pytest.raises(ValueError) as exc_info:
+        TreatmentData(values=treatment, treatment_type="binary")
+
+    # Verify error message is informative
+    error_message = str(exc_info.value)
+    assert (
+        "2 unique values" in error_message.lower()
+    ), f"Error message should mention need for 2 unique values: {error_message}"
+    assert (
+        "treated and control" in error_message.lower()
+    ), f"Error message should mention treated and control units: {error_message}"
