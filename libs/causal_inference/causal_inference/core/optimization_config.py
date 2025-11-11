@@ -30,7 +30,19 @@ class OptimizationConfig(BaseModel):
     )
 
     method: Literal["SLSQP", "trust-constr"] = Field(
-        default="SLSQP", description="Scipy optimization method"
+        default="SLSQP",
+        description=(
+            "Scipy optimization method. Choices:\n"
+            '        - "SLSQP" (default): Sequential Least Squares Programming.\n'
+            "          Fast and efficient for most problems. Recommended for:\n"
+            "          * Low to moderate dimensional covariates (p < 50)\n"
+            "          * Well-behaved propensity score models\n"
+            '        - "trust-constr": Trust-region constrained algorithm.\n'
+            "          More robust but slower. Recommended for:\n"
+            "          * High-dimensional covariates (p > 50)\n"
+            "          * Many balance constraints\n"
+            "          * Difficult optimization landscapes"
+        ),
     )
 
     max_iterations: int = Field(

@@ -160,7 +160,10 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             truncation_threshold: Threshold for truncation (0.01 = 1st/99th percentile)
             stabilized_weights: Whether to use stabilized weights
             bootstrap_config: Configuration for bootstrap confidence intervals
-            optimization_config: Configuration for weight optimization
+            optimization_config: Configuration for weight optimization.
+                NOTE: If optimization is enabled (optimize_weights=True),
+                covariates MUST be provided during fit(). Optimization
+                requires covariates to enforce balance constraints.
             check_overlap: Whether to check overlap assumption
             overlap_threshold: Minimum propensity score for overlap check
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
@@ -684,7 +687,14 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         outcome: OutcomeData,
         covariates: Optional[CovariateData] = None,
     ) -> None:
-        """Fit the IPW estimator with optional weight optimization.
+        """Fit the IPW estimator and optionally optimize weights using PyRake constraints.
+
+        This method:
+        1. Fits propensity score model
+        2. Computes baseline analytical weights (1/PS)
+        3. If optimization enabled: Optimizes weights to balance covariates
+           while minimizing distance from baseline and controlling variance
+        4. Validates overlap assumptions
 
         Args:
             treatment: Treatment assignment data

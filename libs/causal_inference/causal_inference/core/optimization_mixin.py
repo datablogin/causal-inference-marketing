@@ -31,7 +31,14 @@ class OptimizationMixin:
         """Initialize optimization mixin with configuration.
 
         Args:
-            optimization_config: Configuration for optimization
+            optimization_config: Configuration for optimization. Must be an instance of
+                OptimizationConfig with the following key settings:
+                - optimize_weights: Enable weight optimization
+                - method: Optimization method (SLSQP, trust-constr)
+                - variance_constraint: Maximum weight variance (φ in PyRake)
+                - balance_constraints: Enforce covariate balance
+                - balance_tolerance: SMD tolerance for balance
+                See OptimizationConfig for full documentation.
             *args: Positional arguments for parent class
             **kwargs: Keyword arguments for parent class
         """
