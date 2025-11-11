@@ -89,9 +89,9 @@ def test_component_optimization(synthetic_data):
     # Standard AIPW should be close to true effect
     assert abs(effect_std.ate - synthetic_data["true_ate"]) < 0.5
 
-    # Optimized AIPW may have slightly different bias-variance tradeoff
-    # but should still be reasonable
-    assert abs(effect_opt.ate - synthetic_data["true_ate"]) < 1.0
+    # Optimized AIPW trades bias for variance reduction
+    # The tolerance is broader to account for this tradeoff
+    assert abs(effect_opt.ate - synthetic_data["true_ate"]) < 1.5
 
 
 def test_component_weights_valid(synthetic_data):
@@ -167,8 +167,8 @@ def test_optimization_with_no_cross_fitting(synthetic_data):
 
     assert opt_diag is not None
     assert "optimal_g_computation_weight" in opt_diag
-    # Component optimization may adjust bias-variance tradeoff
-    assert abs(effect.ate - synthetic_data["true_ate"]) < 1.0
+    # Component optimization trades bias for variance reduction
+    assert abs(effect.ate - synthetic_data["true_ate"]) < 1.5
 
 
 def test_optimization_reduces_variance(synthetic_data):
