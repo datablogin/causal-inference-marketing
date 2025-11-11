@@ -1,5 +1,9 @@
 """Edge case tests for AIPW component optimization.
 
+Component optimization adaptively weights the G-computation and IPW
+components of AIPW to minimize estimation variance. This can improve
+efficiency but may introduce bias if models are misspecified.
+
 These tests cover challenging scenarios identified in PR #143 review:
 - High variance in one component vs the other
 - Extreme propensity scores (near 0 or 1)
@@ -15,6 +19,18 @@ import pytest
 
 from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
 from causal_inference.estimators.aipw import AIPWEstimator
+
+# ============================================================================
+# Test Configuration Constants
+# ============================================================================
+
+# Standard variance penalty for optimization tests
+# This balances component variance against estimation variance
+DEFAULT_VARIANCE_PENALTY = 0.5
+
+# Variance reduction threshold to justify bias increase
+# Optimization should reduce variance by at least 20% to be beneficial
+VARIANCE_REDUCTION_THRESHOLD = 0.8
 
 # ============================================================================
 # Test Data Generators (Scenario A-E from Issue #145)
@@ -201,7 +217,7 @@ def test_optimization_with_high_variance_g_comp():
     estimator = AIPWEstimator(
         cross_fitting=False,  # Simpler for this test
         optimize_component_balance=True,
-        component_variance_penalty=0.5,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
         influence_function_se=False,
         bootstrap_samples=0,  # Faster test
         random_state=42,
@@ -225,13 +241,19 @@ def test_optimization_with_high_variance_g_comp():
     # characteristics. We verify that optimization succeeds and is reasonable,
     # rather than assuming a specific weight direction.
 
-    # Check variance reduction
-    assert (
+    # Check variance reduction (must be substantial to justify bias tolerance)
+    variance_ratio = (
         opt_diag["optimized_estimator_variance"]
-        <= opt_diag["standard_estimator_variance"]
-    ), "Optimization should reduce variance"
+        / opt_diag["standard_estimator_variance"]
+    )
+    assert variance_ratio <= VARIANCE_REDUCTION_THRESHOLD, (
+        f"Optimization should reduce variance by at least "
+        f"{(1 - VARIANCE_REDUCTION_THRESHOLD) * 100:.0f}% "
+        f"(got {(1 - variance_ratio) * 100:.1f}% reduction)"
+    )
 
     # Effect should still be reasonable (within broader tolerance for noisy data)
+    # Broader tolerance is justified by substantial variance reduction
     assert abs(effect.ate - data["true_ate"]) < 1.5, (
         f"ATE estimate ({effect.ate:.3f}) should be reasonably close to "
         f"true ATE ({data['true_ate']:.3f})"
@@ -249,7 +271,7 @@ def test_optimization_with_high_variance_ipw():
     estimator = AIPWEstimator(
         cross_fitting=False,
         optimize_component_balance=True,
-        component_variance_penalty=0.5,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
         influence_function_se=False,
         bootstrap_samples=0,
         random_state=42,
@@ -296,11 +318,14 @@ def test_optimization_with_extreme_propensities():
     """
     data = generate_extreme_propensities_data(n=500, random_state=42)
 
-    # Verify we have extreme propensities
+    # Verify we have extreme propensities (both low AND high)
     propensities = data["propensity_scores"]
-    assert (
-        np.min(propensities) < 0.05 or np.max(propensities) > 0.95
-    ), "Data should contain extreme propensity scores"
+    min_prop = np.min(propensities)
+    max_prop = np.max(propensities)
+    assert min_prop < 0.05 and max_prop > 0.95, (
+        f"Data should contain extreme propensity scores "
+        f"(min={min_prop:.4f}, max={max_prop:.4f})"
+    )
 
     # Standard AIPW (for comparison)
     estimator_standard = AIPWEstimator(
@@ -318,7 +343,7 @@ def test_optimization_with_extreme_propensities():
     estimator_optimized = AIPWEstimator(
         cross_fitting=False,
         optimize_component_balance=True,
-        component_variance_penalty=0.5,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
         influence_function_se=False,
         bootstrap_samples=0,
         random_state=42,
@@ -383,7 +408,7 @@ def test_optimization_with_weight_truncation(truncation_method):
     estimator = AIPWEstimator(
         cross_fitting=False,
         optimize_component_balance=True,
-        component_variance_penalty=0.5,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
         weight_truncation=truncation_method,
         truncation_threshold=0.05 if truncation_method is not None else 0.01,
         influence_function_se=False,
@@ -436,7 +461,7 @@ def test_optimization_with_small_samples(sample_size):
         outcome_model_type="linear",  # Use simpler models
         propensity_model_type="logistic",
         optimize_component_balance=True,
-        component_variance_penalty=0.5,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
         influence_function_se=False,
         bootstrap_samples=0,
         random_state=42,
@@ -473,11 +498,14 @@ def test_optimization_with_small_samples(sample_size):
     ), f"ATE estimate should be reasonable with n={sample_size}"
 
 
+@pytest.mark.slow
 def test_optimized_vs_standard_accuracy():
     """Strengthened test: optimized AIPW should be competitive with standard.
 
     Run on multiple datasets and verify mean absolute error of optimized
     is no worse than standard (allowing for variance-bias tradeoff).
+
+    Note: Marked as slow due to fitting 10 estimators (5 seeds × 2 estimators).
     """
     random_states = [42, 123, 456, 789, 1011]
 
@@ -526,7 +554,7 @@ def test_optimized_vs_standard_accuracy():
         estimator_opt = AIPWEstimator(
             cross_fitting=False,
             optimize_component_balance=True,
-            component_variance_penalty=0.5,
+            component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
             influence_function_se=False,
             bootstrap_samples=0,
             random_state=rs,
@@ -539,26 +567,43 @@ def test_optimized_vs_standard_accuracy():
         effect_opt = estimator_opt.estimate_ate()
         errors_optimized.append(abs(effect_opt.ate - true_ate))
 
-    # Calculate mean absolute errors
+    # Calculate mean absolute errors and variances
     mae_standard = np.mean(errors_standard)
     mae_optimized = np.mean(errors_optimized)
+    var_standard = np.var(errors_standard)
+    var_optimized = np.var(errors_optimized)
 
     # Note: Component optimization trades bias for variance reduction.
     # In well-specified settings (like this synthetic data), standard AIPW
     # may have lower bias. The value of optimization appears in high-variance
-    # or challenging settings. Here we verify optimization doesn't catastrophically
-    # fail, rather than expecting it to improve on well-specified models.
+    # or challenging settings.
 
-    # Verify both produce reasonable estimates
+    # Verify standard AIPW is accurate (tight bound)
     assert (
         mae_standard < 0.5
     ), f"Standard AIPW MAE should be accurate: {mae_standard:.4f}"
-    assert (
-        mae_optimized < 2.0
-    ), f"Optimized AIPW MAE should be reasonable: {mae_optimized:.4f}"
 
-    # The key property: variance reduction should occur
-    # (even if it comes with some bias increase in well-specified settings)
+    # In well-specified settings, optimization may not always reduce variance
+    # across runs, but should maintain reasonable accuracy
+    # The value of optimization appears more clearly in misspecified/challenging settings
+
+    # Check if variance was reduced across runs
+    variance_reduced = var_optimized < var_standard
+
+    if variance_reduced:
+        # If variance was reduced, allow broader MAE tolerance
+        assert mae_optimized < 2.0, (
+            f"Optimized AIPW MAE with variance reduction "
+            f"(var_opt={var_optimized:.4f} < var_std={var_standard:.4f}) "
+            f"should be reasonable: {mae_optimized:.4f}"
+        )
+    else:
+        # If variance wasn't reduced, expect similar accuracy to justify optimization
+        assert mae_optimized < 1.0, (
+            f"Optimized AIPW MAE without variance reduction "
+            f"(var_opt={var_optimized:.4f} >= var_std={var_standard:.4f}) "
+            f"should be accurate: {mae_optimized:.4f}"
+        )
 
 
 def test_optimization_with_heavy_tails():
@@ -584,7 +629,7 @@ def test_optimization_with_heavy_tails():
     estimator_optimized = AIPWEstimator(
         cross_fitting=False,
         optimize_component_balance=True,
-        component_variance_penalty=0.5,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
         influence_function_se=False,
         bootstrap_samples=0,
         random_state=42,
@@ -613,3 +658,145 @@ def test_optimization_with_heavy_tails():
         opt_diag["optimized_estimator_variance"]
         <= opt_diag["standard_estimator_variance"]
     )
+
+
+# ============================================================================
+# Additional Edge Case Tests (from Claude Review recommendations)
+# ============================================================================
+
+
+def test_optimization_with_cross_fitting_extreme_propensities():
+    """Test optimization with cross-fitting enabled on extreme propensities.
+
+    Most tests use cross_fitting=False for simplicity. This verifies
+    optimization works correctly with cross-fitting in a challenging scenario.
+    """
+    data = generate_extreme_propensities_data(n=500, random_state=42)
+
+    # Optimized AIPW with cross-fitting
+    estimator = AIPWEstimator(
+        cross_fitting=True,  # Enable cross-fitting
+        n_folds=3,
+        optimize_component_balance=True,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
+        influence_function_se=False,
+        bootstrap_samples=0,
+        random_state=42,
+        verbose=True,
+    )
+
+    estimator.fit(
+        data["treatment"],
+        data["outcome"],
+        data["covariates"],
+    )
+
+    effect = estimator.estimate_ate()
+    opt_diag = estimator.get_optimization_diagnostics()
+
+    # Assertions
+    assert opt_diag is not None, "Optimization should work with cross-fitting"
+
+    # Component weights should be valid
+    assert 0.3 <= opt_diag["optimal_g_computation_weight"] <= 0.7
+
+    # Variance reduction should occur
+    assert (
+        opt_diag["optimized_estimator_variance"]
+        <= opt_diag["standard_estimator_variance"]
+    )
+
+    # Effect should be reasonable despite extreme propensities and cross-fitting
+    assert abs(effect.ate - data["true_ate"]) < 2.0
+
+
+def test_optimization_with_cross_fitting_small_sample():
+    """Test optimization with cross-fitting on small sample.
+
+    Verifies that cross-fitting + optimization doesn't break with limited data.
+    """
+    data = generate_small_sample_data(n=80, random_state=42)
+
+    # Use fewer folds for small sample
+    estimator = AIPWEstimator(
+        cross_fitting=True,
+        n_folds=2,  # Fewer folds for small sample
+        optimize_component_balance=True,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
+        influence_function_se=False,
+        bootstrap_samples=0,
+        random_state=42,
+    )
+
+    estimator.fit(
+        data["treatment"],
+        data["outcome"],
+        data["covariates"],
+    )
+
+    effect = estimator.estimate_ate()
+    opt_diag = estimator.get_optimization_diagnostics()
+
+    # Assertions
+    assert opt_diag is not None
+    assert 0.3 <= opt_diag["optimal_g_computation_weight"] <= 0.7
+    assert abs(effect.ate - data["true_ate"]) < 3.0  # Broad tolerance for small n
+
+
+def test_optimization_graceful_fallback():
+    """Verify graceful behavior when optimization might struggle.
+
+    Test with pathological data where component variances are very different,
+    ensuring optimization either succeeds with valid weights or handles
+    gracefully.
+    """
+    # Create data with very extreme differences
+    np.random.seed(42)
+    n = 200
+
+    # Nearly perfect propensity model (very low IPW variance)
+    X = np.random.randn(n, 2)
+    propensity = 0.5 + 0.01 * X[:, 0]  # Almost constant
+    treatment = np.random.binomial(1, propensity)
+
+    # Very noisy outcome (high G-computation variance)
+    true_ate = 2.0
+    outcome = true_ate * treatment + X[:, 0] + np.random.randn(n) * 5.0  # High noise
+
+    data = {
+        "treatment": TreatmentData(values=treatment, treatment_type="binary"),
+        "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
+        "covariates": CovariateData(values=X, names=["X1", "X2"]),
+        "true_ate": true_ate,
+    }
+
+    # Try optimization
+    estimator = AIPWEstimator(
+        cross_fitting=False,
+        optimize_component_balance=True,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
+        influence_function_se=False,
+        bootstrap_samples=0,
+        random_state=42,
+    )
+
+    estimator.fit(
+        data["treatment"],
+        data["outcome"],
+        data["covariates"],
+    )
+
+    effect = estimator.estimate_ate()
+    opt_diag = estimator.get_optimization_diagnostics()
+
+    # Key test: either optimization succeeds OR we have a valid estimate
+    assert opt_diag is not None, "Should have optimization diagnostics"
+    assert effect.ate is not None, "Should have an ATE estimate"
+
+    # Weights should be in valid range (no NaN, no extreme values)
+    g_weight = opt_diag["optimal_g_computation_weight"]
+    assert 0.0 <= g_weight <= 1.0, f"G-comp weight {g_weight} should be in [0, 1]"
+    assert not np.isnan(g_weight), "Weight should not be NaN"
+
+    # Estimate should be finite (not NaN, not Inf)
+    assert np.isfinite(effect.ate), f"ATE {effect.ate} should be finite"
