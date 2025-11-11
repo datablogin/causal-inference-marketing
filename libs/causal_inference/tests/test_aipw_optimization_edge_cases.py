@@ -10,12 +10,30 @@ These tests cover challenging scenarios identified in PR #143 review:
 - Interaction with weight truncation strategies
 - Small sample sizes (n < 100)
 - Strengthened comparisons with standard AIPW
+- Cross-fitting with optimization
+- Graceful fallback for pathological data
+
+Constants:
+    DEFAULT_VARIANCE_PENALTY: Balance between component variance and estimation
+        variance (0.5 = equal weighting)
+    VARIANCE_REDUCTION_THRESHOLD: Minimum variance reduction (80% = 20% reduction)
+        to justify broader bias tolerance
+    TRUE_ATE: True average treatment effect for all test scenarios (2.0)
+    HIGH_NOISE_STDDEV: Standard deviation for high-noise outcomes (2.0)
+
+See Also:
+    - test_aipw_optimization.py: Basic optimization tests
+    - Issue #145: Original feature request for edge case testing
+    - PR #143: PyRake optimization implementation review
 
 Related to Issue #145.
 """
 
+from typing import Any
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
 from causal_inference.estimators.aipw import AIPWEstimator
@@ -32,15 +50,30 @@ DEFAULT_VARIANCE_PENALTY = 0.5
 # Optimization should reduce variance by at least 20% to be beneficial
 VARIANCE_REDUCTION_THRESHOLD = 0.8
 
+# True average treatment effect for all test scenarios
+TRUE_ATE = 2.0
+
+# Standard deviation for high-noise outcome models
+HIGH_NOISE_STDDEV = 2.0
+
 # ============================================================================
 # Test Data Generators (Scenario A-E from Issue #145)
 # ============================================================================
 
 
-def generate_high_variance_g_comp_data(n: int = 500, random_state: int = 42):
+def generate_high_variance_g_comp_data(
+    n: int = 500, random_state: int = 42
+) -> dict[str, Any]:
     """Generate data where G-computation has high variance but IPW is good.
 
     Scenario A: Good propensity model, poor/noisy outcome model.
+
+    Args:
+        n: Number of observations
+        random_state: Random seed for reproducibility
+
+    Returns:
+        Dictionary containing treatment, outcome, covariates, true_ate, scenario
     """
     np.random.seed(random_state)
 
@@ -53,20 +86,19 @@ def generate_high_variance_g_comp_data(n: int = 500, random_state: int = 42):
 
     # Outcome - complex nonlinear relationship + high noise
     # This makes outcome model hard to fit (high variance)
-    true_ate = 2.0
     outcome = (
-        true_ate * treatment
+        TRUE_ATE * treatment
         + X[:, 0] ** 2  # Nonlinear
         + np.sin(X[:, 1] * np.pi)  # More nonlinearity
         + X[:, 2] * X[:, 0]  # Interaction
-        + np.random.randn(n) * 2.0  # High noise
+        + np.random.randn(n) * HIGH_NOISE_STDDEV  # High noise
     )
 
     return {
         "treatment": TreatmentData(values=treatment, treatment_type="binary"),
         "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
         "covariates": CovariateData(values=X, names=["X1", "X2", "X3"]),
-        "true_ate": true_ate,
+        "true_ate": TRUE_ATE,
         "scenario": "high_variance_g_comp",
     }
 
@@ -87,7 +119,7 @@ def generate_high_variance_ipw_data(n: int = 500, random_state: int = 42):
     treatment = np.random.binomial(1, propensity)
 
     # Outcome - simple linear relationship (easy to fit)
-    true_ate = 2.0
+    true_ate = TRUE_ATE
     outcome = (
         true_ate * treatment
         + X[:, 0]
@@ -122,7 +154,7 @@ def generate_extreme_propensities_data(n: int = 500, random_state: int = 42):
     treatment = np.random.binomial(1, propensity)
 
     # Outcome
-    true_ate = 2.0
+    true_ate = TRUE_ATE
     outcome = (
         true_ate * treatment
         + X[:, 0]
@@ -156,7 +188,7 @@ def generate_heavy_tails_data(n: int = 500, random_state: int = 42):
     treatment = np.random.binomial(1, propensity)
 
     # Outcome with heavy-tailed errors (t-distribution with df=3)
-    true_ate = 2.0
+    true_ate = TRUE_ATE
     outcome = (
         true_ate * treatment
         + X[:, 0]
@@ -189,7 +221,7 @@ def generate_small_sample_data(n: int = 50, random_state: int = 42):
     treatment = np.random.binomial(1, propensity)
 
     # Outcome
-    true_ate = 2.0
+    true_ate = TRUE_ATE
     outcome = true_ate * treatment + X[:, 0] + 0.5 * X[:, 1] + np.random.randn(n) * 0.5
 
     return {
@@ -199,6 +231,95 @@ def generate_small_sample_data(n: int = 50, random_state: int = 42):
         "true_ate": true_ate,
         "scenario": f"small_sample_n{n}",
     }
+
+
+def generate_both_components_poor_data(
+    n: int = 500, random_state: int = 42
+) -> dict[str, Any]:
+    """Generate data where both G-computation and IPW are challenging.
+
+    Scenario C: Both models moderately misspecified.
+    Tests optimization when no clear winner exists between components.
+
+    Args:
+        n: Number of observations
+        random_state: Random seed for reproducibility
+
+    Returns:
+        Dictionary containing treatment, outcome, covariates, true_ate, scenario
+    """
+    np.random.seed(random_state)
+
+    # Covariates
+    X = np.random.randn(n, 3)
+
+    # Complex propensity model (hard to fit)
+    propensity_logit = X[:, 0] ** 2 + np.sin(X[:, 1] * np.pi)
+    propensity = 1 / (1 + np.exp(-propensity_logit))
+    treatment = np.random.binomial(1, propensity)
+
+    # Complex outcome model with high noise (also hard to fit)
+    outcome = (
+        TRUE_ATE * treatment
+        + X[:, 0] ** 2
+        + np.sin(X[:, 1] * np.pi)
+        + X[:, 2] * X[:, 0]
+        + np.random.randn(n) * HIGH_NOISE_STDDEV
+    )
+
+    return {
+        "treatment": TreatmentData(values=treatment, treatment_type="binary"),
+        "outcome": OutcomeData(values=outcome, outcome_type="continuous"),
+        "covariates": CovariateData(values=X, names=["X1", "X2", "X3"]),
+        "true_ate": TRUE_ATE,
+        "scenario": "both_components_poor",
+    }
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def compute_standardized_mean_difference(
+    covariates: NDArray[Any],
+    treatment: NDArray[Any],
+    weights: NDArray[Any] | None = None,
+) -> float:
+    """Compute maximum standardized mean difference across covariates.
+
+    Args:
+        covariates: Covariate matrix (n_obs x n_covariates)
+        treatment: Treatment indicator (binary)
+        weights: Optional weights for weighted balance check
+
+    Returns:
+        Maximum SMD across all covariates
+    """
+    treated_mask = treatment == 1
+    control_mask = treatment == 0
+
+    if weights is None:
+        weights = np.ones(len(treatment))
+
+    smds = []
+    for j in range(covariates.shape[1]):
+        cov = covariates[:, j]
+
+        # Weighted means
+        mean_treated = np.average(cov[treated_mask], weights=weights[treated_mask])
+        mean_control = np.average(cov[control_mask], weights=weights[control_mask])
+
+        # Pooled standard deviation
+        std_pooled = np.sqrt(
+            (np.var(cov[treated_mask]) + np.var(cov[control_mask])) / 2
+        )
+
+        # SMD
+        smd = abs(mean_treated - mean_control) / (std_pooled + 1e-10)
+        smds.append(smd)
+
+    return float(np.max(smds))
 
 
 # ============================================================================
@@ -388,7 +509,7 @@ def test_optimization_with_weight_truncation(truncation_method):
     X = np.random.randn(n, 3)
     propensity = 1 / (1 + np.exp(-(X[:, 0] + 0.5 * X[:, 1])))
     treatment = np.random.binomial(1, propensity)
-    true_ate = 2.0
+    true_ate = TRUE_ATE
     outcome = (
         true_ate * treatment
         + X[:, 0]
@@ -519,7 +640,7 @@ def test_optimized_vs_standard_accuracy():
         X = np.random.randn(n, 3)
         propensity = 1 / (1 + np.exp(-(X[:, 0] + 0.5 * X[:, 1])))
         treatment = np.random.binomial(1, propensity)
-        true_ate = 2.0
+        true_ate = TRUE_ATE
         outcome = (
             true_ate * treatment
             + X[:, 0]
@@ -660,16 +781,79 @@ def test_optimization_with_heavy_tails():
     )
 
 
+def test_optimization_with_both_components_poor():
+    """Test when both G-computation AND IPW have challenges.
+
+    Scenario C: Both models moderately misspecified.
+    Verifies optimization finds reasonable balance when neither component is clearly superior.
+    """
+    data = generate_both_components_poor_data(n=500, random_state=42)
+
+    # Standard AIPW (for comparison)
+    estimator_standard = AIPWEstimator(
+        cross_fitting=False,
+        random_state=42,
+    )
+    estimator_standard.fit(
+        data["treatment"],
+        data["outcome"],
+        data["covariates"],
+    )
+    effect_std = estimator_standard.estimate_ate()
+
+    # Optimized AIPW
+    estimator_optimized = AIPWEstimator(
+        cross_fitting=False,
+        optimize_component_balance=True,
+        component_variance_penalty=DEFAULT_VARIANCE_PENALTY,
+        influence_function_se=False,
+        bootstrap_samples=0,
+        random_state=42,
+        verbose=True,
+    )
+    estimator_optimized.fit(
+        data["treatment"],
+        data["outcome"],
+        data["covariates"],
+    )
+    effect_opt = estimator_optimized.estimate_ate()
+    opt_diag = estimator_optimized.get_optimization_diagnostics()
+
+    # Assertions
+    assert opt_diag is not None, "Optimization should succeed with both components poor"
+
+    # When both are poor, weights should be relatively balanced
+    # (not heavily favoring one component)
+    g_weight = opt_diag["optimal_g_computation_weight"]
+    assert 0.35 <= g_weight <= 0.65, (
+        f"With both components poor, weights should be balanced "
+        f"(got G-comp weight: {g_weight:.3f})"
+    )
+
+    # Both estimates should be reasonable (broad tolerance for challenging data)
+    assert abs(effect_std.ate - data["true_ate"]) < 2.0
+    assert abs(effect_opt.ate - data["true_ate"]) < 2.0
+
+    # Variance reduction should still occur
+    assert (
+        opt_diag["optimized_estimator_variance"]
+        <= opt_diag["standard_estimator_variance"]
+    ), "Optimization should reduce variance even when both components are poor"
+
+
 # ============================================================================
 # Additional Edge Case Tests (from Claude Review recommendations)
 # ============================================================================
 
 
+@pytest.mark.slow
 def test_optimization_with_cross_fitting_extreme_propensities():
     """Test optimization with cross-fitting enabled on extreme propensities.
 
     Most tests use cross_fitting=False for simplicity. This verifies
     optimization works correctly with cross-fitting in a challenging scenario.
+
+    Note: Marked as slow due to cross-fitting overhead (multiple model fits).
     """
     data = generate_extreme_propensities_data(n=500, random_state=42)
 
@@ -710,10 +894,13 @@ def test_optimization_with_cross_fitting_extreme_propensities():
     assert abs(effect.ate - data["true_ate"]) < 2.0
 
 
+@pytest.mark.slow
 def test_optimization_with_cross_fitting_small_sample():
     """Test optimization with cross-fitting on small sample.
 
     Verifies that cross-fitting + optimization doesn't break with limited data.
+
+    Note: Marked as slow due to cross-fitting overhead.
     """
     data = generate_small_sample_data(n=80, random_state=42)
 
@@ -760,7 +947,7 @@ def test_optimization_graceful_fallback():
     treatment = np.random.binomial(1, propensity)
 
     # Very noisy outcome (high G-computation variance)
-    true_ate = 2.0
+    true_ate = TRUE_ATE
     outcome = true_ate * treatment + X[:, 0] + np.random.randn(n) * 5.0  # High noise
 
     data = {
