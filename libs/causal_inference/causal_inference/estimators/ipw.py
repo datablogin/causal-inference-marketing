@@ -164,6 +164,9 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 NOTE: If optimization is enabled (optimize_weights=True),
                 covariates MUST be provided during fit(). Optimization
                 requires covariates to enforce balance constraints.
+                See :class:`~causal_inference.core.optimization_config.OptimizationConfig`
+                and :meth:`~causal_inference.core.optimization_mixin.OptimizationMixin.optimize_weights_constrained`
+                for details.
             check_overlap: Whether to check overlap assumption
             overlap_threshold: Minimum propensity score for overlap check
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)

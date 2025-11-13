@@ -32,13 +32,15 @@ class OptimizationMixin:
 
         Args:
             optimization_config: Configuration for optimization. Must be an instance of
-                OptimizationConfig with the following key settings:
+                :class:`~causal_inference.core.optimization_config.OptimizationConfig`
+                with the following key settings:
                 - optimize_weights: Enable weight optimization
                 - method: Optimization method (SLSQP, trust-constr)
                 - variance_constraint: Maximum weight variance (φ in PyRake)
                 - balance_constraints: Enforce covariate balance
                 - balance_tolerance: SMD tolerance for balance
-                See OptimizationConfig for full documentation.
+                See :class:`~causal_inference.core.optimization_config.OptimizationConfig`
+                for full documentation.
             *args: Positional arguments for parent class
             **kwargs: Keyword arguments for parent class
         """
