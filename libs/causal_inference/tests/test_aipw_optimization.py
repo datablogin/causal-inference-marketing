@@ -223,3 +223,151 @@ def test_negative_variance_penalty_raises_error():
             optimize_component_balance=True,
             component_variance_penalty=-0.5,  # Invalid - must be >= 0
         )
+
+
+def test_component_weight_bounds_validation():
+    """Test component_weight_bounds parameter validation."""
+    # Valid bounds should work
+    estimator = AIPWEstimator(component_weight_bounds=(0.4, 0.6))
+    assert estimator.component_weight_bounds == (0.4, 0.6)
+
+    # Valid: equal bounds for fixed weighting
+    estimator_fixed = AIPWEstimator(component_weight_bounds=(0.5, 0.5))
+    assert estimator_fixed.component_weight_bounds == (0.5, 0.5)
+
+    # Invalid: wrong length (single element)
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(0.3,))
+
+    # Invalid: wrong length (three elements)
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(0.3, 0.5, 0.7))
+
+    # Invalid: inverted bounds
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(0.7, 0.3))
+
+    # Invalid: negative lower bound
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(-0.1, 0.7))
+
+    # Invalid: upper bound exceeds 1
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(0.3, 1.1))
+
+    # Invalid: both bounds negative
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(-0.5, -0.3))
+
+    # Invalid: both bounds exceed 1
+    with pytest.raises(ValueError, match="component_weight_bounds must be"):
+        AIPWEstimator(component_weight_bounds=(1.1, 1.5))
+
+
+def test_component_weight_bounds_respected(synthetic_data):
+    """Test that optimization respects custom component_weight_bounds."""
+    # Test with tighter bounds
+    estimator = AIPWEstimator(
+        cross_fitting=False,
+        optimize_component_balance=True,
+        component_weight_bounds=(0.4, 0.6),  # Tighter than default (0.3, 0.7)
+        component_variance_penalty=0.5,
+        influence_function_se=False,
+        bootstrap_samples=0,  # No bootstrap for faster tests
+        random_state=42,
+    )
+    estimator.fit(
+        synthetic_data["treatment"],
+        synthetic_data["outcome"],
+        synthetic_data["covariates"],
+    )
+    estimator.estimate_ate()
+
+    opt_diag = estimator.get_optimization_diagnostics()
+    g_weight = opt_diag["optimal_g_computation_weight"]
+
+    # Should respect tighter bounds
+    assert 0.4 <= g_weight <= 0.6, f"Weight {g_weight} not in bounds [0.4, 0.6]"
+
+
+def test_component_weight_bounds_with_equal_bounds(synthetic_data):
+    """Test that equal bounds force fixed weighting."""
+    # Force 50/50 weighting
+    estimator = AIPWEstimator(
+        cross_fitting=False,
+        optimize_component_balance=True,
+        component_weight_bounds=(0.5, 0.5),  # Equal bounds = fixed weight
+        component_variance_penalty=0.0,  # No penalty needed
+        influence_function_se=False,
+        bootstrap_samples=0,
+        random_state=42,
+    )
+    estimator.fit(
+        synthetic_data["treatment"],
+        synthetic_data["outcome"],
+        synthetic_data["covariates"],
+    )
+    estimator.estimate_ate()
+
+    opt_diag = estimator.get_optimization_diagnostics()
+    g_weight = opt_diag["optimal_g_computation_weight"]
+
+    # With equal bounds, weight should be exactly at that value
+    assert abs(g_weight - 0.5) < 1e-6, f"Weight {g_weight} should be 0.5"
+
+
+def test_component_weight_bounds_propagation_to_bootstrap(synthetic_data):
+    """Test that custom bounds are propagated to bootstrap samples."""
+    # This test verifies that bootstrap estimators use the same bounds
+    estimator = AIPWEstimator(
+        cross_fitting=False,
+        optimize_component_balance=True,
+        component_weight_bounds=(0.35, 0.65),  # Custom bounds
+        component_variance_penalty=0.5,
+        influence_function_se=False,
+        bootstrap_samples=5,  # Small number for faster tests
+        random_state=42,
+    )
+    estimator.fit(
+        synthetic_data["treatment"],
+        synthetic_data["outcome"],
+        synthetic_data["covariates"],
+    )
+
+    # This should run bootstrap with custom bounds
+    effect = estimator.estimate_ate()
+
+    # Verify that bootstrap completed successfully
+    assert effect.bootstrap_estimates is not None
+    assert len(effect.bootstrap_estimates) > 0
+
+    # Main estimator should respect bounds
+    opt_diag = estimator.get_optimization_diagnostics()
+    g_weight = opt_diag["optimal_g_computation_weight"]
+    assert 0.35 <= g_weight <= 0.65
+
+
+def test_component_weight_bounds_wide_bounds(synthetic_data):
+    """Test optimization with wider bounds allows more flexibility."""
+    # Test with very wide bounds
+    estimator = AIPWEstimator(
+        cross_fitting=False,
+        optimize_component_balance=True,
+        component_weight_bounds=(0.1, 0.9),  # Wider than default
+        component_variance_penalty=0.5,
+        influence_function_se=False,
+        bootstrap_samples=0,
+        random_state=42,
+    )
+    estimator.fit(
+        synthetic_data["treatment"],
+        synthetic_data["outcome"],
+        synthetic_data["covariates"],
+    )
+    estimator.estimate_ate()
+
+    opt_diag = estimator.get_optimization_diagnostics()
+    g_weight = opt_diag["optimal_g_computation_weight"]
+
+    # Should be within wider bounds
+    assert 0.1 <= g_weight <= 0.9

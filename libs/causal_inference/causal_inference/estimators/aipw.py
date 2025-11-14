@@ -82,6 +82,25 @@ Cross-fitting for Bias Reduction:
     >>> estimator_cf.fit(treatment, outcome, covariates)
     >>> effect_cf = estimator_cf.estimate_ate()
 
+Component Balance Optimization with Custom Bounds:
+    >>> # Optimize component weighting with tighter bounds for more conservative balance
+    >>> estimator_opt = AIPWEstimator(
+    ...     cross_fitting=False,
+    ...     optimize_component_balance=True,
+    ...     component_weight_bounds=(0.4, 0.6),  # Tighter bounds than default (0.3, 0.7)
+    ...     component_variance_penalty=0.5,
+    ...     influence_function_se=False,  # Required with optimization
+    ...     bootstrap_samples=1000,  # Use bootstrap for valid CIs
+    ...     random_state=42
+    ... )
+    >>>
+    >>> estimator_opt.fit(treatment, outcome, covariates)
+    >>> effect_opt = estimator_opt.estimate_ate()
+    >>> # Check optimized weights
+    >>> opt_diag = estimator_opt.get_optimization_diagnostics()
+    >>> print(f"G-computation weight: {opt_diag['optimal_g_computation_weight']:.3f}")
+    >>> print(f"IPW weight: {opt_diag['optimal_ipw_weight']:.3f}")
+
 Notes:
     - AIPW is doubly robust: consistent if either outcome or propensity model is correct
     - Cross-fitting reduces finite-sample bias from model overfitting
@@ -166,6 +185,7 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         # Component optimization settings
         optimize_component_balance: bool = False,
         component_variance_penalty: float = 0.5,
+        component_weight_bounds: tuple[float, float] = (0.3, 0.7),
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
@@ -192,6 +212,10 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 happens during estimate_ate(), so diagnostics are only available after calling
                 estimate_ate(). This differs from IPW, where optimization happens during fit().
             component_variance_penalty: Penalty for deviating from 50/50 balance
+            component_weight_bounds: Bounds for component weight optimization (min, max). Ensures
+                both G-computation and IPW components contribute meaningfully. Default (0.3, 0.7)
+                means the G-computation weight is constrained between 30% and 70%. Set equal bounds
+                like (0.5, 0.5) to force a specific fixed weighting.
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
             confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
@@ -229,11 +253,23 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         # Component optimization settings
         self.optimize_component_balance = optimize_component_balance
         self.component_variance_penalty = component_variance_penalty
+        self.component_weight_bounds = component_weight_bounds
 
         # Validate component optimization settings
         if component_variance_penalty < 0:
             raise ValueError(
                 f"component_variance_penalty must be non-negative, got {component_variance_penalty}"
+            )
+
+        if (
+            len(component_weight_bounds) != 2
+            or component_weight_bounds[0] > component_weight_bounds[1]
+            or component_weight_bounds[0] < 0
+            or component_weight_bounds[1] > 1
+        ):
+            raise ValueError(
+                f"component_weight_bounds must be (min, max) with 0 <= min <= max <= 1, "
+                f"got {component_weight_bounds}"
             )
 
         if optimize_component_balance and influence_function_se:
@@ -315,6 +351,9 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             truncation_threshold=self.truncation_threshold,
             stabilized_weights=self.stabilized_weights,
             bootstrap_config=BootstrapConfig(n_samples=0),  # No nested bootstrap
+            optimize_component_balance=self.optimize_component_balance,
+            component_variance_penalty=self.component_variance_penalty,
+            component_weight_bounds=self.component_weight_bounds,
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
         )
@@ -787,8 +826,8 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _optimize_component_balance(
         self,
-        g_comp_components: NDArray[Any],
-        ipw_components: NDArray[Any],
+        g_comp_components: NDArray[np.floating[Any]],
+        ipw_components: NDArray[np.floating[Any]],
     ) -> float:
         """Optimize balance between G-computation and IPW components.
 
@@ -838,14 +877,14 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             ipw_components: IPW correction component values for each unit
 
         Returns:
-            Optimal weight for G-computation component (alpha), bounded to [0.3, 0.7]
+            Optimal weight for G-computation component (alpha), bounded by component_weight_bounds
 
         References:
             - PyRake: https://github.com/rwilson4/PyRake
             - Doubly robust estimation: Bang & Robins (2005), Biometrics
             - Variance-optimal weighting: van der Laan & Rose (2011), Targeted Learning
         """
-        from scipy.optimize import minimize_scalar
+        from scipy.optimize import OptimizeResult, minimize_scalar
 
         def objective(alpha: float) -> float:
             """Weighted AIPW estimator variance with balance penalty.
@@ -860,21 +899,20 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             n = len(combined)
 
             # Variance of the mean estimator = Var(components) / n
-            component_variance = float(np.var(combined, ddof=1))
-            estimator_variance = component_variance / n
+            estimator_variance = float(np.var(combined, ddof=1) / n)
 
             # Penalty for extreme weights (force meaningful contribution from both)
             balance_penalty = self.component_variance_penalty * (alpha - 0.5) ** 2
 
             return estimator_variance + balance_penalty
 
-        result = minimize_scalar(
+        result: OptimizeResult = minimize_scalar(
             objective,
-            bounds=(0.3, 0.7),  # Ensure both components contribute
+            bounds=self.component_weight_bounds,
             method="bounded",
         )
 
-        optimal_alpha = float(result.x)
+        optimal_alpha: float = float(result.x)
 
         # Store diagnostics
         n = len(g_comp_components)
@@ -1245,6 +1283,7 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     stratify_folds=self.stratify_folds,
                     optimize_component_balance=self.optimize_component_balance,
                     component_variance_penalty=self.component_variance_penalty,
+                    component_weight_bounds=self.component_weight_bounds,
                     influence_function_se=False,  # Required: influence function SE incompatible with optimization (see __init__ validation)
                     bootstrap_samples=0,  # Don't bootstrap within bootstrap
                     random_state=None,  # Use different random state for each bootstrap
