@@ -82,6 +82,25 @@ Cross-fitting for Bias Reduction:
     >>> estimator_cf.fit(treatment, outcome, covariates)
     >>> effect_cf = estimator_cf.estimate_ate()
 
+Component Balance Optimization with Custom Bounds:
+    >>> # Optimize component weighting with tighter bounds for more conservative balance
+    >>> estimator_opt = AIPWEstimator(
+    ...     cross_fitting=False,
+    ...     optimize_component_balance=True,
+    ...     component_weight_bounds=(0.4, 0.6),  # Tighter bounds than default (0.3, 0.7)
+    ...     component_variance_penalty=0.5,
+    ...     influence_function_se=False,  # Required with optimization
+    ...     bootstrap_samples=1000,  # Use bootstrap for valid CIs
+    ...     random_state=42
+    ... )
+    >>>
+    >>> estimator_opt.fit(treatment, outcome, covariates)
+    >>> effect_opt = estimator_opt.estimate_ate()
+    >>> # Check optimized weights
+    >>> opt_diag = estimator_opt.get_optimization_diagnostics()
+    >>> print(f"G-computation weight: {opt_diag['optimal_g_computation_weight']:.3f}")
+    >>> print(f"IPW weight: {opt_diag['optimal_ipw_weight']:.3f}")
+
 Notes:
     - AIPW is doubly robust: consistent if either outcome or propensity model is correct
     - Cross-fitting reduces finite-sample bias from model overfitting
@@ -195,7 +214,8 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             component_variance_penalty: Penalty for deviating from 50/50 balance
             component_weight_bounds: Bounds for component weight optimization (min, max). Ensures
                 both G-computation and IPW components contribute meaningfully. Default (0.3, 0.7)
-                means the G-computation weight is constrained between 30% and 70%.
+                means the G-computation weight is constrained between 30% and 70%. Set equal bounds
+                like (0.5, 0.5) to force a specific fixed weighting.
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
             confidence_level: Legacy parameter - confidence level (use bootstrap_config instead)
             random_state: Random seed for reproducible results
@@ -243,12 +263,12 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
         if (
             len(component_weight_bounds) != 2
-            or component_weight_bounds[0] >= component_weight_bounds[1]
+            or component_weight_bounds[0] > component_weight_bounds[1]
             or component_weight_bounds[0] < 0
             or component_weight_bounds[1] > 1
         ):
             raise ValueError(
-                f"component_weight_bounds must be (min, max) with 0 <= min < max <= 1, "
+                f"component_weight_bounds must be (min, max) with 0 <= min <= max <= 1, "
                 f"got {component_weight_bounds}"
             )
 
