@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import warnings
 from contextlib import nullcontext
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -55,13 +55,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def __init__(
         self,
         model_type: str = "auto",
-        model_params: Optional[dict[str, Any]] = None,
-        bootstrap_config: Optional[Any] = None,
-        optimization_config: Optional[Any] = None,
+        model_params: dict[str, Any] | None = None,
+        bootstrap_config: Any | None = None,
+        optimization_config: Any | None = None,
         # Legacy parameters for backward compatibility
         bootstrap_samples: int = 1000,
         confidence_level: float = 0.95,
-        random_state: Optional[int] = None,
+        random_state: int | None = None,
         verbose: bool = False,
         # Large dataset optimization parameters
         chunk_size: int = 10000,
@@ -69,14 +69,15 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         large_dataset_threshold: int = 100000,
         # Ensemble settings
         use_ensemble: bool = False,
-        ensemble_models: Optional[list[str]] = None,
+        ensemble_models: list[str] | None = None,
         ensemble_variance_penalty: float = 0.1,
+        ensemble_model_params: Optional[dict[str, dict[str, Any]]] = None,
     ) -> None:
         """Initialize the G-computation estimator.
 
         Args:
             model_type: Model type ('auto', 'linear', 'logistic', 'random_forest')
-            model_params: Parameters to pass to the sklearn model
+            model_params: Parameters to pass to the sklearn model (applies to all ensemble models if ensemble_model_params not specified)
             bootstrap_config: Configuration for bootstrap confidence intervals
             optimization_config: Configuration for optimization strategies
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
@@ -89,6 +90,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             use_ensemble: Use ensemble of models instead of single model
             ensemble_models: List of model types for ensemble (if use_ensemble=True)
             ensemble_variance_penalty: Penalty on ensemble weight variance
+            ensemble_model_params: Model-specific parameters for each ensemble model (e.g., {'linear': {...}, 'random_forest': {...}})
+                                   Takes precedence over model_params for specified models
         """
         # Create bootstrap config if not provided (for backward compatibility)
         if bootstrap_config is None:
@@ -117,12 +120,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.use_ensemble = use_ensemble
         self.ensemble_models = ensemble_models or ["linear", "ridge", "random_forest"]
         self.ensemble_variance_penalty = ensemble_variance_penalty
+        self.ensemble_model_params = ensemble_model_params or {}
 
         # Model storage
-        self.outcome_model: Optional[SklearnBaseEstimator] = None
+        self.outcome_model: SklearnBaseEstimator | None = None
         self.ensemble_models_fitted: dict[str, Any] = {}
-        self.ensemble_weights: Optional[NDArray[Any]] = None
-        self._model_features: Optional[list[str]] = None
+        self.ensemble_weights: NDArray[Any] | None = None
+        self._model_features: list[str] | None = None
 
     def _check_is_fitted(self) -> None:
         """Check if the estimator has been fitted.
@@ -142,7 +146,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             )
 
     def _create_bootstrap_estimator(
-        self, random_state: Optional[int] = None
+        self, random_state: int | None = None
     ) -> GComputationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
@@ -206,6 +210,20 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
+    def _get_model_params(self, model_name: str) -> dict[str, Any]:
+        """Get parameters for a specific model.
+
+        Args:
+            model_name: Name of the model ('linear', 'ridge', 'random_forest')
+
+        Returns:
+            Dictionary of parameters for the specified model
+        """
+        # If model-specific params are provided, use them; otherwise fall back to model_params
+        if model_name in self.ensemble_model_params:
+            return self.ensemble_model_params[model_name]
+        return self.model_params
+
     def _fit_ensemble_models(
         self,
         features: pd.DataFrame,
@@ -225,19 +243,22 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         models = {}
 
         for model_name in self.ensemble_models:
+            # Get model-specific parameters
+            params = self._get_model_params(model_name)
+
             if outcome_type == "continuous":
                 if model_name == "linear":
-                    model = LinearRegression(**self.model_params)
+                    model = LinearRegression(**params)
                 elif model_name == "ridge":
-                    # Use default alpha=1.0 unless overridden in model_params
-                    ridge_params = {"alpha": 1.0, **self.model_params}
+                    # Use default alpha=1.0 unless overridden in params
+                    ridge_params = {"alpha": 1.0, **params}
                     model = Ridge(**ridge_params)
                 elif model_name == "random_forest":
                     # Use sensible defaults unless overridden
                     rf_params = {
                         "n_estimators": 100,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = RandomForestRegressor(**rf_params)
                 else:
@@ -248,7 +269,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     logistic_params = {
                         "max_iter": 1000,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = LogisticRegression(**logistic_params)
                 elif model_name == "ridge":
@@ -258,14 +279,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                         "C": 1.0,  # Inverse of regularization strength
                         "penalty": "l2",
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = LogisticRegression(**logistic_ridge_params)
                 elif model_name == "random_forest":
                     rf_params = {
                         "n_estimators": 100,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = RandomForestClassifier(**rf_params)
                 else:
@@ -364,7 +385,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _prepare_features(
         self,
         treatment: TreatmentData,
-        covariates: Optional[CovariateData] = None,
+        covariates: CovariateData | None = None,
     ) -> pd.DataFrame:
         """Prepare feature matrix for model fitting.
 
@@ -404,8 +425,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _prepare_features_efficient(
         self,
         treatment: TreatmentData,
-        covariates: Optional[CovariateData] = None,
-        n_samples: Optional[int] = None,
+        covariates: CovariateData | None = None,
+        n_samples: int | None = None,
     ) -> pd.DataFrame:
         """Prepare feature matrix with memory optimizations for large datasets.
 
@@ -449,7 +470,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self,
         treatment: TreatmentData,
         outcome: OutcomeData,
-        covariates: Optional[CovariateData] = None,
+        covariates: CovariateData | None = None,
     ) -> None:
         """Fit the outcome model for G-computation.
 
@@ -501,9 +522,25 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 )
 
                 if len(self.ensemble_models_fitted) > 1:
-                    self.ensemble_weights = self._optimize_ensemble_weights(
-                        models=self.ensemble_models_fitted, features=X, y=y
-                    )
+                    # Choose optimization strategy based on ensemble_weight_strategy
+                    if self.ensemble_weight_strategy == "cv":
+                        self.ensemble_weights = self._optimize_ensemble_weights_cv(
+                            models=self.ensemble_models_fitted,
+                            features=X,
+                            y=y,
+                            treatment=treatment.values,
+                        )
+                    elif self.ensemble_weight_strategy == "split":
+                        self.ensemble_weights = self._optimize_ensemble_weights_split(
+                            models=self.ensemble_models_fitted,
+                            features=X,
+                            y=y,
+                            treatment=treatment.values,
+                        )
+                    else:  # "in_sample" (default)
+                        self.ensemble_weights = self._optimize_ensemble_weights(
+                            models=self.ensemble_models_fitted, features=X, y=y
+                        )
 
                     if self.verbose:
                         print("\n=== Ensemble Weights ===")
@@ -565,7 +602,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _predict_counterfactuals(
         self,
         treatment_value: float | int,
-        covariates: Optional[CovariateData] = None,
+        covariates: CovariateData | None = None,
     ) -> NDArray[Any]:
         """Predict counterfactual outcomes for a given treatment value.
 
@@ -607,7 +644,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _predict_counterfactuals_regular(
         self,
         treatment_value: float | int,
-        covariates: Optional[CovariateData],
+        covariates: CovariateData | None,
         n_obs: int,
     ) -> NDArray[Any]:
         """Regular prediction method for smaller datasets."""
@@ -661,7 +698,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def _predict_counterfactuals_chunked(
         self,
         treatment_value: float | int,
-        covariates: Optional[CovariateData],
+        covariates: CovariateData | None,
         n_obs: int,
     ) -> NDArray[Any]:
         """Memory-efficient chunked prediction for large datasets.
@@ -949,7 +986,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     def predict_potential_outcomes(
         self,
         treatment_values: pd.Series | NDArray[Any],
-        covariates: pd.DataFrame | Optional[NDArray[Any]] = None,
+        covariates: pd.DataFrame | NDArray[Any] | None = None,
     ) -> tuple[NDArray[Any], NDArray[Any]]:
         """Predict potential outcomes Y(0) and Y(1) for given inputs.
 
@@ -1013,7 +1050,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> Optional[tuple[float, float, NDArray[Any]]]:
+    ) -> tuple[float, float, NDArray[Any]] | None:
         """Legacy method for backward compatibility with old test API.
 
         Returns:
