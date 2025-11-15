@@ -45,11 +45,122 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     This method is also known as the G-formula or standardization.
 
+    Ensemble Functionality
+    ----------------------
+    The estimator supports ensemble modeling to improve robustness when model
+    specification is uncertain. Instead of relying on a single model, the ensemble
+    approach fits multiple models and combines their predictions using optimized weights.
+
+    When to Use Ensembles:
+        - Model selection uncertainty: Unsure which model family fits data best
+        - Robustness priority: Want protection against misspecification
+        - Complex relationships: Data may have both linear and non-linear patterns
+        - Sufficient computational resources available
+
+    When NOT to Use Ensembles:
+        - Clear model choice: You know the correct model specification
+        - Computational constraints: Limited time or memory budget
+        - Simple relationships: Data follows obvious linear pattern
+        - Small sample sizes: Risk of overfitting ensemble weights
+
+    Computational Cost:
+        Using ensembles significantly increases computational requirements:
+
+        - Training time: ~N_models x (time for single model fit + weight optimization)
+        - Memory usage: ~N_models x (memory for single model)
+        - Prediction time: ~N_models x (time for single prediction)
+
+        Example with 3 models and 1000 bootstrap samples:
+        - Training: ~3000x slower than single model without bootstrap
+        - Memory: ~3x memory for model storage
+        - Recommended: Use fewer bootstrap samples with ensembles
+
+        Performance tips:
+        - Start with 2 models: ['linear', 'ridge'] for faster results
+        - Use 100-500 bootstrap samples instead of 1000
+        - Consider single model first to establish baseline
+
+    Limitations:
+        - Analytical standard errors not supported with ensembles (use bootstrap)
+        - Bootstrap resampling uses single models, not ensembles (faster, conservative)
+        - Ensemble weights optimized on training data (may overfit small samples)
+        - Some model combinations may fail to fit (falls back to single model)
+        - Requires consistent model interfaces (all sklearn-compatible)
+
     Attributes:
-        outcome_model: The fitted sklearn model for outcome prediction
+        outcome_model: The fitted sklearn model for outcome prediction (single model mode)
+        ensemble_models_fitted: Dictionary of fitted models (ensemble mode)
+        ensemble_weights: Optimized weights for ensemble predictions
         model_type: Type of model to use ('linear', 'logistic', 'random_forest')
         bootstrap_samples: Number of bootstrap samples for confidence intervals
         confidence_level: Confidence level for intervals (default 0.95)
+
+    Examples:
+        Basic single model (default, fastest):
+
+        >>> from causal_inference.core.base import TreatmentData, OutcomeData, CovariateData
+        >>> estimator = GComputationEstimator(model_type="linear")
+        >>> estimator.fit(treatment, outcome, covariates)
+        >>> effect = estimator.estimate_ate()
+
+        Ensemble for robustness (recommended when uncertain about model):
+
+        >>> estimator = GComputationEstimator(
+        ...     use_ensemble=True,
+        ...     ensemble_models=["linear", "ridge", "random_forest"],
+        ...     ensemble_variance_penalty=0.1,
+        ...     random_state=42
+        ... )
+        >>> estimator.fit(treatment, outcome, covariates)
+        >>> effect = estimator.estimate_ate()
+
+        Fast ensemble with only parametric models:
+
+        >>> estimator = GComputationEstimator(
+        ...     use_ensemble=True,
+        ...     ensemble_models=["linear", "ridge"],
+        ...     ensemble_variance_penalty=0.2,  # Higher penalty for more uniform weights
+        ...     bootstrap_samples=200,  # Fewer samples due to ensemble overhead
+        ...     random_state=42
+        ... )
+
+        Ensemble with custom model parameters:
+
+        >>> estimator = GComputationEstimator(
+        ...     use_ensemble=True,
+        ...     ensemble_models=["ridge", "random_forest"],
+        ...     model_params={"alpha": 0.5},  # Applies to ridge model
+        ...     ensemble_variance_penalty=0.1,
+        ...     random_state=42
+        ... )
+
+        Ensemble with optimization diagnostics:
+
+        >>> estimator = GComputationEstimator(
+        ...     use_ensemble=True,
+        ...     ensemble_models=["linear", "ridge", "random_forest"],
+        ...     ensemble_variance_penalty=0.1,
+        ...     verbose=True,  # Print ensemble weights and diagnostics
+        ...     random_state=42
+        ... )
+        >>> estimator.fit(treatment, outcome, covariates)
+        >>> diagnostics = estimator.get_optimization_diagnostics()
+        >>> print(diagnostics["ensemble_weights"])
+
+    See Also:
+        - Issue #132: Cross-validation for ensemble weight selection
+        - Issue #133: Bootstrap support for ensemble models
+        - User Guide: docs/user-guide/optimization.md
+
+    Notes:
+        The ensemble approach combines multiple model predictions to reduce
+        sensitivity to model misspecification. Weights are optimized to minimize
+        mean squared error on the training data, with a penalty term that encourages
+        more uniform weight distribution (controlled by ensemble_variance_penalty).
+
+        Higher variance penalties (e.g., 0.5) lead to more equal weights across models,
+        while lower penalties (e.g., 0.01) allow the optimizer to put more weight on
+        the best-performing model.
     """
 
     def __init__(
@@ -71,12 +182,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         use_ensemble: bool = False,
         ensemble_models: Optional[list[str]] = None,
         ensemble_variance_penalty: float = 0.1,
+        ensemble_model_params: Optional[dict[str, dict[str, Any]]] = None,
     ) -> None:
         """Initialize the G-computation estimator.
 
         Args:
             model_type: Model type ('auto', 'linear', 'logistic', 'random_forest')
-            model_params: Parameters to pass to the sklearn model
+            model_params: Parameters to pass to the sklearn model (applies to all ensemble models if ensemble_model_params not specified)
             bootstrap_config: Configuration for bootstrap confidence intervals
             optimization_config: Configuration for optimization strategies
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
@@ -89,6 +201,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             use_ensemble: Use ensemble of models instead of single model
             ensemble_models: List of model types for ensemble (if use_ensemble=True)
             ensemble_variance_penalty: Penalty on ensemble weight variance
+            ensemble_model_params: Model-specific parameters for each ensemble model (e.g., {'linear': {...}, 'random_forest': {...}})
+                                   Takes precedence over model_params for specified models
         """
         # Create bootstrap config if not provided (for backward compatibility)
         if bootstrap_config is None:
@@ -117,6 +231,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.use_ensemble = use_ensemble
         self.ensemble_models = ensemble_models or ["linear", "ridge", "random_forest"]
         self.ensemble_variance_penalty = ensemble_variance_penalty
+        self.ensemble_model_params = ensemble_model_params or {}
 
         # Model storage
         self.outcome_model: Optional[SklearnBaseEstimator] = None
@@ -159,7 +274,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             optimization_config=None,  # Disable optimization in bootstrap
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
-            use_ensemble=False,  # Disable ensemble in bootstrap
+            use_ensemble=self.use_ensemble,  # Preserve ensemble setting
+            ensemble_models=self.ensemble_models if self.use_ensemble else None,
+            ensemble_variance_penalty=self.ensemble_variance_penalty
+            if self.use_ensemble
+            else 0.1,
+            ensemble_model_params=self.ensemble_model_params
+            if self.use_ensemble
+            else None,
         )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
@@ -206,6 +328,20 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
+    def _get_model_params(self, model_name: str) -> dict[str, Any]:
+        """Get parameters for a specific model.
+
+        Args:
+            model_name: Name of the model ('linear', 'ridge', 'random_forest')
+
+        Returns:
+            Dictionary of parameters for the specified model
+        """
+        # If model-specific params are provided, use them; otherwise fall back to model_params
+        if model_name in self.ensemble_model_params:
+            return self.ensemble_model_params[model_name]
+        return self.model_params
+
     def _fit_ensemble_models(
         self,
         features: pd.DataFrame,
@@ -225,19 +361,22 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         models = {}
 
         for model_name in self.ensemble_models:
+            # Get model-specific parameters
+            params = self._get_model_params(model_name)
+
             if outcome_type == "continuous":
                 if model_name == "linear":
-                    model = LinearRegression(**self.model_params)
+                    model = LinearRegression(**params)
                 elif model_name == "ridge":
                     # Use default alpha=1.0 unless overridden in model_params
-                    ridge_params = {"alpha": 1.0, **self.model_params}
+                    ridge_params = {"alpha": 1.0, **params}
                     model = Ridge(**ridge_params)
                 elif model_name == "random_forest":
                     # Use sensible defaults unless overridden
                     rf_params = {
                         "n_estimators": 100,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = RandomForestRegressor(**rf_params)
                 else:
@@ -248,7 +387,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     logistic_params = {
                         "max_iter": 1000,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = LogisticRegression(**logistic_params)
                 elif model_name == "ridge":
@@ -258,14 +397,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                         "C": 1.0,  # Inverse of regularization strength
                         "penalty": "l2",
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = LogisticRegression(**logistic_ridge_params)
                 elif model_name == "random_forest":
                     rf_params = {
                         "n_estimators": 100,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **params,
                     }
                     model = RandomForestClassifier(**rf_params)
                 else:
