@@ -7,6 +7,7 @@ treatment scenarios.
 
 from __future__ import annotations
 
+import logging
 import warnings
 from contextlib import nullcontext
 from typing import Any, Optional
@@ -14,9 +15,10 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.base import BaseEstimator as SklearnBaseEstimator
+from sklearn.base import BaseEstimator as SklearnBaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import log_loss, mean_squared_error
 
 from ..core.base import (
@@ -33,6 +35,9 @@ from ..utils.memory_efficient import (
     MemoryMonitor,
     optimize_pandas_dtypes,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
@@ -164,7 +169,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
             use_ensemble=self.use_ensemble,  # Preserve ensemble setting
-            ensemble_models=self.ensemble_models if self.use_ensemble else None,
+            ensemble_models=self.ensemble_models,  # Preserve parent's exact value
             ensemble_variance_penalty=self.ensemble_variance_penalty,
         )
 
@@ -328,27 +333,32 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         use_cv = n_samples >= cv_folds * 2
 
         if use_cv:
-            cv = KFold(n_splits=cv_folds, shuffle=True, random_state=self.random_state)
+            cv = KFold(
+                n_splits=cv_folds,
+                shuffle=self.random_state is not None,
+                random_state=self.random_state,
+            )
 
             # Get out-of-fold predictions for each model using unfitted clones
             oof_predictions = []
             for name in model_names:
                 try:
                     oof_pred = cross_val_predict(
-                        models[name].__class__(**models[name].get_params()),
+                        clone(models[name]),
                         features,
                         y,
                         cv=cv,
                     )
                     oof_predictions.append(oof_pred)
-                except Exception:
+                except (ValueError, NotFittedError) as e:
                     # Fall back to in-sample predictions if CV fails for this model
+                    logger.warning(
+                        "Cross-validation failed for %s (error: %s), "
+                        "falling back to in-sample predictions for weight optimization.",
+                        name,
+                        e,
+                    )
                     oof_predictions.append(models[name].predict(features))
-                    if self.verbose:
-                        warnings.warn(
-                            f"Cross-validation failed for {name}, "
-                            f"using in-sample predictions for weight optimization."
-                        )
 
             predictions = np.column_stack(oof_predictions)
         else:

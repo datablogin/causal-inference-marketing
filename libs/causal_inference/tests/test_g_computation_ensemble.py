@@ -183,3 +183,4 @@ def test_ensemble_with_bootstrap(synthetic_data):
     assert effect.ate_ci_lower is not None
     assert effect.ate_ci_upper is not None
     assert effect.ate_ci_lower < effect.ate < effect.ate_ci_upper
+
