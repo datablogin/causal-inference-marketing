@@ -67,14 +67,11 @@ class OptimizationMixin:
             Optimized weights array
         """
         # Check if optimization is enabled
-        if (
-            not self.optimization_config
-            or not self.optimization_config.optimize_weights
-        ):
+        config = self.optimization_config
+        if not config or not config.optimize_weights:
             return baseline_weights
 
-        # At this point, optimization_config is guaranteed to be non-None
-        assert self.optimization_config is not None  # Type narrowing for mypy
+        # config is now narrowed to OptimizationConfig (not None)
 
         n_obs = len(baseline_weights)
 
@@ -88,21 +85,21 @@ class OptimizationMixin:
 
         # Set variance constraint from config if not provided
         if variance_constraint is None:
-            variance_constraint = self.optimization_config.variance_constraint
+            variance_constraint = config.variance_constraint
+
+        # Capture distance_metric in local variable for use in closure
+        distance_metric = config.distance_metric
 
         # Define objective function
         def objective(w: NDArray[Any]) -> float:
             """Distance from baseline weights."""
-            assert self.optimization_config is not None  # Type narrowing for mypy
-            metric = self.optimization_config.distance_metric
-
-            if metric == "l2":
+            if distance_metric == "l2":
                 return float(np.sum((w - baseline_weights) ** 2))
-            elif metric == "kl_divergence":
+            elif distance_metric == "kl_divergence":
                 # KL divergence: sum(w * log(w / baseline))
                 eps = 1e-10
                 return float(np.sum(w * np.log((w + eps) / (baseline_weights + eps))))
-            elif metric == "huber":
+            elif distance_metric == "huber":
                 diff = w - baseline_weights
                 delta = 1.0
                 huber = np.where(
@@ -112,14 +109,13 @@ class OptimizationMixin:
                 )
                 return float(np.sum(huber))
             else:
-                raise ValueError(f"Unknown distance metric: {metric}")
+                raise ValueError(f"Unknown distance metric: {distance_metric}")
 
         # Define constraints
         constraints = []
 
         # Covariate balance constraint
-        assert self.optimization_config is not None  # Type narrowing for mypy
-        if self.optimization_config.balance_constraints:
+        if config.balance_constraints:
 
             def balance_constraint(w: NDArray[Any]) -> NDArray[Any]:
                 """Constraint: (1/n) X^T w = μ"""
@@ -142,17 +138,16 @@ class OptimizationMixin:
 
         # Optimize
         try:
-            assert self.optimization_config is not None  # Type narrowing for mypy
             result = minimize(
                 objective,
                 baseline_weights,
-                method=self.optimization_config.method,
+                method=config.method,
                 bounds=bounds,
                 constraints=constraints,
                 options={
-                    "maxiter": self.optimization_config.max_iterations,
-                    "ftol": self.optimization_config.convergence_tolerance,
-                    "disp": self.optimization_config.verbose,
+                    "maxiter": config.max_iterations,
+                    "ftol": config.convergence_tolerance,
+                    "disp": config.verbose,
                 },
             )
 
@@ -162,8 +157,7 @@ class OptimizationMixin:
             )
 
             # Store diagnostics (merge instead of overwriting)
-            assert self.optimization_config is not None  # Type narrowing for mypy
-            if self.optimization_config.store_diagnostics:
+            if config.store_diagnostics:
                 if not hasattr(self, "_optimization_diagnostics"):
                     self._optimization_diagnostics = {}
 
@@ -190,9 +184,9 @@ class OptimizationMixin:
 
             # Check constraint violations even on success
             if (
-                self.optimization_config.balance_constraints
+                config.balance_constraints
                 and constraint_violation
-                > self.optimization_config.balance_tolerance * 10
+                > config.balance_tolerance * 10
             ):
                 warnings.warn(
                     f"Optimization succeeded but severe constraint violation detected "

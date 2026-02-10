@@ -7,6 +7,7 @@ treatment scenarios.
 
 from __future__ import annotations
 
+import logging
 import warnings
 from contextlib import nullcontext
 from typing import Any, Optional
@@ -14,9 +15,10 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.base import BaseEstimator as SklearnBaseEstimator
+from sklearn.base import BaseEstimator as SklearnBaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import log_loss, mean_squared_error
 
 from ..core.base import (
@@ -33,6 +35,9 @@ from ..utils.memory_efficient import (
     MemoryMonitor,
     optimize_pandas_dtypes,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
@@ -146,6 +151,10 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
     ) -> GComputationEstimator:
         """Create a new estimator instance for bootstrap sampling.
 
+        Preserves the parent estimator's ensemble configuration so that
+        bootstrap confidence intervals reflect the same estimation procedure
+        used for the point estimate (bootstrap principle).
+
         Args:
             random_state: Random state for this bootstrap instance
 
@@ -159,7 +168,9 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             optimization_config=None,  # Disable optimization in bootstrap
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
-            use_ensemble=False,  # Disable ensemble in bootstrap
+            use_ensemble=self.use_ensemble,  # Preserve ensemble setting
+            ensemble_models=self.ensemble_models,  # Preserve parent's exact value
+            ensemble_variance_penalty=self.ensemble_variance_penalty,
         )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
@@ -293,29 +304,91 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         models: dict[str, Any],
         features: pd.DataFrame,
         y: NDArray[Any],
+        cv_folds: int = 5,
     ) -> NDArray[Any]:
-        """Optimize ensemble weights with variance penalty.
+        """Optimize ensemble weights using cross-validated out-of-fold predictions.
+
+        Uses k-fold cross-validation to obtain out-of-fold predictions for each
+        model, then optimizes weights based on these predictions. This prevents
+        overfitting of ensemble weights to the training data.
 
         Args:
             models: Dictionary of fitted models
             features: Feature matrix
             y: Outcome vector
+            cv_folds: Number of cross-validation folds (default: 5)
 
         Returns:
             Optimized ensemble weights
         """
+        from sklearn.model_selection import KFold, cross_val_predict
         from scipy.optimize import minimize
 
         n_models = len(models)
         model_names = list(models.keys())
+        n_samples = len(y)
 
-        # Get predictions from each model
-        predictions = np.column_stack(
-            [models[name].predict(features) for name in model_names]
-        )
+        # Use cross-validated out-of-fold predictions to prevent overfitting
+        # Only use CV when we have enough samples for meaningful folds
+        use_cv = n_samples >= cv_folds * 2
+
+        if use_cv:
+            # Always shuffle to avoid bias from ordered data (e.g., treatment
+            # groups clustered together). Use seed 0 when no random_state given.
+            cv = KFold(
+                n_splits=cv_folds,
+                shuffle=True,
+                random_state=self.random_state if self.random_state is not None else 0,
+            )
+
+            # Get out-of-fold predictions for each model using unfitted clones.
+            # clone() strips fitted state and copies hyperparameters; this is
+            # safe for the current model types (Linear, Ridge, RandomForest).
+            oof_predictions = []
+            cv_failed = False
+            for name in model_names:
+                try:
+                    oof_pred = cross_val_predict(
+                        clone(models[name]),
+                        features,
+                        y,
+                        cv=cv,
+                    )
+                    oof_predictions.append(oof_pred)
+                except (ValueError, NotFittedError) as e:
+                    logger.warning(
+                        "Cross-validation failed for %s (error: %s), "
+                        "falling back to in-sample predictions for all models.",
+                        name,
+                        e,
+                    )
+                    cv_failed = True
+                    break
+
+            if cv_failed:
+                # Fall back to all in-sample predictions to avoid mixing
+                # CV and in-sample columns, which would bias weights toward
+                # the in-sample (overfitted) model.
+                predictions = np.column_stack(
+                    [models[name].predict(features) for name in model_names]
+                )
+                use_cv = False
+            else:
+                predictions = np.column_stack(oof_predictions)
+        else:
+            # For very small datasets, fall back to in-sample predictions
+            predictions = np.column_stack(
+                [models[name].predict(features) for name in model_names]
+            )
+            warnings.warn(
+                f"Dataset too small for {cv_folds}-fold CV "
+                f"(n={n_samples}), using in-sample predictions for "
+                f"ensemble weight optimization.",
+                stacklevel=2,
+            )
 
         def objective(weights: NDArray[Any]) -> float:
-            """MSE with variance penalty."""
+            """MSE with variance penalty on out-of-fold predictions."""
             ensemble_pred = predictions @ weights
             mse = float(np.mean((y - ensemble_pred) ** 2))
 
@@ -356,6 +429,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 "ensemble_weights": {
                     name: float(w) for name, w in zip(model_names, result.x)
                 },
+                "ensemble_cv_folds": cv_folds if use_cv else 0,
             }
         )
 
