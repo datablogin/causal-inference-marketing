@@ -1,7 +1,6 @@
 """Test for ensemble CV fallback with small datasets."""
 
 import numpy as np
-import pytest
 
 from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
 from causal_inference.estimators.g_computation import GComputationEstimator
@@ -14,12 +13,12 @@ def test_ensemble_cv_fallback_small_dataset():
     weight optimization should fall back to in-sample predictions, reporting
     ensemble_cv_folds=0 in diagnostics.
     """
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n = 10  # Minimum allowed sample size
 
-    X = np.random.randn(n, 2)
+    X = rng.standard_normal((n, 2))
     treatment = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
-    outcome = 1.5 * treatment + X[:, 0] + np.random.randn(n) * 0.3
+    outcome = 1.5 * treatment + X[:, 0] + rng.standard_normal(n) * 0.3
 
     estimator = GComputationEstimator(
         use_ensemble=True,

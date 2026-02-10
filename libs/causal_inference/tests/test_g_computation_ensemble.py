@@ -139,6 +139,11 @@ def test_ensemble_optimization_diagnostics(synthetic_data):
     assert "ensemble_success" in diag
     assert "ensemble_objective" in diag
     assert "ensemble_weights" in diag
+    # Verify the CV path was actually used (n=500 >> cv_folds*2)
+    assert "ensemble_cv_folds" in diag
+    assert diag["ensemble_cv_folds"] > 0, (
+        "Expected CV path (ensemble_cv_folds > 0) for n=500 dataset"
+    )
 
 
 def test_ensemble_fallback_to_single_model(synthetic_data):
@@ -183,4 +188,3 @@ def test_ensemble_with_bootstrap(synthetic_data):
     assert effect.ate_ci_lower is not None
     assert effect.ate_ci_upper is not None
     assert effect.ate_ci_lower < effect.ate < effect.ate_ci_upper
-

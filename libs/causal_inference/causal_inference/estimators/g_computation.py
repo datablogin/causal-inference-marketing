@@ -333,14 +333,19 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         use_cv = n_samples >= cv_folds * 2
 
         if use_cv:
+            # Always shuffle to avoid bias from ordered data (e.g., treatment
+            # groups clustered together). Use seed 0 when no random_state given.
             cv = KFold(
                 n_splits=cv_folds,
-                shuffle=self.random_state is not None,
-                random_state=self.random_state,
+                shuffle=True,
+                random_state=self.random_state if self.random_state is not None else 0,
             )
 
-            # Get out-of-fold predictions for each model using unfitted clones
+            # Get out-of-fold predictions for each model using unfitted clones.
+            # clone() strips fitted state and copies hyperparameters; this is
+            # safe for the current model types (Linear, Ridge, RandomForest).
             oof_predictions = []
+            cv_failed = False
             for name in model_names:
                 try:
                     oof_pred = cross_val_predict(
@@ -351,26 +356,36 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     )
                     oof_predictions.append(oof_pred)
                 except (ValueError, NotFittedError) as e:
-                    # Fall back to in-sample predictions if CV fails for this model
                     logger.warning(
                         "Cross-validation failed for %s (error: %s), "
-                        "falling back to in-sample predictions for weight optimization.",
+                        "falling back to in-sample predictions for all models.",
                         name,
                         e,
                     )
-                    oof_predictions.append(models[name].predict(features))
+                    cv_failed = True
+                    break
 
-            predictions = np.column_stack(oof_predictions)
+            if cv_failed:
+                # Fall back to all in-sample predictions to avoid mixing
+                # CV and in-sample columns, which would bias weights toward
+                # the in-sample (overfitted) model.
+                predictions = np.column_stack(
+                    [models[name].predict(features) for name in model_names]
+                )
+                use_cv = False
+            else:
+                predictions = np.column_stack(oof_predictions)
         else:
             # For very small datasets, fall back to in-sample predictions
             predictions = np.column_stack(
                 [models[name].predict(features) for name in model_names]
             )
-            if self.verbose:
-                warnings.warn(
-                    f"Dataset too small for {cv_folds}-fold CV "
-                    f"(n={n_samples}), using in-sample predictions."
-                )
+            warnings.warn(
+                f"Dataset too small for {cv_folds}-fold CV "
+                f"(n={n_samples}), using in-sample predictions for "
+                f"ensemble weight optimization.",
+                stacklevel=2,
+            )
 
         def objective(weights: NDArray[Any]) -> float:
             """MSE with variance penalty on out-of-fold predictions."""
