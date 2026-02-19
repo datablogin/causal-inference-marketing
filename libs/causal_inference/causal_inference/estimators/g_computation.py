@@ -71,6 +71,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         use_ensemble: bool = False,
         ensemble_models: Optional[list[str]] = None,
         ensemble_variance_penalty: float = 0.1,
+        ensemble_use_cv: bool = True,
+        ensemble_cv_folds: int = 5,
     ) -> None:
         """Initialize the G-computation estimator.
 
@@ -89,6 +91,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             use_ensemble: Use ensemble of models instead of single model
             ensemble_models: List of model types for ensemble (if use_ensemble=True)
             ensemble_variance_penalty: Penalty on ensemble weight variance
+            ensemble_use_cv: Use cross-validation for ensemble weight optimization (super learner approach)
+            ensemble_cv_folds: Number of CV folds for ensemble weight optimization
         """
         # Create bootstrap config if not provided (for backward compatibility)
         if bootstrap_config is None:
@@ -117,11 +121,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.use_ensemble = use_ensemble
         self.ensemble_models = ensemble_models or ["linear", "ridge", "random_forest"]
         self.ensemble_variance_penalty = ensemble_variance_penalty
+        self.ensemble_use_cv = ensemble_use_cv
+        self.ensemble_cv_folds = ensemble_cv_folds
 
         # Model storage
         self.outcome_model: Optional[SklearnBaseEstimator] = None
         self.ensemble_models_fitted: dict[str, Any] = {}
         self.ensemble_weights: Optional[NDArray[Any]] = None
+        self.ensemble_oof_predictions_: Optional[NDArray[Any]] = None
         self._model_features: Optional[list[str]] = None
 
     def _check_is_fitted(self) -> None:
@@ -171,6 +178,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             ensemble_variance_penalty=self.ensemble_variance_penalty
             if propagate
             else 0.1,
+            ensemble_use_cv=False,  # Disable CV in bootstrap sub-estimators
         )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
@@ -304,6 +312,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         models: dict[str, Any],
         features: pd.DataFrame,
         y: NDArray[Any],
+        oof_predictions: Optional[NDArray[Any]] = None,
     ) -> NDArray[Any]:
         """Optimize ensemble weights with variance penalty.
 
@@ -311,6 +320,9 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             models: Dictionary of fitted models
             features: Feature matrix
             y: Outcome vector
+            oof_predictions: Optional out-of-fold predictions from CV.
+                If provided, uses these instead of in-sample predictions
+                to avoid overfitting bias in weight optimization.
 
         Returns:
             Optimized ensemble weights
@@ -321,9 +333,12 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         model_names = list(models.keys())
 
         # Get predictions from each model
-        predictions = np.column_stack(
-            [models[name].predict(features) for name in model_names]
-        )
+        if oof_predictions is not None:
+            predictions = oof_predictions
+        else:
+            predictions = np.column_stack(
+                [models[name].predict(features) for name in model_names]
+            )
 
         def objective(weights: NDArray[Any]) -> float:
             """MSE with variance penalty."""
@@ -367,10 +382,103 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 "ensemble_weights": {
                     name: float(w) for name, w in zip(model_names, result.x)
                 },
+                "ensemble_cv_folds": self.ensemble_cv_folds
+                if oof_predictions is not None
+                else None,
             }
         )
 
         return np.asarray(result.x)
+
+    def _get_oof_predictions(
+        self,
+        models_config: dict[str, Any],
+        features: pd.DataFrame,
+        y: NDArray[Any],
+        outcome_type: str,
+    ) -> NDArray[Any]:
+        """Generate out-of-fold predictions using K-fold CV (super learner approach).
+
+        This implements the key insight from the super learner literature: use
+        cross-validated out-of-fold predictions for weight optimization to avoid
+        overfitting bias. Models that overfit (e.g., random forest) will not
+        receive disproportionately high weight because their OOF predictions
+        reflect true generalization performance.
+
+        Args:
+            models_config: Dictionary mapping model names to fitted model instances
+                (will be cloned to create unfitted copies for each fold)
+            features: Feature matrix
+            y: Outcome vector
+            outcome_type: Type of outcome ('continuous', 'binary')
+
+        Returns:
+            Array of shape (n_samples, n_models) with OOF predictions
+        """
+        from sklearn.base import clone as sklearn_clone
+        from sklearn.model_selection import KFold, StratifiedKFold
+
+        n_samples = len(y)
+        model_names = list(models_config.keys())
+        n_models = len(model_names)
+
+        # Determine number of folds, auto-reduce for small datasets
+        n_folds = self.ensemble_cv_folds
+        min_samples_per_fold = 5
+        if n_samples < n_folds * min_samples_per_fold:
+            n_folds = max(2, n_samples // min_samples_per_fold)
+            warnings.warn(
+                f"Reduced ensemble CV folds from {self.ensemble_cv_folds} to "
+                f"{n_folds} due to small dataset size ({n_samples} samples).",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Choose fold strategy based on outcome type
+        if outcome_type == "binary":
+            cv = StratifiedKFold(
+                n_splits=n_folds, shuffle=True, random_state=self.random_state
+            )
+            split_target = y
+        else:
+            cv = KFold(
+                n_splits=n_folds, shuffle=True, random_state=self.random_state
+            )
+            split_target = y
+
+        # Initialize OOF prediction matrix
+        oof_predictions = np.full((n_samples, n_models), np.nan)
+
+        for fold_idx, (train_idx, val_idx) in enumerate(
+            cv.split(features, split_target)
+        ):
+            X_train, X_val = features.iloc[train_idx], features.iloc[val_idx]
+            y_train = y[train_idx]
+
+            for model_idx, model_name in enumerate(model_names):
+                try:
+                    # Clone the model for this fold (creates unfitted copy)
+                    fold_model = sklearn_clone(models_config[model_name])
+                    fold_model.fit(X_train, y_train)
+                    oof_predictions[val_idx, model_idx] = fold_model.predict(X_val)
+                except Exception as e:
+                    # Fill with training mean for failed models
+                    warnings.warn(
+                        f"Model {model_name} failed on fold {fold_idx}: "
+                        f"{str(e)}. Using training mean as fallback.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    oof_predictions[val_idx, model_idx] = np.mean(y_train)
+
+        # Check for any remaining NaN values and fill with column mean
+        for col in range(n_models):
+            nan_mask = np.isnan(oof_predictions[:, col])
+            if np.any(nan_mask):
+                col_mean = np.nanmean(oof_predictions[:, col])
+                oof_predictions[nan_mask, col] = col_mean
+
+        return oof_predictions
 
     def _prepare_features(
         self,
@@ -512,16 +620,46 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 )
 
                 if len(self.ensemble_models_fitted) > 1:
+                    # Use CV-based OOF predictions if enabled
+                    oof_preds = None
+                    min_cv_samples = self.ensemble_cv_folds * 5
+                    if self.ensemble_use_cv and len(y) >= min_cv_samples:
+                        oof_preds = self._get_oof_predictions(
+                            models_config=self.ensemble_models_fitted,
+                            features=X,
+                            y=y,
+                            outcome_type=outcome.outcome_type,
+                        )
+                        self.ensemble_oof_predictions_ = oof_preds
+
+                        # Refit all models on full data after OOF generation
+                        self.ensemble_models_fitted = self._fit_ensemble_models(
+                            features=X, y=y, outcome_type=outcome.outcome_type
+                        )
+                    elif self.ensemble_use_cv:
+                        warnings.warn(
+                            f"Dataset too small ({len(y)} samples) for "
+                            f"{self.ensemble_cv_folds}-fold CV. "
+                            f"Falling back to in-sample weight optimization.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+
                     self.ensemble_weights = self._optimize_ensemble_weights(
-                        models=self.ensemble_models_fitted, features=X, y=y
+                        models=self.ensemble_models_fitted,
+                        features=X,
+                        y=y,
+                        oof_predictions=oof_preds,
                     )
 
                     if self.verbose:
                         print("\n=== Ensemble Weights ===")
+                        cv_note = " (CV-optimized)" if oof_preds is not None else ""
+                        print(f"Weight optimization{cv_note}:")
                         for name, weight in zip(
                             self.ensemble_models_fitted.keys(), self.ensemble_weights
                         ):
-                            print(f"{name}: {weight:.4f}")
+                            print(f"  {name}: {weight:.4f}")
                 else:
                     # Fall back to single model if ensemble failed
                     warnings.warn(
