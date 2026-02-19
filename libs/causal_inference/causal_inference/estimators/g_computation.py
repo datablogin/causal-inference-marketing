@@ -152,6 +152,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         Returns:
             New GComputationEstimator instance configured for bootstrap
         """
+        # Determine whether to propagate ensemble settings
+        propagate = (
+            self.use_ensemble
+            and self.bootstrap_config is not None
+            and getattr(self.bootstrap_config, "propagate_ensemble", True)
+        )
+
         return GComputationEstimator(
             model_type=self.model_type,
             model_params=self.model_params,
@@ -159,7 +166,11 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             optimization_config=None,  # Disable optimization in bootstrap
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
-            use_ensemble=False,  # Disable ensemble in bootstrap
+            use_ensemble=propagate,
+            ensemble_models=self.ensemble_models if propagate else None,
+            ensemble_variance_penalty=self.ensemble_variance_penalty
+            if propagate
+            else 0.1,
         )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
@@ -866,6 +877,27 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         bootstrap_converged = None
         bootstrap_bias = None
         bootstrap_acceleration = None
+
+        if (
+            self.use_ensemble
+            and self.bootstrap_config
+            and self.bootstrap_config.n_samples > 0
+            and getattr(self.bootstrap_config, "propagate_ensemble", True)
+        ):
+            n_models = (
+                len(self.ensemble_models_fitted)
+                if self.ensemble_models_fitted
+                else len(self.ensemble_models)
+            )
+            total_fits = n_models * self.bootstrap_config.n_samples
+            warnings.warn(
+                f"Ensemble + bootstrap will fit {total_fits} models "
+                f"({n_models} models x {self.bootstrap_config.n_samples} bootstrap samples). "
+                f"Set bootstrap_config.propagate_ensemble=False for faster "
+                f"(but less accurate) CIs.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if self.bootstrap_config and self.bootstrap_config.n_samples > 0:
             try:
