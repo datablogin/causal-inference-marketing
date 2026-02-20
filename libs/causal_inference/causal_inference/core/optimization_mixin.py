@@ -73,8 +73,8 @@ class OptimizationMixin:
         ):
             return baseline_weights
 
-        # At this point, optimization_config is guaranteed to be non-None
-        assert self.optimization_config is not None  # Type narrowing for mypy
+        # Local variable for type narrowing (replaces assert statements)
+        config = self.optimization_config
 
         n_obs = len(baseline_weights)
 
@@ -88,13 +88,12 @@ class OptimizationMixin:
 
         # Set variance constraint from config if not provided
         if variance_constraint is None:
-            variance_constraint = self.optimization_config.variance_constraint
+            variance_constraint = config.variance_constraint
 
         # Define objective function
         def objective(w: NDArray[Any]) -> float:
             """Distance from baseline weights."""
-            assert self.optimization_config is not None  # Type narrowing for mypy
-            metric = self.optimization_config.distance_metric
+            metric = config.distance_metric
 
             if metric == "l2":
                 return float(np.sum((w - baseline_weights) ** 2))
@@ -118,8 +117,7 @@ class OptimizationMixin:
         constraints = []
 
         # Covariate balance constraint
-        assert self.optimization_config is not None  # Type narrowing for mypy
-        if self.optimization_config.balance_constraints:
+        if config.balance_constraints:
 
             def balance_constraint(w: NDArray[Any]) -> NDArray[Any]:
                 """Constraint: (1/n) X^T w = μ"""
@@ -142,17 +140,16 @@ class OptimizationMixin:
 
         # Optimize
         try:
-            assert self.optimization_config is not None  # Type narrowing for mypy
             result = minimize(
                 objective,
                 baseline_weights,
-                method=self.optimization_config.method,
+                method=config.method,
                 bounds=bounds,
                 constraints=constraints,
                 options={
-                    "maxiter": self.optimization_config.max_iterations,
-                    "ftol": self.optimization_config.convergence_tolerance,
-                    "disp": self.optimization_config.verbose,
+                    "maxiter": config.max_iterations,
+                    "ftol": config.convergence_tolerance,
+                    "disp": config.verbose,
                 },
             )
 
@@ -162,8 +159,7 @@ class OptimizationMixin:
             )
 
             # Store diagnostics (merge instead of overwriting)
-            assert self.optimization_config is not None  # Type narrowing for mypy
-            if self.optimization_config.store_diagnostics:
+            if config.store_diagnostics:
                 if not hasattr(self, "_optimization_diagnostics"):
                     self._optimization_diagnostics = {}
 
@@ -190,9 +186,9 @@ class OptimizationMixin:
 
             # Check constraint violations even on success
             if (
-                self.optimization_config.balance_constraints
+                config.balance_constraints
                 and constraint_violation
-                > self.optimization_config.balance_tolerance * 10
+                > config.balance_tolerance * 10
             ):
                 warnings.warn(
                     f"Optimization succeeded but severe constraint violation detected "
