@@ -390,6 +390,91 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
         return np.asarray(result.x)
 
+    def _check_ensemble_positivity(
+        self,
+        predictions_treated: NDArray[Any],
+        predictions_control: NDArray[Any],
+        outcome_type: str,
+    ) -> dict[str, Any]:
+        """Check for extreme predictions that may indicate positivity violations.
+
+        Ensemble models (especially tree-based) can produce extreme predictions
+        in regions with sparse treatment overlap, leading to unreliable causal
+        effect estimates.
+
+        Args:
+            predictions_treated: Predicted outcomes under treatment
+            predictions_control: Predicted outcomes under control
+            outcome_type: Type of outcome ('continuous', 'binary')
+
+        Returns:
+            Dictionary with positivity diagnostic results
+        """
+        diagnostics: dict[str, Any] = {
+            "positivity_check": True,
+            "warnings": [],
+        }
+
+        if outcome_type == "binary":
+            # For binary outcomes, check for predictions near 0 or 1
+            extreme_threshold_low = 0.01
+            extreme_threshold_high = 0.99
+
+            for label, preds in [
+                ("treated", predictions_treated),
+                ("control", predictions_control),
+            ]:
+                extreme_low = float(np.mean(preds < extreme_threshold_low))
+                extreme_high = float(np.mean(preds > extreme_threshold_high))
+                extreme_total = extreme_low + extreme_high
+
+                diagnostics[f"{label}_extreme_low_frac"] = extreme_low
+                diagnostics[f"{label}_extreme_high_frac"] = extreme_high
+
+                if extreme_total > 0.05:  # More than 5% extreme
+                    diagnostics["positivity_check"] = False
+                    diagnostics["warnings"].append(
+                        f"{extreme_total:.1%} of {label} predictions are extreme "
+                        f"(<{extreme_threshold_low} or >{extreme_threshold_high}). "
+                        f"This may indicate positivity violations."
+                    )
+
+        # For all outcome types, check prediction spread
+        effect_estimates = predictions_treated - predictions_control
+        diagnostics["effect_range"] = [
+            float(np.min(effect_estimates)),
+            float(np.max(effect_estimates)),
+        ]
+        diagnostics["effect_std"] = float(np.std(effect_estimates))
+
+        # Check for extreme individual treatment effects (outliers)
+        iqr = float(
+            np.percentile(effect_estimates, 75)
+            - np.percentile(effect_estimates, 25)
+        )
+        if iqr > 0:
+            outlier_threshold = 3.0 * iqr
+            median_effect = float(np.median(effect_estimates))
+            n_outliers = int(
+                np.sum(np.abs(effect_estimates - median_effect) > outlier_threshold)
+            )
+            outlier_frac = n_outliers / len(effect_estimates)
+            diagnostics["effect_outlier_fraction"] = float(outlier_frac)
+
+            if outlier_frac > 0.05:
+                diagnostics["positivity_check"] = False
+                diagnostics["warnings"].append(
+                    f"{outlier_frac:.1%} of individual treatment effects are outliers "
+                    f"(>{outlier_threshold:.2f} from median). Consider trimming or "
+                    f"reducing model complexity."
+                )
+
+        # Emit warnings
+        for warning_msg in diagnostics["warnings"]:
+            warnings.warn(warning_msg, UserWarning, stacklevel=2)
+
+        return diagnostics
+
     def _get_oof_predictions(
         self,
         models_config: dict[str, Any],
@@ -936,6 +1021,23 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             potential_outcome_treated = np.mean(outcomes[treatment_values[1]])
             potential_outcome_control = np.mean(outcomes[treatment_values[0]])
 
+        # Run positivity diagnostics for ensemble predictions
+        if self.use_ensemble:
+            y1_pred = outcomes[treatment_values[1]]
+            y0_pred = outcomes[treatment_values[0]]
+            self._positivity_diagnostics = self._check_ensemble_positivity(
+                predictions_treated=y1_pred,
+                predictions_control=y0_pred,
+                outcome_type=self.outcome_data.outcome_type,
+            )
+
+            # Store in diagnostics
+            if not hasattr(self, "_optimization_diagnostics"):
+                self._optimization_diagnostics = {}
+            self._optimization_diagnostics["positivity"] = (
+                self._positivity_diagnostics
+            )
+
         # Calculate analytical standard error approximation when bootstrap is not used
         ate_se = None
         ate_ci_lower = None
@@ -1219,3 +1321,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             return ci_lower, ci_upper, bootstrap_result.bootstrap_estimates
         else:
             return None, None, None
+
+    def get_positivity_diagnostics(self) -> dict[str, Any] | None:
+        """Get positivity diagnostics from the last ensemble prediction.
+
+        Returns diagnostics about extreme predictions that may indicate
+        positivity violations. Only populated when use_ensemble=True.
+
+        Returns:
+            Dictionary with positivity diagnostic results, or None
+        """
+        return getattr(self, "_positivity_diagnostics", None)
