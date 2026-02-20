@@ -146,6 +146,7 @@ def test_ensemble_fallback_to_single_model(synthetic_data):
     estimator = GComputationEstimator(
         use_ensemble=True,
         ensemble_models=["linear"],  # Only one model
+        ensemble_min_models=1,
         ensemble_variance_penalty=0.1,
         random_state=42,
     )

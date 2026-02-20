@@ -14,7 +14,12 @@ import warnings
 import numpy as np
 import pytest
 
-from causal_inference.core.base import CovariateData, OutcomeData, TreatmentData
+from causal_inference.core.base import (
+    CovariateData,
+    EstimationError,
+    OutcomeData,
+    TreatmentData,
+)
 from causal_inference.core.optimization_config import OptimizationConfig
 from causal_inference.estimators.g_computation import GComputationEstimator
 
@@ -251,12 +256,13 @@ class TestEdgeCases:
     def test_ensemble_single_model_in_list(self, ensemble_data):
         """Test ensemble with only one model specified.
 
-        When ensemble_models has only one entry, the estimator should
-        fall back to single-model mode.
+        When ensemble_models has only one entry and ensemble_min_models=1,
+        the estimator should fall back to single-model mode.
         """
         estimator = GComputationEstimator(
             use_ensemble=True,
             ensemble_models=["linear"],
+            ensemble_min_models=1,
             ensemble_variance_penalty=0.1,
             random_state=42,
             bootstrap_samples=0,
@@ -313,7 +319,7 @@ class TestEdgeCases:
         """Test behavior when all ensemble models fail to fit.
 
         When every model name is invalid, none will fit and the estimator
-        should fall back to a single model (with a warning).
+        should raise EstimationError (ensemble_min_models threshold).
         """
         rng = np.random.RandomState(42)
         n = 100
@@ -334,26 +340,9 @@ class TestEdgeCases:
         covariates = CovariateData(values=X, names=["X1", "X2"])
 
         # All models are invalid, so none will fit.
-        # The code checks len(ensemble_models_fitted) > 1; with 0 fitted it
-        # falls back to single model (use_ensemble set to False).
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        # With ensemble_min_models=2 (default), this raises EstimationError.
+        with pytest.raises(EstimationError, match="no models fitted successfully"):
             estimator.fit(treatment_data, outcome_data, covariates)
-            # Should have produced a fallback warning
-            fallback_warnings = [
-                x for x in w if "Falling back to single" in str(x.message)
-            ]
-            assert len(fallback_warnings) > 0, (
-                "Expected a fallback warning when all ensemble models fail"
-            )
-
-        # Should have fallen back to single model
-        assert not estimator.use_ensemble
-        assert estimator.outcome_model is not None
-
-        effect = estimator.estimate_ate()
-        assert effect.ate is not None
-        assert np.isfinite(effect.ate)
 
 
 # ---------------------------------------------------------------------------
