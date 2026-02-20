@@ -19,14 +19,15 @@ from scipy import stats
 try:
     import matplotlib.pyplot as plt
     import seaborn as sns
+    from matplotlib.figure import Figure as MplFigure
 
     PLOTTING_AVAILABLE = True
 except ImportError:
     PLOTTING_AVAILABLE = False
 
 try:
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go  # type: ignore[import-not-found]
+    from plotly.subplots import make_subplots  # type: ignore[import-not-found]
 
     PLOTLY_AVAILABLE = True
 except ImportError:
@@ -130,8 +131,8 @@ class WeightDiagnostics:
 
         # Extreme weight analysis
         extreme_mask = weights > self.extreme_weight_threshold
-        extreme_count = np.sum(extreme_mask)
-        extreme_percentage = extreme_count / n_obs * 100
+        extreme_count = int(np.sum(extreme_mask))
+        extreme_percentage = float(extreme_count / n_obs * 100)
 
         if extreme_count > 0:
             logger.warning(
@@ -268,7 +269,7 @@ class WeightDiagnostics:
         title: str = "Weight Distribution Diagnostics",
         save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> Union[plt.Figure, go.Figure]:
+    ) -> Union[MplFigure, go.Figure]:
         """Create comprehensive weight distribution plots.
 
         Args:
@@ -297,7 +298,7 @@ class WeightDiagnostics:
         result: WeightDiagnosticsResult,
         title: str,
         save_path: Optional[str],
-    ) -> plt.Figure:
+    ) -> MplFigure:
         """Create static matplotlib weight plots."""
         fig = plt.figure(figsize=(16, 12))
 
@@ -320,7 +321,7 @@ class WeightDiagnostics:
 
         # Color extreme weights differently
         extreme_threshold = self.extreme_weight_threshold
-        for i, patch in enumerate(patches):
+        for i, patch in enumerate(patches):  # type: ignore[arg-type]
             if bins[i] > extreme_threshold:
                 patch.set_facecolor("red")
                 patch.set_alpha(0.8)
@@ -449,13 +450,13 @@ class WeightDiagnostics:
             cellText=col1_data,
             cellLoc="left",
             loc="center left",
-            bbox=[0.0, 0.0, 0.45, 1.0],
+            bbox=[0.0, 0.0, 0.45, 1.0],  # type: ignore[arg-type]
         )
         table2 = ax6.table(
             cellText=col2_data,
             cellLoc="left",
             loc="center right",
-            bbox=[0.55, 0.0, 0.45, 1.0],
+            bbox=[0.55, 0.0, 0.45, 1.0],  # type: ignore[arg-type]
         )
 
         # Style tables
@@ -693,7 +694,7 @@ def create_weight_plots(
     save_path: Optional[str] = None,
     interactive: bool = False,
     enable_distribution_tests: bool = True,
-) -> tuple[Union[plt.Figure, go.Figure], WeightDiagnosticsResult, list[str]]:
+) -> tuple[Union[MplFigure, go.Figure], WeightDiagnosticsResult, list[str]]:
     """Convenience function to create weight diagnostic plots.
 
     Args:

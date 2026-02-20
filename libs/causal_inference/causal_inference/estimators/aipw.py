@@ -1220,7 +1220,7 @@ class AIPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> Optional[tuple[float, float, NDArray[Any]]]:
+    ) -> tuple[Optional[float], Optional[float], Optional[NDArray[Any]]]:
         """Calculate bootstrap confidence intervals for AIPW estimate.
 
         Returns:

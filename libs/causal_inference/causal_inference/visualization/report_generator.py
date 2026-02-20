@@ -21,13 +21,14 @@ from numpy.typing import NDArray
 # Import plotting libraries with fallback
 try:
     import matplotlib.pyplot as plt
+    from matplotlib.figure import Figure as MplFigure
 
     PLOTTING_AVAILABLE = True
 except ImportError:
     PLOTTING_AVAILABLE = False
 
 try:
-    import plotly  # noqa: F401
+    import plotly  # type: ignore[import-not-found]  # noqa: F401
 
     PLOTLY_AVAILABLE = True
 except ImportError:
@@ -62,13 +63,13 @@ class DiagnosticReportData:
     residual_analysis: Optional[ResidualAnalysisResult] = None
 
     # Recommendations
-    love_plot_recommendations: list[str] = None
-    weight_recommendations: list[str] = None
-    propensity_recommendations: list[str] = None
-    residual_recommendations: list[str] = None
+    love_plot_recommendations: Optional[list[str]] = None
+    weight_recommendations: Optional[list[str]] = None
+    propensity_recommendations: Optional[list[str]] = None
+    residual_recommendations: Optional[list[str]] = None
 
     # Additional metadata
-    analysis_date: datetime = None
+    analysis_date: Optional[datetime] = None
     estimator_name: str = "Unknown"
     ate_estimate: Optional[float] = None
     ate_ci_lower: Optional[float] = None
@@ -364,7 +365,7 @@ class DiagnosticReportGenerator:
 
         return plot_data
 
-    def _figure_to_base64(self, fig: plt.Figure) -> str:
+    def _figure_to_base64(self, fig: MplFigure) -> str:
         """Convert matplotlib figure to base64-encoded string."""
         buffer = io.BytesIO()
         # Use performance-optimized settings
@@ -390,7 +391,7 @@ class DiagnosticReportGenerator:
         # Format the template with data
         formatted_html = html_template.format(
             # Basic information
-            analysis_date=report_data.analysis_date.strftime("%Y-%m-%d %H:%M:%S"),
+            analysis_date=report_data.analysis_date.strftime("%Y-%m-%d %H:%M:%S") if report_data.analysis_date is not None else "N/A",
             estimator_name=report_data.estimator_name,
             n_observations=report_data.n_observations,
             n_treated=report_data.n_treated,
@@ -567,7 +568,7 @@ class DiagnosticReportGenerator:
 
         return html
 
-    def _format_recommendations(self, recommendations: list[str]) -> str:
+    def _format_recommendations(self, recommendations: Optional[list[str]]) -> str:
         """Format recommendations as HTML list."""
         if not recommendations:
             return "<li>No specific recommendations available.</li>"

@@ -182,7 +182,7 @@ class GESAlgorithm(BaseDiscoveryAlgorithm):
             except (np.linalg.LinAlgError, ValueError):
                 score = -np.inf
 
-        return score
+        return float(score)
 
     def _compute_score_change_add_edge(
         self, data: pd.DataFrame, parent: int, child: int, current_graph: NDArray[Any]
@@ -675,7 +675,7 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             h = self._h_func(w_mat)
             augmented_lagrangian = alpha * h + 0.5 * rho * h**2
 
-            return likelihood + l1_reg + l2_reg + augmented_lagrangian
+            return float(likelihood + l1_reg + l2_reg + augmented_lagrangian)
 
         def gradient(w_vec: NDArray[Any]) -> NDArray[Any]:
             """Gradient of the objective function."""
@@ -696,7 +696,8 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             # L1 is handled by the optimization method
             total_grad = grad_likelihood + grad_l2 + grad_augmented
 
-            return total_grad.flatten()
+            result_grad: NDArray[Any] = total_grad.flatten()
+            return result_grad
 
         # Optimize using L-BFGS-B (handles L1 via proximal operator approximation)
         w_init = w.flatten()
@@ -741,13 +742,13 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
             # Use scaling and squaring for large matrices
             from scipy.linalg import expm
 
-            return np.trace(expm(M)) - d
+            return float(np.trace(expm(M)) - d)
 
         try:
             # Use scipy's robust matrix exponential when available
             from scipy.linalg import expm
 
-            return np.trace(expm(M)) - d
+            return float(np.trace(expm(M)) - d)
         except ImportError:
             # Fallback to series expansion with convergence check
             E = np.eye(d)
@@ -761,7 +762,7 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
                 if np.max(np.abs(M_power)) / math.factorial(i + 1) < 1e-12:
                     break
 
-            return np.trace(E) - d
+            return float(np.trace(E) - d)
 
     def _grad_h_func(self, w: NDArray[Any]) -> NDArray[Any]:
         """Gradient of the acyclicity constraint function."""
@@ -788,11 +789,13 @@ class NOTEARSAlgorithm(BaseDiscoveryAlgorithm):
                 M_power = M_power_next
 
         # Gradient: 2 * W * (e^(W*W))^T
-        return 2 * w * E.T
+        result: NDArray[Any] = 2 * w * E.T
+        return result
 
     def _soft_threshold(self, w: NDArray[Any], threshold: float) -> NDArray[Any]:
         """Apply soft thresholding for L1 regularization."""
-        return np.sign(w) * np.maximum(np.abs(w) - threshold, 0)
+        result: NDArray[Any] = np.sign(w) * np.maximum(np.abs(w) - threshold, 0)
+        return result
 
     def _gradient_descent_step(
         self, x: NDArray[Any], w: NDArray[Any], rho: float, alpha: float

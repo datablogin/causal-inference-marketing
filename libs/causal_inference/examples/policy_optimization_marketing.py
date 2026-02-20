@@ -21,7 +21,9 @@ Key Steps:
 6. Generate actionable business recommendations
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -29,9 +31,16 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 # Causal inference imports
-from causal_inference.core import CovariateData, OutcomeData, TreatmentData
-from causal_inference.estimators.meta_learners import SLearner, TLearner
-from causal_inference.policy import (
+from causal_inference.core import (  # type: ignore[import-not-found]
+    CovariateData,
+    OutcomeData,
+    TreatmentData,
+)
+from causal_inference.estimators.meta_learners import (  # type: ignore[import-not-found]
+    SLearner,
+    TLearner,
+)
+from causal_inference.policy import (  # type: ignore[import-not-found]
     OffPolicyEvaluator,
     PolicyIntegrator,
     PolicyOptimizer,
@@ -39,7 +48,7 @@ from causal_inference.policy import (
 )
 
 
-def generate_marketing_data(n_customers: int = 5000, seed: int = 42) -> dict[str, Any]:
+def generate_marketing_data(n_customers: int = 5000, seed: Optional[int] = 42) -> dict[str, Any]:
     """Generate realistic marketing campaign data.
 
     This simulates a historical email marketing campaign for an e-commerce company.
@@ -413,11 +422,11 @@ def simulate_policy_scenarios(
     print("POLICY SCENARIO SIMULATION")
     print("=" * 60)
 
-    def marketing_data_simulator(market_condition="normal", n_customers=1000):
+    def marketing_data_simulator(market_condition: str = "normal", n_customers: int = 1000) -> dict[str, Any]:
         """Simulate marketing data under different conditions."""
         # Use the original data generation function with modifications
         base_data = generate_marketing_data(
-            n_customers=n_customers, seed=None
+            n_customers=n_customers
         )  # Different seed each time
 
         # Modify based on market condition
@@ -479,7 +488,7 @@ def simulate_policy_scenarios(
             f"  Successful simulations: {result.simulation_info['n_successful_simulations']}"
         )
 
-    return scenario_results
+    return dict(scenario_results)
 
 
 def generate_business_recommendations(

@@ -581,7 +581,7 @@ class DifferenceInDifferencesEstimator(BaseEstimator):
 
     def _calculate_confidence_intervals(
         self, confidence_level: float = 0.95
-    ) -> Optional[tuple[float, float]]:
+    ) -> tuple[Optional[float], Optional[float]]:
         """Calculate confidence intervals for the DID coefficient using standard errors.
 
         Args:

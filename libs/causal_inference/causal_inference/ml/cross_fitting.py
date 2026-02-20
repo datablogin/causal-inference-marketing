@@ -14,7 +14,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol
+from typing import Any, Optional, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -23,7 +23,7 @@ from sklearn.base import clone
 from sklearn.model_selection import KFold, StratifiedKFold
 
 try:
-    from joblib import Parallel, delayed
+    from joblib import Parallel, delayed  # type: ignore[import-untyped]
 
     JOBLIB_AVAILABLE = True
 except ImportError:
@@ -31,7 +31,7 @@ except ImportError:
     warnings.warn("joblib not available. Parallel processing will be disabled.")
 
 try:
-    import psutil
+    import psutil  # type: ignore[import-untyped]
 
     PSUTIL_AVAILABLE = True
 except ImportError:
@@ -300,8 +300,11 @@ class CrossFittingEstimator(ABC):
         treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Sequential cross-fitting implementation (original approach)."""
+        assert self.cross_fit_data_ is not None
+        cross_fit_data = self.cross_fit_data_
+
         n_samples = X.shape[0]
-        nuisance_estimates = {}
+        nuisance_estimates: dict[str, NDArray[Any]] = {}
 
         # Initialize timing tracking
         self._fold_timings_ = []
@@ -325,22 +328,22 @@ class CrossFittingEstimator(ABC):
                     fold_start_memory = None
 
             # Get training and validation data for this fold
-            X_train = self.cross_fit_data_.X_train_folds[fold_idx]
-            y_train = self.cross_fit_data_.y_train_folds[fold_idx]
-            X_val = self.cross_fit_data_.X_val_folds[fold_idx]
+            X_train = cross_fit_data.X_train_folds[fold_idx]
+            y_train = cross_fit_data.y_train_folds[fold_idx]
+            X_val = cross_fit_data.X_val_folds[fold_idx]
 
             treatment_train = None
             treatment_val = None
             if (
                 treatment is not None
-                and self.cross_fit_data_.treatment_train_folds is not None
+                and cross_fit_data.treatment_train_folds is not None
             ):
-                treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
+                treatment_train = cross_fit_data.treatment_train_folds[fold_idx]
             if (
                 treatment is not None
-                and self.cross_fit_data_.treatment_val_folds is not None
+                and cross_fit_data.treatment_val_folds is not None
             ):
-                treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+                treatment_val = cross_fit_data.treatment_val_folds[fold_idx]
 
             # Fit nuisance models on training data
             fitted_models = self._fit_nuisance_models(X_train, y_train, treatment_train)
@@ -351,7 +354,7 @@ class CrossFittingEstimator(ABC):
             )
 
             # Store predictions for validation indices
-            val_indices = self.cross_fit_data_.val_indices[fold_idx]
+            val_indices = cross_fit_data.val_indices[fold_idx]
             for param_name, predictions in fold_predictions.items():
                 if param_name not in nuisance_estimates:
                     nuisance_estimates[param_name] = np.full(n_samples, np.nan)
@@ -397,6 +400,9 @@ class CrossFittingEstimator(ABC):
         treatment: Optional[NDArray[Any]] = None,
     ) -> dict[str, NDArray[Any]]:
         """Parallel cross-fitting implementation using joblib."""
+        assert self.cross_fit_data_ is not None
+        cross_fit_data = self.cross_fit_data_
+
         n_samples = X.shape[0]
 
         # Time the parallel processing for speedup calculation
@@ -413,24 +419,24 @@ class CrossFittingEstimator(ABC):
             # Define the delayed function for each fold
             delayed_tasks = []
             for fold_idx in range(self.cv_folds):
-                X_train = self.cross_fit_data_.X_train_folds[fold_idx]
-                y_train = self.cross_fit_data_.y_train_folds[fold_idx]
-                X_val = self.cross_fit_data_.X_val_folds[fold_idx]
+                X_train = cross_fit_data.X_train_folds[fold_idx]
+                y_train = cross_fit_data.y_train_folds[fold_idx]
+                X_val = cross_fit_data.X_val_folds[fold_idx]
 
                 treatment_train = None
                 treatment_val = None
                 if (
                     treatment is not None
-                    and self.cross_fit_data_.treatment_train_folds is not None
+                    and cross_fit_data.treatment_train_folds is not None
                 ):
-                    treatment_train = self.cross_fit_data_.treatment_train_folds[
+                    treatment_train = cross_fit_data.treatment_train_folds[
                         fold_idx
                     ]
                 if (
                     treatment is not None
-                    and self.cross_fit_data_.treatment_val_folds is not None
+                    and cross_fit_data.treatment_val_folds is not None
                 ):
-                    treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+                    treatment_val = cross_fit_data.treatment_val_folds[fold_idx]
 
                 delayed_tasks.append(
                     delayed(self._fit_single_fold)(
@@ -463,7 +469,7 @@ class CrossFittingEstimator(ABC):
                 )
                 return self._perform_sequential_cross_fitting(X, y, treatment)
 
-            val_indices = self.cross_fit_data_.val_indices[fold_idx]
+            val_indices = cross_fit_data.val_indices[fold_idx]
             self._fold_timings_.append(fold_timing)
 
             for param_name, predictions in fold_predictions.items():
@@ -496,7 +502,7 @@ class CrossFittingEstimator(ABC):
         X_val: NDArray[Any],
         treatment_train: Optional[NDArray[Any]] = None,
         treatment_val: Optional[NDArray[Any]] = None,
-    ) -> Optional[tuple[dict[str, NDArray[Any]]], float]:
+    ) -> tuple[Optional[dict[str, NDArray[Any]]], float]:
         """Fit a single fold - designed to be called in parallel.
 
         Args:
@@ -569,7 +575,7 @@ class CrossFittingEstimator(ABC):
         )
 
         n_samples = X.shape[0]
-        nuisance_estimates = {}
+        nuisance_estimates: dict[str, NDArray[Any]] = {}
 
         # Process each fold with chunking
         for fold_idx in range(self.cv_folds):
@@ -595,23 +601,26 @@ class CrossFittingEstimator(ABC):
         self, fold_idx: int, treatment: Optional[NDArray[Any]]
     ) -> dict[str, NDArray[Any]]:
         """Process a single fold using chunked validation data."""
+        assert self.cross_fit_data_ is not None
+        cross_fit_data = self.cross_fit_data_
+
         # Get fold data
-        X_train = self.cross_fit_data_.X_train_folds[fold_idx]
-        y_train = self.cross_fit_data_.y_train_folds[fold_idx]
-        X_val = self.cross_fit_data_.X_val_folds[fold_idx]
+        X_train = cross_fit_data.X_train_folds[fold_idx]
+        y_train = cross_fit_data.y_train_folds[fold_idx]
+        X_val = cross_fit_data.X_val_folds[fold_idx]
 
         treatment_train = None
         treatment_val = None
         if (
             treatment is not None
-            and self.cross_fit_data_.treatment_train_folds is not None
+            and cross_fit_data.treatment_train_folds is not None
         ):
-            treatment_train = self.cross_fit_data_.treatment_train_folds[fold_idx]
+            treatment_train = cross_fit_data.treatment_train_folds[fold_idx]
         if (
             treatment is not None
-            and self.cross_fit_data_.treatment_val_folds is not None
+            and cross_fit_data.treatment_val_folds is not None
         ):
-            treatment_val = self.cross_fit_data_.treatment_val_folds[fold_idx]
+            treatment_val = cross_fit_data.treatment_val_folds[fold_idx]
 
         # Fit models on full training data
         fitted_models = self._fit_nuisance_models_cached(
@@ -634,7 +643,7 @@ class CrossFittingEstimator(ABC):
     ) -> dict[str, list[NDArray[Any]]]:
         """Predict on validation data in chunks to manage memory."""
         chunk_size = self.parallel_config.chunk_size
-        val_chunks_predictions = {}
+        val_chunks_predictions: dict[str, list[NDArray[Any]]] = {}
 
         for chunk_start in range(0, len(X_val), chunk_size):
             chunk_end = min(chunk_start + chunk_size, len(X_val))
@@ -676,6 +685,7 @@ class CrossFittingEstimator(ABC):
         fold_idx: int,
     ) -> None:
         """Store fold predictions in the global nuisance estimates."""
+        assert self.cross_fit_data_ is not None
         val_indices = self.cross_fit_data_.val_indices[fold_idx]
 
         for param_name, predictions in fold_predictions.items():
@@ -858,9 +868,9 @@ class CrossFittingEstimator(ABC):
 
 
 def create_cross_fit_data(
-    X: NDArray[Any] | pd.DataFrame,
-    y: NDArray[Any] | pd.Series,
-    treatment: NDArray[Any] | Optional[pd.Series] = None,
+    X: Union[NDArray[Any], pd.DataFrame],
+    y: Union[NDArray[Any], pd.Series],
+    treatment: Optional[Union[NDArray[Any], pd.Series]] = None,
     cv_folds: int = 5,
     stratified: bool = True,
     random_state: Optional[int] = None,

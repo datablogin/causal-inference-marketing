@@ -76,7 +76,7 @@ def benchmark_sensitivity_functions(
     X_restricted = X1.reshape(-1, 1)
     X_full = np.column_stack([X1, X2, X3])
 
-    results = {}
+    results: dict[str, Any] = {}
 
     # Benchmark E-value
     print("Benchmarking E-value calculation...")
@@ -105,7 +105,6 @@ def benchmark_sensitivity_functions(
         rosenbaum_result = rosenbaum_bounds(
             treated_outcomes=treated_outcomes,
             control_outcomes=control_outcomes,
-            bootstrap_samples=min(n_bootstrap, 50),  # Limit for large data
         )
         rosenbaum_time = time.time() - start_time
         results["rosenbaum_bounds"] = {
@@ -164,9 +163,9 @@ def benchmark_sensitivity_functions(
 
         nc_result = negative_control(
             treatment=treatment,
-            control_outcome=null_outcome,
+            outcome=outcome,
+            negative_control_outcome=null_outcome,
             covariates=X_full,
-            control_type="outcome",
         )
         nc_time = time.time() - start_time
         results["negative_control"] = {
@@ -209,7 +208,7 @@ def benchmark_sensitivity_functions(
         }
 
     # Summary statistics
-    all_times = [r["time_seconds"] for r in results.values() if "time_seconds" in r]
+    all_times: list[float] = [float(r["time_seconds"]) for r in results.values() if "time_seconds" in r]
     successful_functions = [
         k for k, v in results.items() if v.get("status") == "success"
     ]
@@ -297,7 +296,7 @@ def run_performance_validation(
             json.dump(results, f, indent=2, default=str)
         print(f"\nResults saved to: {save_to_file}")
 
-    return results["summary"]["all_pass_kpi"]
+    return bool(results["summary"]["all_pass_kpi"])
 
 
 if __name__ == "__main__":

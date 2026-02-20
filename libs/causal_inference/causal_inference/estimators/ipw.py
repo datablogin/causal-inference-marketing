@@ -1079,7 +1079,7 @@ class IPWEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> Optional[tuple[float, float, NDArray[Any]]]:
+    ) -> tuple[Optional[float], Optional[float], Optional[NDArray[Any]]]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:

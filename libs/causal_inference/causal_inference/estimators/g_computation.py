@@ -822,10 +822,12 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     )
             else:
                 # Existing single model path
+                assert self.outcome_model is not None
                 self.outcome_model.fit(X, y)
 
             if self.verbose and not self.use_ensemble:
                 # Calculate model fit metrics (for single model only)
+                assert self.outcome_model is not None
                 y_pred = self.outcome_model.predict(X)
                 if outcome.outcome_type == "continuous":
                     mse = mean_squared_error(y, y_pred)
@@ -875,6 +877,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         # Check if model is fitted
         self._check_is_fitted()
+        assert self.treatment_data is not None
 
         # Use original data if no new covariates provided
         if covariates is None:
@@ -1047,7 +1050,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         # Check if model is fitted
         self._check_is_fitted()
-
+        assert self.treatment_data is not None
+        assert self.outcome_data is not None
         # Determine treatment values for binary/categorical treatments
         treatment_values: list[Any]
         if self.treatment_data.treatment_type == "binary":
@@ -1136,6 +1140,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                         else self.treatment_data.values.reshape(-1, 1)
                     )
 
+                    assert self.outcome_model is not None
                     predicted_outcomes = self.outcome_model.predict(X_with_treatment)
                     residuals = self.outcome_data.values - predicted_outcomes
                     residual_variance = np.var(residuals, ddof=1)
@@ -1348,7 +1353,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> Optional[tuple[float, float, NDArray[Any]]]:
+    ) -> tuple[Optional[float], Optional[float], Optional[NDArray[Any]]]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:

@@ -22,7 +22,7 @@ def placebo_test(
     treatment: Union[TreatmentData, NDArray[Any], pd.Series],
     outcome: Union[OutcomeData, NDArray[Any], pd.Series],
     covariates: Optional[Union[CovariateData, NDArray[Any], pd.DataFrame]] = None,
-    estimator: Optional[Callable] = None,
+    estimator: Optional[Callable[..., Any]] = None,
     placebo_type: str = "random_treatment",
     n_placebo_tests: int = 100,
     alpha: float = 0.05,
@@ -153,9 +153,9 @@ def placebo_test(
         estimator = _simple_difference_estimator
 
     # Run placebo tests
-    placebo_effects = []
-    p_values = []
-    individual_results = []
+    placebo_effects: list[float] = []
+    p_values: list[float] = []
+    individual_results: list[dict[str, Any]] = []
 
     for i in range(n_placebo_tests):
         try:
@@ -186,11 +186,17 @@ def placebo_test(
                 result = estimator(t_placebo, y_placebo, None, **estimator_kwargs)
 
             if isinstance(result, dict):
-                effect = result.get("effect", result.get("ate", 0))
-                p_val = result.get("p_value", result.get("pvalue", 1.0))
+                effect_val = result.get("effect")
+                if effect_val is None:
+                    effect_val = result.get("ate", 0)
+                effect = float(effect_val)
+                p_val_raw = result.get("p_value")
+                if p_val_raw is None:
+                    p_val_raw = result.get("pvalue", 1.0)
+                p_val = float(p_val_raw)
             elif hasattr(result, "ate"):
-                effect = result.ate
-                p_val = getattr(result, "p_value", 1.0)
+                effect = float(result.ate)
+                p_val = float(getattr(result, "p_value", 1.0))
             else:
                 effect = float(result)
                 p_val = 1.0  # Conservative if no p-value available
@@ -219,8 +225,8 @@ def placebo_test(
             )
 
     # Calculate summary statistics
-    valid_effects = [e for e in placebo_effects if not np.isnan(e)]
-    valid_p_values = [p for p in p_values if not np.isnan(p)]
+    valid_effects: list[float] = [e for e in placebo_effects if not np.isnan(e)]
+    valid_p_values: list[float] = [p for p in p_values if not np.isnan(p)]
 
     if len(valid_effects) == 0:
         raise ValueError("All placebo tests failed - check estimator and data")
@@ -358,6 +364,7 @@ def _generate_dummy_outcome_placebo(
 
     # Check if outcome is binary
     unique_vals = np.unique(outcome)
+    placebo_outcome: NDArray[Any]
     if len(unique_vals) == 2 and set(unique_vals) == {0, 1}:
         # Binary outcome - preserve prevalence
         prevalence = np.mean(outcome)

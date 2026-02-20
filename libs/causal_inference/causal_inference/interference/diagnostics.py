@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 from numpy.typing import NDArray
 from scipy import stats
 
@@ -51,8 +53,8 @@ class SpilloverDetectionResults:
     minimum_detectable_effect: Optional[float] = None
 
     # Warnings and recommendations
-    warnings: list[str] = None
-    recommendations: list[str] = None
+    warnings: Optional[list[str]] = None
+    recommendations: Optional[list[str]] = None
 
     def __post_init__(self) -> None:
         """Initialize empty lists if None."""
@@ -197,7 +199,7 @@ class InterferenceDiagnostics:
         density = actual_edges / possible_edges if possible_edges > 0 else 0
 
         # Clustering coefficient (local clustering)
-        clustering_coeffs = []
+        clustering_coeffs: list[float] = []
         for i in range(n_units):
             neighbors = np.where(adjacency[i] == 1)[0]
             if len(neighbors) < 2:
@@ -484,7 +486,7 @@ def plot_cluster_exposure_balance(
     treatment: TreatmentData,
     clusters: Optional[NDArray[Any]] = None,
     figsize: tuple[int, int] = (10, 6),
-) -> plt.Figure:
+) -> Figure:
     """Plot exposure balance across clusters.
 
     Args:
@@ -548,7 +550,7 @@ def plot_network_connectivity(
     treatment: Optional[TreatmentData] = None,
     layout: str = "spring",
     figsize: tuple[int, int] = (12, 8),
-) -> plt.Figure:
+) -> Figure:
     """Plot network connectivity and treatment assignments.
 
     Args:
@@ -580,11 +582,12 @@ def plot_network_connectivity(
         pos = nx.random_layout(G, seed=42)
 
     # Node colors based on treatment if available
+    node_colors: Any
     if treatment is not None:
         treatment_array = np.array(treatment.values)
         node_colors = ["red" if t == 1 else "blue" for t in treatment_array]
         legend_elements = [
-            plt.Line2D(
+            Line2D(
                 [0],
                 [0],
                 marker="o",
@@ -593,7 +596,7 @@ def plot_network_connectivity(
                 markersize=10,
                 label="Treated",
             ),
-            plt.Line2D(
+            Line2D(
                 [0],
                 [0],
                 marker="o",
@@ -627,7 +630,7 @@ def _plot_adjacency_matrix(
     exposure_mapping: ExposureMapping,
     treatment: Optional[TreatmentData] = None,
     figsize: tuple[int, int] = (10, 8),
-) -> plt.Figure:
+) -> Figure:
     """Fallback plot using adjacency matrix heatmap."""
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -648,7 +651,7 @@ def _plot_adjacency_matrix(
 
 def plot_spillover_detection_power(
     power_analysis_results: pd.DataFrame, figsize: tuple[int, int] = (12, 6)
-) -> plt.Figure:
+) -> Figure:
     """Plot power analysis results for spillover detection.
 
     Args:

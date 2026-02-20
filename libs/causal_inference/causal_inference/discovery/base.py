@@ -162,7 +162,7 @@ class CausalDAG(BaseModel):
 
         return bool(self.adjacency_matrix[from_idx, to_idx])
 
-    def to_networkx(self) -> nx.DiGraph:
+    def to_networkx(self) -> nx.DiGraph[Any]:
         """Convert to NetworkX directed graph."""
         G = nx.from_numpy_array(self.adjacency_matrix, create_using=nx.DiGraph)
 

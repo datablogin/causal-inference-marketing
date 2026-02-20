@@ -18,14 +18,15 @@ from scipy import stats
 try:
     import matplotlib.pyplot as plt
     import seaborn as sns
+    from matplotlib.figure import Figure as MplFigure
 
     PLOTTING_AVAILABLE = True
 except ImportError:
     PLOTTING_AVAILABLE = False
 
 try:
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go  # type: ignore[import-not-found]
+    from plotly.subplots import make_subplots  # type: ignore[import-not-found]
 
     PLOTLY_AVAILABLE = True
 except ImportError:
@@ -183,7 +184,7 @@ class ResidualAnalyzer:
                 leverage_threshold = self.leverage_threshold
 
             high_leverage_mask = leverage_values > leverage_threshold
-            high_leverage_count = np.sum(high_leverage_mask)
+            high_leverage_count = int(np.sum(high_leverage_mask))
 
         # Influential points
         influential_count = 0
@@ -313,7 +314,7 @@ class ResidualAnalyzer:
         title: str = "Residual Analysis",
         save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> Union[plt.Figure, go.Figure]:
+    ) -> Union[MplFigure, go.Figure]:
         """Create comprehensive residual diagnostic plots.
 
         Args:
@@ -340,7 +341,7 @@ class ResidualAnalyzer:
         result: ResidualAnalysisResult,
         title: str,
         save_path: Optional[str],
-    ) -> plt.Figure:
+    ) -> MplFigure:
         """Create static matplotlib residual plots."""
         fig = plt.figure(figsize=(16, 12))
         gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
@@ -523,7 +524,7 @@ class ResidualAnalyzer:
             ],
         ]
 
-        if result.white_stat is not None:
+        if result.white_stat is not None and result.white_pvalue is not None:
             summary_data.append(
                 [
                     "White Test (Homoscedasticity)",
@@ -574,7 +575,7 @@ class ResidualAnalyzer:
             cellText=summary_data,
             cellLoc="center",
             loc="center",
-            bbox=[0.0, 0.0, 1.0, 1.0],
+            bbox=[0.0, 0.0, 1.0, 1.0],  # type: ignore[arg-type]
         )
         table.auto_set_font_size(False)
         table.set_fontsize(10)
@@ -907,7 +908,7 @@ def create_residual_plots(
     title: str = "Residual Analysis",
     save_path: Optional[str] = None,
     interactive: bool = False,
-) -> tuple[Union[plt.Figure, go.Figure], ResidualAnalysisResult, list[str]]:
+) -> tuple[Union[MplFigure, go.Figure], ResidualAnalysisResult, list[str]]:
     """Convenience function to create residual diagnostic plots.
 
     Args:

@@ -9,7 +9,7 @@ finite-sample properties and alternative estimation strategies.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -215,7 +215,7 @@ class OrthogonalMoments:
             - (1 - treatment_binary) * (outcome - mu0) / (1 - g)
         )
 
-        return aipw_scores
+        return np.asarray(aipw_scores)
 
     @staticmethod
     def _aipw_categorical(
@@ -271,7 +271,7 @@ class OrthogonalMoments:
             # Accumulate scores (average across non-reference categories)
             scores += score_k / (len(treatment_categories) - 1)
 
-        return scores
+        return np.asarray(scores)
 
     @staticmethod
     def _aipw_continuous(
@@ -306,7 +306,7 @@ class OrthogonalMoments:
             (outcome - mu_observed) * treatment_residuals / treatment_var
         )
 
-        return continuous_scores
+        return np.asarray(continuous_scores)
 
     @staticmethod
     def orthogonal(
@@ -382,7 +382,7 @@ class OrthogonalMoments:
         else:
             raise ValueError(f"Unsupported treatment type: {treatment_type}")
 
-        return orthogonal_scores
+        return np.asarray(orthogonal_scores)
 
     @staticmethod
     def partialling_out(
@@ -447,7 +447,7 @@ class OrthogonalMoments:
         # This gives the treatment effect estimate weighted by treatment residuals
         partialling_out_scores = theta_hat * treatment_residual
 
-        return partialling_out_scores
+        return np.asarray(partialling_out_scores)
 
     @staticmethod
     def interactive_iv(
@@ -528,7 +528,7 @@ class OrthogonalMoments:
             + treatment_residual * outcome_mu_residual
         )
 
-        return interactive_iv_scores
+        return np.asarray(interactive_iv_scores)
 
     @staticmethod
     def plr(
@@ -593,7 +593,7 @@ class OrthogonalMoments:
         plr_residual = outcome - mu0 - theta_hat * treatment_residual
         plr_scores = plr_residual * treatment_residual
 
-        return plr_scores
+        return np.asarray(plr_scores)
 
     @staticmethod
     def pliv(
@@ -704,7 +704,7 @@ class OrthogonalMoments:
         pliv_residual = outcome - mu0 - theta_hat * treatment_residual
         pliv_scores = pliv_residual * instrument_residual
 
-        return pliv_scores
+        return np.asarray(pliv_scores)
 
     @classmethod
     def get_available_methods(cls) -> list[str]:
@@ -750,7 +750,7 @@ class OrthogonalMoments:
         Raises:
             ValueError: If method is not recognized or treatment type not supported
         """
-        method_map = {
+        method_map: dict[str, Callable[..., NDArray[Any]]] = {
             "aipw": cls.aipw,
             "orthogonal": cls.orthogonal,
             "partialling_out": cls.partialling_out,
@@ -765,14 +765,15 @@ class OrthogonalMoments:
                 f"Unknown method '{method}'. Available methods: {available}"
             )
 
-        return method_map[method](
+        method_fn = method_map[method]
+        return np.asarray(method_fn(
             nuisance_estimates,
             treatment,
             outcome,
             treatment_type=treatment_type,
             instrument=instrument,
             **kwargs,
-        )
+        ))
 
     @classmethod
     def validate_orthogonality(
@@ -796,14 +797,15 @@ class OrthogonalMoments:
         Returns:
             Dictionary containing orthogonality validation results
         """
-        results = {"is_orthogonal": True, "correlations": {}, "threshold": threshold}
+        correlations: dict[str, Any] = {}
+        results: dict[str, Any] = {"is_orthogonal": True, "correlations": correlations, "threshold": threshold}
 
         # Check correlation with treatment residuals (A - g(X))
         if "propensity_scores" in nuisance_estimates:
             treatment_residual = treatment - nuisance_estimates["propensity_scores"]
             corr_treatment, p_val_treatment = pearsonr(scores, treatment_residual)
 
-            results["correlations"]["treatment_residual"] = {
+            correlations["treatment_residual"] = {
                 "correlation": float(corr_treatment),
                 "p_value": float(p_val_treatment),
                 "is_orthogonal": abs(corr_treatment) < threshold,
@@ -819,8 +821,8 @@ class OrthogonalMoments:
             pass
 
         # Overall orthogonality assessment
-        failed_checks = []
-        for key, check in results["correlations"].items():
+        failed_checks: list[str] = []
+        for key, check in correlations.items():
             if not check["is_orthogonal"]:
                 failed_checks.append(key)
 
@@ -841,8 +843,8 @@ class OrthogonalMoments:
         outcome: NDArray[Any],
         covariates: Optional[NDArray[Any]] = None,
         instrument: Optional[NDArray[Any]] = None,
-        sample_size_threshold: int = None,
-        dimensionality_threshold: int = None,
+        sample_size_threshold: Optional[int] = None,
+        dimensionality_threshold: Optional[int] = None,
         **kwargs: Any,
     ) -> tuple[str, dict[str, Any]]:
         """Automatically select optimal orthogonal moment function.
@@ -867,7 +869,9 @@ class OrthogonalMoments:
             Tuple of (selected_method, selection_rationale)
         """
         n = len(treatment)
-        selection_rationale = {"criteria": {}, "decision_factors": []}
+        criteria: dict[str, Any] = {}
+        decision_factors: list[str] = []
+        selection_rationale: dict[str, Any] = {"criteria": criteria, "decision_factors": decision_factors}
 
         # Use default thresholds if not provided
         if sample_size_threshold is None:
@@ -879,7 +883,7 @@ class OrthogonalMoments:
 
         # Analyze data characteristics
         is_small_sample = n < sample_size_threshold
-        selection_rationale["criteria"]["small_sample"] = is_small_sample
+        criteria["small_sample"] = is_small_sample
 
         if covariates is not None:
             p = covariates.shape[1] if len(covariates.shape) > 1 else 1
@@ -887,14 +891,14 @@ class OrthogonalMoments:
         else:
             p = 0
             is_high_dimensional = False
-        selection_rationale["criteria"]["high_dimensional"] = is_high_dimensional
+        criteria["high_dimensional"] = is_high_dimensional
 
         # Check treatment balance
         treatment_balance = min(np.mean(treatment), 1 - np.mean(treatment))
         is_balanced = (
             treatment_balance > OrthogonalMoments.DEFAULT_TREATMENT_BALANCE_THRESHOLD
         )
-        selection_rationale["criteria"]["balanced_treatment"] = is_balanced
+        criteria["balanced_treatment"] = is_balanced
 
         # Check propensity score overlap
         if "propensity_scores" in nuisance_estimates:
@@ -905,41 +909,41 @@ class OrthogonalMoments:
             )
         else:
             has_good_overlap = True
-        selection_rationale["criteria"]["good_overlap"] = has_good_overlap
+        criteria["good_overlap"] = has_good_overlap
 
         # Instrument availability
         has_instrument = instrument is not None
-        selection_rationale["criteria"]["has_instrument"] = has_instrument
+        criteria["has_instrument"] = has_instrument
 
         # Selection logic
         if has_instrument and (not is_balanced or not has_good_overlap):
             # Use IV methods when treatment assignment is problematic
             if is_small_sample:
                 selected_method = "pliv"
-                selection_rationale["decision_factors"].append(
+                decision_factors.append(
                     "PLIV selected: instrument available, sample size small"
                 )
             else:
                 selected_method = "interactive_iv"
-                selection_rationale["decision_factors"].append(
+                decision_factors.append(
                     "Interactive IV selected: instrument available, large sample"
                 )
         elif is_high_dimensional or is_small_sample:
             # Use partialling out for high-dimensional or small samples
             selected_method = "partialling_out"
-            selection_rationale["decision_factors"].append(
+            decision_factors.append(
                 f"Partialling out selected: {'high-dimensional' if is_high_dimensional else 'small sample'} setting"
             )
         elif not has_good_overlap:
             # Use PLR when overlap is poor but no instrument
             selected_method = "plr"
-            selection_rationale["decision_factors"].append(
+            decision_factors.append(
                 "PLR selected: poor overlap, no instrument available"
             )
         else:
             # Default to AIPW for well-behaved settings
             selected_method = "aipw"
-            selection_rationale["decision_factors"].append(
+            decision_factors.append(
                 "AIPW selected: balanced treatment, good overlap, moderate dimensionality"
             )
 
@@ -983,7 +987,7 @@ class OrthogonalMoments:
         """
         from sklearn.model_selection import KFold
 
-        cv_results = {"method_performance": {}, "rankings": {}}
+        cv_results: dict[str, Any] = {"method_performance": {}, "rankings": {}}
         n = len(treatment)
 
         # Initialize results storage

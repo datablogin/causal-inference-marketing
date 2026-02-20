@@ -239,7 +239,7 @@ class BayesianEstimator(BaseEstimator):
         treatment: TreatmentData,
         outcome: OutcomeData,
         covariates: Optional[CovariateData] = None,
-    ) -> Optional[tuple[NDArray[Any], NDArray[Any], NDArray[Any]]]:
+    ) -> tuple[NDArray[Any], NDArray[Any], Optional[NDArray[Any]]]:
         """Prepare data arrays for Bayesian modeling.
 
         Args:

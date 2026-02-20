@@ -161,9 +161,9 @@ class VirtualTwins(BaseEstimator):
         self.min_subgroup_size = min_subgroup_size
         self.significance_level = significance_level
 
-        self._benefit_model = None
-        self._subgroup_model = None
-        self._training_data = None
+        self._benefit_model: Any = None
+        self._subgroup_model: Any = None
+        self._training_data: Optional[dict[str, Any]] = None
 
     def _fit_implementation(
         self,
@@ -442,7 +442,7 @@ class OptimalPolicyTree:
             Binary treatment recommendations
         """
         cate_pred = self.tree_.predict(x)
-        return (cate_pred > 0).astype(int)
+        return np.asarray((cate_pred > 0).astype(int))
 
 
 class SIDES:

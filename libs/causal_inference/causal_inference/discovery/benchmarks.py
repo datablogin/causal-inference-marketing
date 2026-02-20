@@ -126,12 +126,13 @@ def benchmark_discovery_algorithm(
     if random_state is not None:
         np.random.seed(random_state)
 
-    results = {
+    trials: list[dict[str, Any]] = []
+    results: dict[str, Any] = {
         "algorithm_name": algorithm.__class__.__name__,
         "true_dag": true_dag,
         "n_samples": n_samples,
         "n_trials": n_trials,
-        "trials": [],
+        "trials": trials,
         "summary_stats": {},
     }
 
@@ -157,7 +158,8 @@ def benchmark_discovery_algorithm(
             error_msg = str(e)
 
         # Evaluate if successful
-        if success:
+        trial_result: dict[str, Any]
+        if success and discovery_result is not None:
             metrics = compare_dags(true_dag, discovery_result.dag)
             trial_result = {
                 "trial": trial,
@@ -174,10 +176,10 @@ def benchmark_discovery_algorithm(
                 "error": error_msg,
             }
 
-        results["trials"].append(trial_result)
+        trials.append(trial_result)
 
     # Compute summary statistics
-    successful_trials = [t for t in results["trials"] if t["success"]]
+    successful_trials = [t for t in trials if t["success"]]
     n_successful = len(successful_trials)
 
     if n_successful > 0:
@@ -249,7 +251,7 @@ def compare_discovery_algorithms(
     if benchmark_dags is None:
         benchmark_dags = create_benchmark_dags()
 
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
 
     for dag_name, true_dag in benchmark_dags.items():
         if verbose:
@@ -347,7 +349,8 @@ class DiscoveryBenchmarkSuite:
             raise ValueError(f"DAG '{dag_name}' not found in benchmark DAGs")
 
         true_dag = self.benchmark_dags[dag_name]
-        results = {"sample_sizes": sample_sizes, "algorithms": {}}
+        algorithms_results: dict[str, Any] = {}
+        results: dict[str, Any] = {"sample_sizes": sample_sizes, "algorithms": algorithms_results}
 
         if verbose:
             print(f"Sample size analysis on DAG: {dag_name}")
@@ -356,7 +359,7 @@ class DiscoveryBenchmarkSuite:
             if verbose:
                 print(f"  Algorithm: {alg_name}")
 
-            alg_results = {"sample_sizes": [], "metrics": []}
+            alg_results: dict[str, list[Any]] = {"sample_sizes": [], "metrics": []}
 
             for n_samples in sample_sizes:
                 if verbose:
@@ -402,7 +405,8 @@ class DiscoveryBenchmarkSuite:
             raise ValueError(f"DAG '{dag_name}' not found in benchmark DAGs")
 
         true_dag = self.benchmark_dags[dag_name]
-        results = {"noise_levels": noise_levels, "algorithms": {}}
+        algorithms_results: dict[str, Any] = {}
+        results: dict[str, Any] = {"noise_levels": noise_levels, "algorithms": algorithms_results}
 
         if verbose:
             print(f"Noise sensitivity analysis on DAG: {dag_name}")
@@ -411,7 +415,7 @@ class DiscoveryBenchmarkSuite:
             if verbose:
                 print(f"  Algorithm: {alg_name}")
 
-            alg_results = {"noise_levels": [], "metrics": []}
+            alg_results: dict[str, list[Any]] = {"noise_levels": [], "metrics": []}
 
             for noise_std in noise_levels:
                 if verbose:
@@ -455,7 +459,8 @@ class DiscoveryBenchmarkSuite:
         if dag_names is None:
             dag_names = list(self.benchmark_dags.keys())
 
-        results = {"dag_names": dag_names, "algorithms": {}}
+        algorithms_results: dict[str, Any] = {}
+        results: dict[str, Any] = {"dag_names": dag_names, "algorithms": algorithms_results}
 
         if verbose:
             print("Scalability analysis")
@@ -464,7 +469,7 @@ class DiscoveryBenchmarkSuite:
             if verbose:
                 print(f"  Algorithm: {alg_name}")
 
-            alg_results = {"dag_properties": [], "metrics": []}
+            alg_results: dict[str, list[Any]] = {"dag_properties": [], "metrics": []}
 
             for dag_name in dag_names:
                 true_dag = self.benchmark_dags[dag_name]

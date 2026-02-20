@@ -206,7 +206,7 @@ def check_model_assumptions(
     Returns:
         Dictionary with assumption check results
     """
-    diagnostics = {}
+    diagnostics: dict[str, Any] = {}
 
     # Check outcome distribution
     outcome_skew = float(np.abs(pd.Series(outcome).skew()))
@@ -263,9 +263,14 @@ def format_sensitivity_warnings() -> None:
 
     # Custom warning format for sensitivity analysis
     def custom_warning_format(
-        message, category, filename, lineno, file=None, line=None
-    ):
+        message: Union[Warning, str],
+        category: type[Warning],
+        filename: str,
+        lineno: int,
+        file: Optional[Any] = None,
+        line: Optional[str] = None,
+    ) -> str:
         return f"⚠️  Sensitivity Analysis Warning: {message}\n"
 
     # Set custom format
-    warnings.formatwarning = custom_warning_format
+    warnings.formatwarning = custom_warning_format  # type: ignore[assignment]

@@ -19,14 +19,15 @@ from sklearn.metrics import brier_score_loss, roc_auc_score, roc_curve
 try:
     import matplotlib.pyplot as plt
     import seaborn as sns
+    from matplotlib.figure import Figure as MplFigure
 
     PLOTTING_AVAILABLE = True
 except ImportError:
     PLOTTING_AVAILABLE = False
 
 try:
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go  # type: ignore[import-not-found]
+    from plotly.subplots import make_subplots  # type: ignore[import-not-found]
 
     PLOTLY_AVAILABLE = True
 except ImportError:
@@ -120,9 +121,9 @@ class PropensityPlotGenerator:
             common_support_range = (0.0, 0.0)
 
         # Check for positivity violations
-        positivity_violations = np.sum(ps < self.positivity_threshold) + np.sum(
+        positivity_violations = int(np.sum(ps < self.positivity_threshold) + np.sum(
             ps > 1 - self.positivity_threshold
-        )
+        ))
 
         # Calculate discrimination metrics
         auc_score = roc_auc_score(treatment_values, ps)
@@ -148,7 +149,7 @@ class PropensityPlotGenerator:
                 lower_trim < self.positivity_threshold
                 or upper_trim > 1 - self.positivity_threshold
             ):
-                recommended_trimming = (lower_trim, upper_trim)
+                recommended_trimming = (float(lower_trim), float(upper_trim))
 
         return PropensityOverlapResult(
             propensity_scores=ps,
@@ -169,7 +170,7 @@ class PropensityPlotGenerator:
         title: str = "Propensity Score Diagnostics",
         save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> Union[plt.Figure, go.Figure]:
+    ) -> Union[MplFigure, go.Figure]:
         """Create comprehensive propensity score plots.
 
         Args:
@@ -198,7 +199,7 @@ class PropensityPlotGenerator:
         result: PropensityOverlapResult,
         title: str,
         save_path: Optional[str],
-    ) -> plt.Figure:
+    ) -> MplFigure:
         """Create static matplotlib propensity plots."""
         fig = plt.figure(figsize=(16, 12))
         gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
@@ -209,7 +210,7 @@ class PropensityPlotGenerator:
         treated_ps = result.propensity_scores[result.treatment_values == 1]
         control_ps = result.propensity_scores[result.treatment_values == 0]
 
-        bins = np.linspace(0, 1, 31)
+        bins = np.linspace(0, 1, 31).tolist()
 
         ax1.hist(
             control_ps,
@@ -258,7 +259,7 @@ class PropensityPlotGenerator:
 
         box_data = [control_ps, treated_ps]
         box_plot = ax2.boxplot(
-            box_data, labels=["Control", "Treated"], patch_artist=True
+            box_data, tick_labels=["Control", "Treated"], patch_artist=True
         )
         box_plot["boxes"][0].set_facecolor("skyblue")
         box_plot["boxes"][1].set_facecolor("orange")
@@ -377,7 +378,7 @@ class PropensityPlotGenerator:
             cellText=summary_data,
             cellLoc="center",
             loc="center",
-            bbox=[0.1, 0.0, 0.8, 1.0],
+            bbox=[0.1, 0.0, 0.8, 1.0],  # type: ignore[arg-type]
         )
         table.auto_set_font_size(False)
         table.set_fontsize(11)
@@ -747,7 +748,7 @@ def create_propensity_plots(
     title: str = "Propensity Score Diagnostics",
     save_path: Optional[str] = None,
     interactive: bool = False,
-) -> tuple[Union[plt.Figure, go.Figure], PropensityOverlapResult, list[str]]:
+) -> tuple[Union[MplFigure, go.Figure], PropensityOverlapResult, list[str]]:
     """Convenience function to create propensity score diagnostic plots.
 
     Args:

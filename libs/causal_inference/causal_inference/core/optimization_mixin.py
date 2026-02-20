@@ -122,7 +122,7 @@ class OptimizationMixin:
             def balance_constraint(w: NDArray[Any]) -> NDArray[Any]:
                 """Constraint: (1/n) X^T w = μ"""
                 weighted_means = (covariates.T @ w) / n_obs
-                return weighted_means - target_means
+                return np.asarray(weighted_means - target_means)
 
             constraints.append({"type": "eq", "fun": balance_constraint})
 
@@ -196,7 +196,7 @@ class OptimizationMixin:
                 )
                 return baseline_weights
 
-            return np.asarray(result.x)
+            return np.asarray(result.x, dtype=np.float64)
 
         except Exception as e:
             warnings.warn(
