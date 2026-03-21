@@ -27,6 +27,7 @@ jobs:
   test-publish:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment: testpypi
     permissions:
       id-token: write
@@ -35,7 +36,7 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@67339c736fd9354cd4f8cb0b744f2b82a74b5c70  # v1.12.2
         with:
           repository-url: https://test.pypi.org/legacy/
 
@@ -60,6 +61,7 @@ jobs:
   publish:
     needs: smoke-test
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment: pypi
     permissions:
       id-token: write
@@ -68,4 +70,4 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@67339c736fd9354cd4f8cb0b744f2b82a74b5c70  # v1.12.2
