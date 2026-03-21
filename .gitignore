@@ -208,3 +208,6 @@ __marimo__/
 # This comment triggers CI
 .DS_Store
 .claude.backup/
+
+# Backup files
+*.bak*

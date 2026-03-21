@@ -19,6 +19,7 @@ jobs:
           cache-dependency-glob: "libs/causal_inference/uv.lock"
       - run: uv python install 3.12
       - run: uv build
+      - run: uvx twine check dist/*
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -52,7 +53,7 @@ jobs:
         run: sleep 30
       - name: Install from TestPyPI and verify import
         run: |
-          pip install --retries 5 \
+          pip install --retries 5 --prefer-binary \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
             causal-inference-marketing
