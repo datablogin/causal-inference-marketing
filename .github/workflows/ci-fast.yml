@@ -107,6 +107,6 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          cache-dependency-glob: "libs/causal_inference/uv.lock"
       - run: uv python install 3.12
       - run: uv build

@@ -92,7 +92,17 @@ print("Variables:", result.dag.variable_names)
 ### Discovery-to-estimation pipeline
 
 ```python
-from causal_inference.discovery import DiscoveryEstimatorPipeline
+import numpy as np
+import pandas as pd
+from causal_inference.discovery import PCAlgorithm, DiscoveryEstimatorPipeline
+from causal_inference.estimators.aipw import AIPWEstimator
+
+data = pd.DataFrame({
+    "ad_spend": np.random.normal(100, 20, 500),
+    "impressions": np.random.normal(1000, 200, 500),
+    "clicks": np.random.normal(50, 10, 500),
+    "conversions": np.random.normal(5, 2, 500),
+})
 
 pipeline = DiscoveryEstimatorPipeline(
     discovery_algorithm=PCAlgorithm(alpha=0.05),
