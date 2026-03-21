@@ -57,7 +57,7 @@ build-backend = "hatchling.build"
 packages = ["causal_inference"]
 
 [tool.hatch.build.targets.sdist]
-exclude = ["tests", "examples", ".mypy_cache", ".pytest_cache", ".ruff_cache", "*.bak*"]
+exclude = ["tests", "examples", ".mypy_cache", ".pytest_cache", ".ruff_cache", "**/*.bak*"]
 
 [tool.ruff]
 target-version = "py311"

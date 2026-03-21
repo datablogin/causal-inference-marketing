@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: libs/causal_inference
@@ -46,9 +47,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Wait for TestPyPI propagation
+        run: sleep 30
       - name: Install from TestPyPI and verify import
         run: |
-          pip install --index-url https://test.pypi.org/simple/ \
+          pip install --retries 5 \
+            --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
             causal-inference-marketing
           python -c "import causal_inference; print(causal_inference.__version__)"
