@@ -11,10 +11,11 @@ jobs:
       run:
         working-directory: libs/causal_inference
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: "libs/causal_inference/uv.lock"
       - run: uv python install 3.12
       - run: uv build
       - uses: actions/upload-artifact@v4
@@ -37,8 +38,23 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
-  publish:
+  smoke-test:
     needs: test-publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install from TestPyPI and verify import
+        run: |
+          pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            causal-inference-marketing
+          python -c "import causal_inference; print(causal_inference.__version__)"
+
+  publish:
+    needs: smoke-test
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
