@@ -14,6 +14,7 @@ With optional extras:
 pip install causal-inference-marketing[bayesian]       # PyMC + arviz for Bayesian estimation
 pip install causal-inference-marketing[ml]             # LightGBM, SHAP, joblib
 pip install causal-inference-marketing[optimization]   # CVXPY for policy optimization
+pip install causal-inference-marketing[visualization]  # seaborn for diagnostic plots
 pip install causal-inference-marketing[all]            # Everything
 ```
 
