@@ -7,16 +7,25 @@ assessing exposure balance, and validating interference assumptions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-import matplotlib.pyplot as plt
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
 from numpy.typing import NDArray
 from scipy import stats
+
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from matplotlib.figure import Figure
+    from matplotlib.lines import Line2D
+
+    PLOTTING_AVAILABLE = True
+except ImportError:
+    PLOTTING_AVAILABLE = False
 
 from ..core.base import CovariateData, OutcomeData, TreatmentData
 from .exposure_mapping import ExposureMapping

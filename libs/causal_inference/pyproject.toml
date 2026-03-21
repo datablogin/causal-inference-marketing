@@ -45,7 +45,6 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/datablogin/causal-inference-marketing"
 Repository = "https://github.com/datablogin/causal-inference-marketing"
 Issues = "https://github.com/datablogin/causal-inference-marketing/issues"
 
