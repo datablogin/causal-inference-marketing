@@ -53,7 +53,20 @@ print(f"95% CI: [{effect.ate_ci_lower:.3f}, {effect.ate_ci_upper:.3f}]")
 ### IPW estimator
 
 ```python
+import numpy as np
+import pandas as pd
+from causal_inference.core.base import TreatmentData, OutcomeData, CovariateData
 from causal_inference.estimators.ipw import IPWEstimator
+
+treatment = TreatmentData(values=np.array([0, 1, 0, 1, 1, 0, 1, 0]),
+                          treatment_type="binary")
+outcome = OutcomeData(values=np.array([2.1, 5.3, 1.9, 4.8, 5.1, 2.3, 4.7, 2.0]),
+                      outcome_type="continuous")
+covariates = CovariateData(
+    values=pd.DataFrame({"age": [25, 30, 28, 35, 40, 22, 33, 27],
+                          "income": [50, 80, 55, 90, 85, 45, 75, 60]}),
+    names=["age", "income"],
+)
 
 estimator = IPWEstimator(
     propensity_model_type="logistic",
