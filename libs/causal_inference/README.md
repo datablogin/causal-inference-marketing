@@ -14,6 +14,7 @@ With optional extras:
 pip install causal-inference-marketing[bayesian]       # PyMC + arviz for Bayesian estimation
 pip install causal-inference-marketing[ml]             # LightGBM, SHAP, joblib
 pip install causal-inference-marketing[optimization]   # CVXPY for policy optimization
+pip install causal-inference-marketing[visualization]  # seaborn for diagnostic plots
 pip install causal-inference-marketing[all]            # Everything
 ```
 
@@ -68,6 +69,7 @@ covariates = CovariateData(
     names=["age", "income"],
 )
 
+
 estimator = IPWEstimator(
     propensity_model_type="logistic",
     stabilized_weights=True,
@@ -83,6 +85,7 @@ print(f"ATE: {effect.ate:.3f}")
 ### Causal discovery with the PC algorithm
 
 ```python
+import numpy as np
 import pandas as pd
 from causal_inference.discovery import PCAlgorithm
 
