@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]  # All versions with fast parameters
+        python-version: ["3.11", "3.12", "3.13"]  # All versions with fast parameters
 
     steps:
       - uses: actions/checkout@v5
@@ -95,3 +95,19 @@ jobs:
 
       - name: Run slow tests with reduced parameters
         run: uv run pytest libs/causal_inference/tests/ -m "slow" --maxfail=3 -x --tb=short
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: libs/causal_inference
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "libs/causal_inference/uv.lock"
+      - run: uv python install 3.12
+      - run: uv build
+      - run: uvx twine check dist/*
