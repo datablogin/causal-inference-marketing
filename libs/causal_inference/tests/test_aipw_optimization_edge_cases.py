@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Edge case tests for AIPW component optimization.
 
 Component optimization adaptively weights the G-computation and IPW

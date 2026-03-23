@@ -16,13 +16,14 @@ from numpy.typing import NDArray
 try:
     import matplotlib.pyplot as plt
     import seaborn as sns
+    from matplotlib.figure import Figure as MplFigure
 
     PLOTTING_AVAILABLE = True
 except ImportError:
     PLOTTING_AVAILABLE = False
 
 try:
-    import plotly.graph_objects as go
+    import plotly.graph_objects as go  # type: ignore[import-not-found]
 
     PLOTLY_AVAILABLE = True
 except ImportError:
@@ -162,7 +163,7 @@ class LovePlotGenerator:
         if pooled_std == 0:
             return 0.0
 
-        return (treated_mean - control_mean) / pooled_std
+        return float((treated_mean - control_mean) / pooled_std)
 
     def create_love_plot(
         self,
@@ -170,7 +171,7 @@ class LovePlotGenerator:
         title: str = "Covariate Balance (Love Plot)",
         save_path: Optional[str] = None,
         interactive: bool = False,
-    ) -> Union[plt.Figure, go.Figure]:
+    ) -> Union[MplFigure, go.Figure]:
         """Create a Love plot visualization.
 
         Args:
@@ -195,7 +196,7 @@ class LovePlotGenerator:
         data: LovePlotData,
         title: str,
         save_path: Optional[str],
-    ) -> plt.Figure:
+    ) -> MplFigure:
         """Create static matplotlib Love plot."""
         fig, ax = plt.subplots(figsize=self.figsize)
 
@@ -401,7 +402,7 @@ def create_love_plot(
     title: str = "Covariate Balance (Love Plot)",
     save_path: Optional[str] = None,
     interactive: bool = False,
-) -> Union[plt.Figure, go.Figure]:
+) -> Union[MplFigure, go.Figure]:
     """Convenience function to create a Love plot.
 
     Args:

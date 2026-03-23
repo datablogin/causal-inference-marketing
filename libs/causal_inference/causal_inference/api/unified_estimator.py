@@ -133,6 +133,9 @@ class CausalAnalysis:
         self._select_estimator()
 
         # Fit the estimator
+        assert self.estimator_ is not None  # set by _select_estimator
+        assert self.treatment_data_ is not None  # set by _prepare_data
+        assert self.outcome_data_ is not None  # set by _prepare_data
         self.estimator_.fit(
             self.treatment_data_, self.outcome_data_, self.covariate_data_
         )
@@ -245,6 +248,13 @@ class CausalAnalysis:
         if not self.is_fitted_:
             raise ValueError("Must call fit() before generating report")
 
+        # Narrow types after fit confirmation
+        assert self.estimator_ is not None
+        assert self.effect_ is not None
+        assert self.data_ is not None
+        assert self.treatment_column is not None
+        assert self.outcome_column is not None
+
         # Generate report components
         report_generator = HTMLReportGenerator(
             estimator=self.estimator_,
@@ -265,12 +275,12 @@ class CausalAnalysis:
             **report_kwargs,
         )
 
-        # Compile report data
+        # Compile report data (data_ and effect_ guaranteed non-None after fit)
         self.report_data_ = {
             "html_report": self.html_report_,
             "effect": self.effect_,
             "method": self.method,
-            "sample_size": len(self.data_),
+            "sample_size": len(self.data_),  # asserted non-None above
             "treatment_column": self.treatment_column,
             "outcome_column": self.outcome_column,
             "covariate_columns": self.covariate_columns,
@@ -293,9 +303,10 @@ class CausalAnalysis:
         """
         if not self.is_fitted_:
             raise ValueError("Must call fit() before estimating effects")
+        assert self.effect_ is not None
         return self.effect_
 
-    def predict_ite(self, data: Optional[pd.DataFrame] = None) -> NDArray[np.floating]:
+    def predict_ite(self, data: Optional[pd.DataFrame] = None) -> NDArray[np.floating[Any]]:
         """Predict individual treatment effects.
 
         Args:
@@ -307,19 +318,24 @@ class CausalAnalysis:
         if not self.is_fitted_:
             raise ValueError("Must call fit() before prediction")
 
+        assert self.estimator_ is not None
+        assert self.effect_ is not None
+
         if hasattr(self.estimator_, "predict_ite"):
+            covariate_input: Any
             if data is None:
-                data = self.covariate_data_
+                covariate_input = self.covariate_data_
             else:
                 # Convert to CovariateData format
-                data = CovariateData(
-                    values=data[self.covariate_columns], names=self.covariate_columns
+                covariate_input = CovariateData(
+                    values=data[self.covariate_columns], names=self.covariate_columns or []
                 )
-            return self.estimator_.predict_ite(data)
+            return np.asarray(self.estimator_.predict_ite(covariate_input))
         else:
             warnings.warn(
                 f"Estimator {type(self.estimator_)} does not support ITE prediction"
             )
+            assert self.data_ is not None
             return np.full(
                 len(data) if data is not None else len(self.data_), self.effect_.ate
             )
@@ -335,6 +351,10 @@ class CausalAnalysis:
         """
         if not self.is_fitted_:
             raise ValueError("Must call fit() before sensitivity analysis")
+
+        assert self.treatment_data_ is not None
+        assert self.outcome_data_ is not None
+        assert self.effect_ is not None
 
         return generate_sensitivity_report(
             treatment_data=self.treatment_data_.values,
@@ -414,6 +434,8 @@ class CausalAnalysis:
 
     def _validate_data(self) -> None:
         """Comprehensive data validation before analysis."""
+        assert self.treatment_column is not None
+        assert self.outcome_column is not None
         if self.data_ is None or self.data_.empty:
             raise ValueError("Data is empty or None")
 
@@ -592,6 +614,10 @@ class CausalAnalysis:
 
     def _prepare_data(self) -> None:
         """Prepare data objects for estimation."""
+        assert self.data_ is not None
+        assert self.treatment_column is not None
+        assert self.outcome_column is not None
+
         # Create TreatmentData
         treatment_values = self.data_[self.treatment_column]
         treatment_type = "binary" if treatment_values.nunique() == 2 else "continuous"
@@ -649,6 +675,10 @@ class CausalAnalysis:
     def _validate_selection_assumptions(self) -> None:
         """Validate assumptions for method selection and provide warnings."""
         import warnings
+
+        assert self.data_ is not None
+        assert self.treatment_column is not None
+        assert self.outcome_column is not None
 
         # Check treatment balance
         treatment_balance = self.data_[self.treatment_column].mean()
@@ -724,6 +754,9 @@ class CausalAnalysis:
         # Validate method selection assumptions
         self._validate_selection_assumptions()
 
+        assert self.data_ is not None
+        assert self.treatment_column is not None
+
         common_params = {
             "bootstrap_samples": self.bootstrap_samples,
             "confidence_level": self.confidence_level,
@@ -797,12 +830,13 @@ class CausalAnalysis:
 
     def _save_report(self, path: str) -> None:
         """Save HTML report to file."""
+        assert self.html_report_ is not None
         with open(path, "w", encoding="utf-8") as f:
             f.write(self.html_report_)
 
     def __repr__(self) -> str:
         """String representation of the analysis."""
-        if self.is_fitted_:
+        if self.is_fitted_ and self.effect_ is not None:
             return (
                 f"CausalAnalysis(method='{self.method}', "
                 f"ate={self.effect_.ate:.3f}, fitted=True)"

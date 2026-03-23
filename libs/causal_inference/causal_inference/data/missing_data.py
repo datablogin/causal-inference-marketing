@@ -71,7 +71,7 @@ class MissingDataHandler:
         """
         self.strategy = strategy
         self.verbose = verbose
-        self.imputer: SimpleImputer | KNNImputer | Optional[IterativeImputer] = None
+        self.imputer: Optional[Union[SimpleImputer, KNNImputer, IterativeImputer]] = None
         self._fitted: bool = False
 
         # Validate strategy
@@ -144,7 +144,7 @@ class MissingDataHandler:
         treatment: TreatmentData,
         outcome: OutcomeData,
         covariates: Optional[CovariateData] = None,
-    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
+    ) -> tuple[TreatmentData, OutcomeData, Optional[CovariateData]]:
         """Apply missing data handling to the provided data.
 
         Args:
@@ -168,7 +168,7 @@ class MissingDataHandler:
         treatment: TreatmentData,
         outcome: OutcomeData,
         covariates: Optional[CovariateData] = None,
-    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
+    ) -> tuple[TreatmentData, OutcomeData, Optional[CovariateData]]:
         """Fit and transform data in one step.
 
         Args:
@@ -188,7 +188,7 @@ class MissingDataHandler:
         treatment: TreatmentData,
         outcome: OutcomeData,
         covariates: Optional[CovariateData] = None,
-    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
+    ) -> tuple[TreatmentData, OutcomeData, Optional[CovariateData]]:
         """Apply listwise deletion to remove any observation with missing data.
 
         Args:
@@ -248,7 +248,7 @@ class MissingDataHandler:
         treatment: TreatmentData,
         outcome: OutcomeData,
         covariates: Optional[CovariateData] = None,
-    ) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
+    ) -> tuple[TreatmentData, OutcomeData, Optional[CovariateData]]:
         """Apply imputation to handle missing data.
 
         Args:
@@ -446,7 +446,7 @@ def handle_missing_data(
     covariates: Optional[CovariateData] = None,
     strategy: str = "listwise",
     verbose: bool = True,
-) -> Optional[tuple[TreatmentData, OutcomeData, CovariateData]]:
+) -> tuple[TreatmentData, OutcomeData, Optional[CovariateData]]:
     """Convenience function to handle missing data.
 
     Args:

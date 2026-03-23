@@ -563,7 +563,7 @@ class DMLBenchmark:
         if self.verbose:
             print(f"Benchmarking runtime across sample sizes: {sample_sizes}")
 
-        runtime_results = {}
+        runtime_results: dict[int, dict[str, Any]] = {}
 
         for n_samples in sample_sizes:
             if self.verbose:
@@ -623,7 +623,7 @@ class DMLBenchmark:
                     )
 
             except Exception as e:
-                runtime_results[n_samples] = {  # type: ignore[misc]
+                runtime_results[n_samples] = {
                     "error": str(e),
                     "success": False,
                     "fit_time": 0.0,

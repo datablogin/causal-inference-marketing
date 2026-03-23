@@ -318,8 +318,8 @@ def _bootstrap_oster(
         Dictionary with bootstrap confidence intervals
     """
     n = len(y)
-    bootstrap_betas = []
-    bootstrap_ratios = []
+    bootstrap_betas_list: list[Any] = []
+    bootstrap_ratios_list: list[Any] = []
 
     # Process bootstrap samples in chunks to manage memory
     n_chunks = (n_bootstrap + chunk_size - 1) // chunk_size
@@ -350,17 +350,17 @@ def _bootstrap_oster(
                     delta=delta,
                     bootstrap_samples=0,  # No nested bootstrapping
                 )
-                bootstrap_betas.append(boot_results["beta_star"])
-                bootstrap_ratios.append(boot_results["robustness_ratio"])
+                bootstrap_betas_list.append(boot_results["beta_star"])
+                bootstrap_ratios_list.append(boot_results["robustness_ratio"])
             except (ValueError, np.linalg.LinAlgError):
                 # Skip failed bootstrap samples
                 continue
 
-    if len(bootstrap_betas) == 0:
+    if len(bootstrap_betas_list) == 0:
         return {"error": "All bootstrap samples failed"}
 
-    bootstrap_betas = np.array(bootstrap_betas)
-    bootstrap_ratios = np.array(bootstrap_ratios)
+    bootstrap_betas = np.array(bootstrap_betas_list)
+    bootstrap_ratios = np.array(bootstrap_ratios_list)
 
     return {
         "beta_star_ci": [
@@ -371,6 +371,6 @@ def _bootstrap_oster(
             float(np.percentile(bootstrap_ratios, 2.5)),
             float(np.percentile(bootstrap_ratios, 97.5)),
         ],
-        "n_successful_bootstraps": len(bootstrap_betas),
+        "n_successful_bootstraps": len(bootstrap_betas_list),
         "n_chunks_processed": n_chunks,
     }

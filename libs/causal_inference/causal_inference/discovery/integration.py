@@ -136,26 +136,32 @@ class DiscoveryEstimatorPipeline:
         if not self._is_fitted:
             return "DiscoveryEstimatorPipeline (not fitted)"
 
+        if self.discovery_result is None or self.causal_effect is None:
+            return "DiscoveryEstimatorPipeline (not fitted)"
+
+        discovery_result = self.discovery_result
+        causal_effect = self.causal_effect
+
         lines = [
             "=== Discovery-Estimation Pipeline Summary ===",
             "",
             "Discovery Results:",
-            f"  Algorithm: {self.discovery_result.algorithm_name}",
-            f"  Variables: {self.discovery_result.dag.n_variables}",
-            f"  Edges: {self.discovery_result.dag.n_edges}",
-            f"  Edge Density: {self.discovery_result.dag.edge_density:.3f}",
-            f"  Computation Time: {self.discovery_result.computation_time:.2f}s",
+            f"  Algorithm: {discovery_result.algorithm_name}",
+            f"  Variables: {discovery_result.dag.n_variables}",
+            f"  Edges: {discovery_result.dag.n_edges}",
+            f"  Edge Density: {discovery_result.dag.edge_density:.3f}",
+            f"  Computation Time: {discovery_result.computation_time:.2f}s",
             "",
             "Estimation Results:",
             f"  Estimator: {self.estimator.__class__.__name__}",
-            f"  ATE: {self.causal_effect.ate:.4f}",
+            f"  ATE: {causal_effect.ate:.4f}",
         ]
 
-        if self.causal_effect.ate_ci_lower is not None:
+        if causal_effect.ate_ci_lower is not None:
             lines.append(
-                f"  95% CI: [{self.causal_effect.ate_ci_lower:.4f}, {self.causal_effect.ate_ci_upper:.4f}]"
+                f"  95% CI: [{causal_effect.ate_ci_lower:.4f}, {causal_effect.ate_ci_upper:.4f}]"
             )
-            lines.append(f"  Significant: {self.causal_effect.is_significant}")
+            lines.append(f"  Significant: {causal_effect.is_significant}")
 
         return "\n".join(lines)
 
@@ -243,31 +249,33 @@ def validate_discovery_assumptions(
     """
     dag = discovery_result.dag
 
-    validation_results = {
+    warnings: list[str] = []
+    recommendations: list[str] = []
+    validation_results: dict[str, Any] = {
         "dag_is_acyclic": dag.is_acyclic(),
         "treatment_in_dag": treatment_col in dag.variable_names,
         "outcome_in_dag": outcome_col in dag.variable_names,
         "has_causal_path": False,
         "confounders_identified": False,
-        "warnings": [],
-        "recommendations": [],
+        "warnings": warnings,
+        "recommendations": recommendations,
     }
 
     # Check if treatment and outcome are in the DAG
     if not validation_results["treatment_in_dag"]:
-        validation_results["warnings"].append(
+        warnings.append(
             f"Treatment '{treatment_col}' not found in discovered DAG"
         )
-        validation_results["recommendations"].append(
+        recommendations.append(
             "Include treatment variable in discovery data"
         )
         return validation_results
 
     if not validation_results["outcome_in_dag"]:
-        validation_results["warnings"].append(
+        warnings.append(
             f"Outcome '{outcome_col}' not found in discovered DAG"
         )
-        validation_results["recommendations"].append(
+        recommendations.append(
             "Include outcome variable in discovery data"
         )
         return validation_results
@@ -282,15 +290,15 @@ def validate_discovery_assumptions(
         validation_results["causal_paths"] = paths
 
         if not validation_results["has_causal_path"]:
-            validation_results["warnings"].append(
+            warnings.append(
                 "No causal path from treatment to outcome in discovered DAG"
             )
-            validation_results["recommendations"].append(
+            recommendations.append(
                 "Check discovery algorithm parameters or data quality"
             )
 
     except Exception:
-        validation_results["warnings"].append("Could not analyze causal paths")
+        warnings.append("Could not analyze causal paths")
 
     # Check for confounders
     try:
@@ -300,38 +308,38 @@ def validate_discovery_assumptions(
         validation_results["confounder_names"] = confounders.names
 
         if not validation_results["confounders_identified"]:
-            validation_results["warnings"].append(
+            warnings.append(
                 "No confounders identified - causal effect may be biased"
             )
-            validation_results["recommendations"].append(
+            recommendations.append(
                 "Consider including more variables in discovery or using instrumental variables"
             )
 
     except Exception as e:
-        validation_results["warnings"].append(
+        warnings.append(
             f"Could not identify confounders: {str(e)}"
         )
 
     # Check discovery quality
     if discovery_result.convergence_achieved is False:
-        validation_results["warnings"].append("Discovery algorithm did not converge")
-        validation_results["recommendations"].append(
+        warnings.append("Discovery algorithm did not converge")
+        recommendations.append(
             "Increase max_iterations or check algorithm parameters"
         )
 
     if discovery_result.dag.edge_density > 0.5:
-        validation_results["warnings"].append(
+        warnings.append(
             "High edge density - DAG may be overly complex"
         )
-        validation_results["recommendations"].append(
+        recommendations.append(
             "Consider increasing regularization or sparsity constraints"
         )
 
     if discovery_result.dag.edge_density < 0.1:
-        validation_results["warnings"].append(
+        warnings.append(
             "Very low edge density - important relationships may be missing"
         )
-        validation_results["recommendations"].append(
+        recommendations.append(
             "Consider decreasing regularization or significance thresholds"
         )
 
@@ -341,7 +349,7 @@ def validate_discovery_assumptions(
         and validation_results["treatment_in_dag"]
         and validation_results["outcome_in_dag"]
         and validation_results["has_causal_path"]
-        and len(validation_results["warnings"]) <= 1
+        and len(warnings) <= 1
     )
 
     return validation_results
@@ -355,7 +363,7 @@ def compare_estimators_on_discovery(
     estimators: list[BaseEstimator],
     estimator_names: Optional[list[str]] = None,
     verbose: bool = False,
-) -> dict[str, CausalEffect]:
+) -> dict[str, Optional[CausalEffect]]:
     """Compare multiple estimators using the same discovered causal structure.
 
     Args:
@@ -376,7 +384,7 @@ def compare_estimators_on_discovery(
     if len(estimator_names) != len(estimators):
         raise ValueError("Number of estimator names must match number of estimators")
 
-    results = {}
+    results: dict[str, Optional[CausalEffect]] = {}
 
     for i, (estimator, name) in enumerate(zip(estimators, estimator_names)):
         if verbose:

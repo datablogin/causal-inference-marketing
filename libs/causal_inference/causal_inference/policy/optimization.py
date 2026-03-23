@@ -25,7 +25,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 try:
-    import cvxpy as cp
+    import cvxpy as cp  # type: ignore[import-not-found]
 
     HAS_CVXPY = True
 except ImportError:
@@ -60,14 +60,14 @@ class PolicyResult:
     total_cost: float
     policy_type: str
     optimization_info: dict[str, Any] = field(default_factory=dict)
-    individual_uplifts: Optional[NDArray[np.floating]] = None
-    individual_costs: Optional[NDArray[np.floating]] = None
+    individual_uplifts: Optional[NDArray[np.floating[Any]]] = None
+    individual_costs: Optional[NDArray[np.floating[Any]]] = None
     constraints_satisfied: bool = True
 
     @property
     def treatment_rate(self) -> float:
         """Calculate treatment rate."""
-        return np.mean(self.treatment_assignment)
+        return float(np.mean(self.treatment_assignment))
 
     @property
     def n_treated(self) -> int:
@@ -122,12 +122,12 @@ class PolicyOptimizer:
 
     def optimize_policy(
         self,
-        uplifts: NDArray[np.floating],
-        costs: Optional[NDArray[np.floating]] = None,
+        uplifts: NDArray[np.floating[Any]],
+        costs: Optional[NDArray[np.floating[Any]]] = None,
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
         fairness_constraints: Optional[dict[str, Any]] = None,
-        features: Optional[NDArray[np.floating]] = None,
+        features: Optional[NDArray[np.floating[Any]]] = None,
     ) -> PolicyResult:
         """Optimize treatment assignment policy.
 
@@ -176,8 +176,8 @@ class PolicyOptimizer:
 
     def _optimize_greedy(
         self,
-        uplifts: NDArray[np.floating],
-        costs: NDArray[np.floating],
+        uplifts: NDArray[np.floating[Any]],
+        costs: NDArray[np.floating[Any]],
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
     ) -> PolicyResult:
@@ -226,8 +226,8 @@ class PolicyOptimizer:
 
     def _optimize_ilp(
         self,
-        uplifts: NDArray[np.floating],
-        costs: NDArray[np.floating],
+        uplifts: NDArray[np.floating[Any]],
+        costs: NDArray[np.floating[Any]],
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
         fairness_constraints: Optional[dict[str, Any]] = None,
@@ -315,8 +315,8 @@ class PolicyOptimizer:
 
     def _optimize_multi_objective(
         self,
-        uplifts: NDArray[np.floating],
-        costs: NDArray[np.floating],
+        uplifts: NDArray[np.floating[Any]],
+        costs: NDArray[np.floating[Any]],
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
         fairness_constraints: Optional[dict[str, Any]] = None,
@@ -358,9 +358,9 @@ class PolicyOptimizer:
 
     def _optimize_dynamic(
         self,
-        uplifts: NDArray[np.floating],
-        costs: NDArray[np.floating],
-        features: NDArray[np.floating],
+        uplifts: NDArray[np.floating[Any]],
+        costs: NDArray[np.floating[Any]],
+        features: NDArray[np.floating[Any]],
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
     ) -> PolicyResult:
@@ -387,9 +387,9 @@ class PolicyOptimizer:
 
     def _optimize_greedy_by_scores(
         self,
-        scores: NDArray[np.floating],
-        uplifts: NDArray[np.floating],
-        costs: NDArray[np.floating],
+        scores: NDArray[np.floating[Any]],
+        uplifts: NDArray[np.floating[Any]],
+        costs: NDArray[np.floating[Any]],
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
     ) -> PolicyResult:
@@ -435,7 +435,7 @@ class PolicyOptimizer:
 
 
 def greedy_policy(
-    uplifts: NDArray[np.floating],
+    uplifts: NDArray[np.floating[Any]],
     k: Optional[int] = None,
     treatment_rate: Optional[float] = None,
 ) -> NDArray[np.bool_]:
@@ -455,6 +455,7 @@ def greedy_policy(
         raise ValueError("Must specify either k or treatment_rate")
 
     if k is None:
+        assert treatment_rate is not None
         k = int(treatment_rate * n_individuals)
 
     k = min(k, n_individuals)
@@ -470,8 +471,8 @@ def greedy_policy(
 
 
 def budget_constrained_policy(
-    uplifts: NDArray[np.floating],
-    costs: NDArray[np.floating],
+    uplifts: NDArray[np.floating[Any]],
+    costs: NDArray[np.floating[Any]],
     budget: float,
 ) -> NDArray[np.bool_]:
     """Budget-constrained policy using greedy uplift-to-cost ratio.

@@ -252,7 +252,7 @@ class SpilloverEstimator(BaseEstimator):
         exposure_matrix = self.exposure_mapping.exposure_matrix
 
         # Spillover exposure = sum of (exposure_weight * neighbor_treatment)
-        spillover_exposure = np.dot(exposure_matrix, treatment_array)
+        spillover_exposure: NDArray[Any] = np.dot(exposure_matrix, treatment_array)
 
         return spillover_exposure
 
@@ -267,6 +267,8 @@ class SpilloverEstimator(BaseEstimator):
         features.append(own_treatment)
 
         # Spillover exposure
+        if self._spillover_exposure is None:
+            raise ValueError("Spillover exposure not calculated. Fit model first.")
         spillover_exposure = self._spillover_exposure.reshape(-1, 1)
 
         # Apply spillover mechanism
@@ -281,8 +283,9 @@ class SpilloverEstimator(BaseEstimator):
                 features.append(np.log1p(spillover_exposure))
         elif self.spillover_model.mechanism == "threshold":
             # Threshold: binary indicator above threshold
+            threshold_value = getattr(self.spillover_model, "threshold", 0.5)
             threshold_spillover = (
-                spillover_exposure > self.spillover_model.threshold
+                spillover_exposure > threshold_value
             ).astype(float)
             features.append(threshold_spillover)
 
@@ -313,6 +316,15 @@ class SpilloverEstimator(BaseEstimator):
         """Estimate direct and spillover effects from fitted model."""
         if self._fitted_model is None:
             raise ValueError("Model must be fitted before spillover estimation")
+        if self.treatment_data is None or self.outcome_data is None:
+            raise ValueError("Treatment and outcome data must be set before estimation")
+        if self._spillover_exposure is None:
+            raise ValueError("Spillover exposure not calculated")
+
+        fitted_model = self._fitted_model
+        treatment_data = self.treatment_data
+        outcome_data = self.outcome_data
+        spillover_exposure = self._spillover_exposure
 
         # For linear models, extract coefficients
         if hasattr(self._fitted_model, "coef_"):
@@ -351,7 +363,7 @@ class SpilloverEstimator(BaseEstimator):
         alpha = 1 - self.confidence_level
 
         if direct_effect_se is not None:
-            t_crit = stats.t.ppf(1 - alpha / 2, df=len(self.treatment_data.values) - 2)
+            t_crit = stats.t.ppf(1 - alpha / 2, df=len(treatment_data.values) - 2)
             direct_effect_ci_lower = direct_effect - t_crit * direct_effect_se
             direct_effect_ci_upper = direct_effect + t_crit * direct_effect_se
             spillover_effect_ci_lower = spillover_effect - t_crit * spillover_effect_se
@@ -378,16 +390,16 @@ class SpilloverEstimator(BaseEstimator):
 
         # Model diagnostics
         model_r_squared = None
-        if hasattr(self._fitted_model, "score"):
-            X = self._create_design_matrix(self.treatment_data, self.covariate_data)
-            y = np.array(self.outcome_data.values)
-            model_r_squared = self._fitted_model.score(X, y)
+        if hasattr(fitted_model, "score"):
+            X = self._create_design_matrix(treatment_data, self.covariate_data)
+            y = np.array(outcome_data.values)
+            model_r_squared = fitted_model.score(X, y)
 
         # Spillover diagnostics
         exposure_matrix = self.exposure_mapping.exposure_matrix
         n_spillover_relationships = int(np.sum(exposure_matrix > 0))
-        max_spillover_exposure = float(np.max(self._spillover_exposure))
-        mean_spillover_exposure = float(np.mean(self._spillover_exposure))
+        max_spillover_exposure = float(np.max(spillover_exposure))
+        mean_spillover_exposure = float(np.mean(spillover_exposure))
 
         return SpilloverResults(
             direct_effect=direct_effect,
@@ -413,14 +425,18 @@ class SpilloverEstimator(BaseEstimator):
 
     def _calculate_linear_standard_errors(self) -> dict[str, float]:
         """Calculate standard errors for linear model coefficients."""
-        if not hasattr(self._fitted_model, "coef_"):
+        if self._fitted_model is None or not hasattr(self._fitted_model, "coef_"):
             return {}
+        if self.treatment_data is None or self.outcome_data is None:
+            return {}
+
+        fitted_model = self._fitted_model
 
         X = self._create_design_matrix(self.treatment_data, self.covariate_data)
         y = np.array(self.outcome_data.values)
 
         # Calculate residuals
-        y_pred = self._fitted_model.predict(X)
+        y_pred = fitted_model.predict(X)
         residuals = y - y_pred
         n = len(y)
         p = X.shape[1]
@@ -431,7 +447,7 @@ class SpilloverEstimator(BaseEstimator):
         standard_errors = np.sqrt(np.diag(var_covar_matrix))
 
         # Calculate t-statistics and p-values
-        t_stats = self._fitted_model.coef_ / standard_errors
+        t_stats = fitted_model.coef_ / standard_errors
         p_values = 2 * (1 - stats.t.cdf(np.abs(t_stats), df=n - p))
 
         return {
@@ -443,6 +459,16 @@ class SpilloverEstimator(BaseEstimator):
 
     def _estimate_effects_by_prediction(self) -> dict[str, float]:
         """Estimate effects using prediction differences for non-linear models."""
+        if self.treatment_data is None:
+            raise ValueError("Treatment data must be set before estimation")
+        if self._fitted_model is None:
+            raise ValueError("Model must be fitted before estimation")
+        if self._spillover_exposure is None:
+            raise ValueError("Spillover exposure not calculated")
+
+        fitted_model = self._fitted_model
+        spillover_exposure = self._spillover_exposure
+
         # Create counterfactual scenarios
         X_base = self._create_design_matrix(self.treatment_data, self.covariate_data)
 
@@ -459,12 +485,12 @@ class SpilloverEstimator(BaseEstimator):
         # Scenario 3: No treatment, spillover
         X_spillover_only = X_base.copy()
         X_spillover_only[:, 0] = 0  # Own treatment
-        X_spillover_only[:, 1] = np.mean(self._spillover_exposure)  # Average spillover
+        X_spillover_only[:, 1] = np.mean(spillover_exposure)  # Average spillover
 
         # Make predictions
-        pred_no_treatment = self._fitted_model.predict(X_no_treatment)
-        pred_direct_only = self._fitted_model.predict(X_direct_only)
-        pred_spillover_only = self._fitted_model.predict(X_spillover_only)
+        pred_no_treatment = fitted_model.predict(X_no_treatment)
+        pred_direct_only = fitted_model.predict(X_direct_only)
+        pred_spillover_only = fitted_model.predict(X_spillover_only)
 
         # Calculate effects
         direct_effect = np.mean(pred_direct_only - pred_no_treatment)

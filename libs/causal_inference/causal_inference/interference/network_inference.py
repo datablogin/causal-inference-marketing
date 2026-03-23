@@ -47,8 +47,8 @@ class InferenceResults:
     interference_structure: str = "network"
 
     # Diagnostics
-    assumptions_met: dict[str, bool] = None
-    warnings: list[str] = None
+    assumptions_met: Optional[dict[str, bool]] = None
+    warnings: Optional[list[str]] = None
 
     def __post_init__(self) -> None:
         """Initialize empty containers if None."""
@@ -243,6 +243,7 @@ class TwoStageRandomizationInference(NetworkInference):
         adjacency_matrix = self.exposure_mapping.exposure_matrix
 
         # Spectral clustering based on network structure
+        clusters: NDArray[Any]
         try:
             from sklearn.cluster import SpectralClustering
 
@@ -331,9 +332,9 @@ class ClusterRandomizationInference(NetworkInference):
         unique_clusters = np.unique(clusters)
         n_clusters = len(unique_clusters)
 
-        cluster_means = []
-        cluster_treatments = []
-        cluster_sizes = []
+        cluster_means_list = []
+        cluster_treatments_list = []
+        cluster_sizes_list = []
 
         for cluster in unique_clusters:
             mask = clusters == cluster
@@ -341,13 +342,13 @@ class ClusterRandomizationInference(NetworkInference):
             cluster_treatment = np.mean(np.array(treatment.values)[mask])
             cluster_size = np.sum(mask)
 
-            cluster_means.append(cluster_outcome)
-            cluster_treatments.append(cluster_treatment)
-            cluster_sizes.append(cluster_size)
+            cluster_means_list.append(cluster_outcome)
+            cluster_treatments_list.append(cluster_treatment)
+            cluster_sizes_list.append(cluster_size)
 
-        cluster_means = np.array(cluster_means)
-        cluster_treatments = np.array(cluster_treatments)
-        cluster_sizes = np.array(cluster_sizes)
+        cluster_means = np.array(cluster_means_list)
+        cluster_treatments = np.array(cluster_treatments_list)
+        cluster_sizes = np.array(cluster_sizes_list)
 
         # Classify clusters as treated/control based on majority treatment
         treated_clusters = cluster_treatments > 0.5
@@ -459,7 +460,7 @@ class NetworkPermutationTest(NetworkInference):
         )
 
         # Generate permutation distribution
-        permutation_statistics = []
+        permutation_statistics_list: list[float] = []
 
         for _ in range(self.n_permutations):
             # Network-aware permutation
@@ -469,9 +470,9 @@ class NetworkPermutationTest(NetworkInference):
             perm_statistic = self._calculate_test_statistic(
                 permuted_treatment, outcome_array
             )
-            permutation_statistics.append(perm_statistic)
+            permutation_statistics_list.append(perm_statistic)
 
-        permutation_statistics = np.array(permutation_statistics)
+        permutation_statistics = np.array(permutation_statistics_list)
 
         # Calculate p-value
         if self.test_statistic == "difference_in_means":
@@ -529,7 +530,7 @@ class NetworkPermutationTest(NetworkInference):
 
             treated_mean = np.mean(outcome[treated_mask])
             control_mean = np.mean(outcome[control_mask])
-            return treated_mean - control_mean
+            return float(treated_mean - control_mean)
 
         else:
             raise ValueError(f"Unknown test statistic: {self.test_statistic}")

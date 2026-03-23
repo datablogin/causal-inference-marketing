@@ -337,7 +337,7 @@ class HTMLReportGenerator:
 
     def _generate_diagnostics_section(self) -> dict[str, Any]:
         """Generate diagnostics section."""
-        diagnostics = {}
+        diagnostics: dict[str, Any] = {}
 
         # Basic balance check
         if self.covariate_columns:
@@ -496,7 +496,7 @@ class HTMLReportGenerator:
 
         return plot_html
 
-    def _fig_to_html(self, fig: plt.Figure) -> str:
+    def _fig_to_html(self, fig: Any) -> str:
         """Convert matplotlib figure to HTML img tag."""
         buffer = io.BytesIO()
         fig.savefig(buffer, format="png", bbox_inches="tight", dpi=150)

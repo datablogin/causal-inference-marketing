@@ -434,7 +434,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         X_val: NDArray[Any],
         treatment_val: Optional[NDArray[Any]] = None,
         y_val: Optional[NDArray[Any]] = None,
-    ) -> dict[str, NDArray[Any]]:
+    ) -> dict[str, Any]:
         """Predict nuisance parameters on validation data for different treatment types."""
         if treatment_val is None:
             raise ValueError("Treatment data required for DoublyRobustML predictions")
@@ -459,7 +459,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         X_val: NDArray[Any],
         treatment_val: NDArray[Any],
         y_val: Optional[NDArray[Any]] = None,
-    ) -> dict[str, NDArray[Any]]:
+    ) -> dict[str, Any]:
         """Predict nuisance parameters for binary treatment."""
         predictions = {}
 
@@ -526,9 +526,9 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         X_val: NDArray[Any],
         treatment_val: NDArray[Any],
         y_val: Optional[NDArray[Any]] = None,
-    ) -> dict[str, NDArray[Any]]:
+    ) -> dict[str, Any]:
         """Predict nuisance parameters for categorical treatment."""
-        predictions = {}
+        predictions: dict[str, Any] = {}
         treatment_categories = models["treatment_categories"]
 
         # Predict outcome for each treatment category
@@ -599,7 +599,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         X_val: NDArray[Any],
         treatment_val: NDArray[Any],
         y_val: Optional[NDArray[Any]] = None,
-    ) -> dict[str, NDArray[Any]]:
+    ) -> dict[str, Any]:
         """Predict nuisance parameters for continuous treatment."""
         predictions = {}
 
@@ -669,7 +669,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
 
     def _compute_residuals(
         self,
-        predictions: dict[str, NDArray[Any]],
+        predictions: dict[str, Any],
         treatment: NDArray[Any],
         outcome: NDArray[Any],
     ) -> None:
@@ -700,14 +700,14 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         X: NDArray[Any],
         y: NDArray[Any],
         treatment: Optional[NDArray[Any]] = None,
-    ) -> dict[str, NDArray[Any]]:
+    ) -> dict[str, Any]:
         """Override to handle residual computation during cross-fitting."""
         # Create cross-fitting splits
         self.cross_fit_data_ = self._create_cross_fit_splits(X, y, treatment)
 
         # Initialize storage for nuisance estimates
         n_samples = X.shape[0]
-        nuisance_estimates = {}
+        nuisance_estimates: dict[str, Any] = {}
 
         # Perform cross-fitting for each fold
         for fold_idx in range(self.cv_folds):
@@ -818,7 +818,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
     ) -> float:
         """Estimate the target causal parameter using doubly robust ML."""
         # Handle automatic method selection
-        moment_method = self.moment_function
+        moment_method: str = self.moment_function
         if moment_method == "auto":
             # Use stored covariate data from fit process
             covariates_array = None
@@ -900,9 +900,10 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
             # For categorical treatments, report outcomes by category
             if "outcome_by_category" in self.nuisance_estimates_:
                 potential_outcome_by_category = {}
-                for cat, outcomes in self.nuisance_estimates_[
+                outcome_by_cat: Any = self.nuisance_estimates_[
                     "outcome_by_category"
-                ].items():
+                ]
+                for cat, outcomes in outcome_by_cat.items():
                     potential_outcome_by_category[cat] = np.mean(outcomes)
                 # For ATE reporting, use first vs last category as reference
                 categories = sorted(
@@ -918,8 +919,8 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
         elif self.treatment_type_ == "continuous":
             # For continuous treatments, report mean outcome across dose range
             if "dose_response_function" in self.nuisance_estimates_:
-                dose_responses = self.nuisance_estimates_["dose_response_function"]
-                all_responses = []
+                dose_responses: Any = self.nuisance_estimates_["dose_response_function"]
+                all_responses: list[Any] = []
                 for dose_outcomes in dose_responses.values():
                     all_responses.extend(dose_outcomes)
                 potential_outcome_treated = (
@@ -927,7 +928,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
                 )
 
         # Collect comprehensive diagnostics
-        diagnostics = {
+        diagnostics: dict[str, Any] = {
             "cross_fitting": self.cross_fitting,
             "moment_function": self.moment_function,
             "regularization": self.regularization,
@@ -1291,10 +1292,10 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
                 "This may occur with cross-fitting or if diagnostic data was not stored."
             }
 
-        results = {}
+        results: dict[str, Any] = {}
 
         # Basic residual statistics
-        residual_stats = {}
+        residual_stats: dict[str, Any] = {}
         for residual_type, residuals in self._residuals_.items():
             stats = {
                 "mean": float(np.mean(residuals)),
@@ -1469,7 +1470,7 @@ class DoublyRobustMLEstimator(CrossFittingEstimator, BaseEstimator):
                 "cross_fitting_enabled": False,
             }
 
-        results = {"cross_fitting_enabled": True}
+        results: dict[str, Any] = {"cross_fitting_enabled": True}
 
         # Check if we have fold-level performance data
         if self._fold_performance_:

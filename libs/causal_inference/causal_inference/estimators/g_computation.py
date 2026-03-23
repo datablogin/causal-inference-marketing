@@ -76,12 +76,16 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         use_ensemble: bool = False,
         ensemble_models: Optional[list[str]] = None,
         ensemble_variance_penalty: float = 0.1,
+        ensemble_use_cv: bool = True,
+        ensemble_cv_folds: int = 5,
+        ensemble_model_params: Optional[dict[str, dict[str, Any]]] = None,
+        ensemble_min_models: int = 2,
     ) -> None:
         """Initialize the G-computation estimator.
 
         Args:
             model_type: Model type ('auto', 'linear', 'logistic', 'random_forest')
-            model_params: Parameters to pass to the sklearn model
+            model_params: Parameters to pass to the sklearn model (single-model mode only)
             bootstrap_config: Configuration for bootstrap confidence intervals
             optimization_config: Configuration for optimization strategies
             bootstrap_samples: Legacy parameter - number of bootstrap samples (use bootstrap_config instead)
@@ -94,6 +98,15 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             use_ensemble: Use ensemble of models instead of single model
             ensemble_models: List of model types for ensemble (if use_ensemble=True)
             ensemble_variance_penalty: Penalty on ensemble weight variance
+            ensemble_use_cv: Use cross-validation for ensemble weight optimization (super learner approach)
+            ensemble_cv_folds: Number of CV folds for ensemble weight optimization
+            ensemble_model_params: Per-model hyperparameters for ensemble models.
+                Keys are model names (e.g., 'random_forest', 'ridge'), values are
+                dicts of parameters for that model. Model-specific params take highest
+                priority over defaults.
+            ensemble_min_models: Minimum number of models that must fit successfully
+                for ensemble mode. If fewer models fit, raises EstimationError.
+                Set to 1 to allow single-model fallback.
         """
         # Create bootstrap config if not provided (for backward compatibility)
         if bootstrap_config is None:
@@ -122,11 +135,16 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self.use_ensemble = use_ensemble
         self.ensemble_models = ensemble_models or ["linear", "ridge", "random_forest"]
         self.ensemble_variance_penalty = ensemble_variance_penalty
+        self.ensemble_use_cv = ensemble_use_cv
+        self.ensemble_cv_folds = ensemble_cv_folds
+        self.ensemble_model_params = ensemble_model_params or {}
+        self.ensemble_min_models = ensemble_min_models
 
         # Model storage
         self.outcome_model: Optional[SklearnBaseEstimator] = None
         self.ensemble_models_fitted: dict[str, Any] = {}
         self.ensemble_weights: Optional[NDArray[Any]] = None
+        self.ensemble_oof_predictions_: Optional[NDArray[Any]] = None
         self._model_features: Optional[list[str]] = None
 
     def _check_is_fitted(self) -> None:
@@ -161,6 +179,13 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         Returns:
             New GComputationEstimator instance configured for bootstrap
         """
+        # Determine whether to propagate ensemble settings
+        propagate = (
+            self.use_ensemble
+            and self.bootstrap_config is not None
+            and getattr(self.bootstrap_config, "propagate_ensemble", True)
+        )
+
         return GComputationEstimator(
             model_type=self.model_type,
             model_params=self.model_params,
@@ -168,9 +193,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             optimization_config=None,  # Disable optimization in bootstrap
             random_state=random_state,
             verbose=False,  # Reduce verbosity in bootstrap
-            use_ensemble=self.use_ensemble,  # Preserve ensemble setting
-            ensemble_models=self.ensemble_models,  # Preserve parent's exact value
-            ensemble_variance_penalty=self.ensemble_variance_penalty,
+            use_ensemble=propagate,
+            ensemble_models=self.ensemble_models if propagate else None,
+            ensemble_variance_penalty=self.ensemble_variance_penalty
+            if propagate
+            else 0.1,
+            ensemble_use_cv=False,  # Disable CV in bootstrap sub-estimators
+            ensemble_model_params=self.ensemble_model_params if propagate else None,
+            ensemble_min_models=self.ensemble_min_models if propagate else 2,
         )
 
     def _select_model(self, outcome_type: str) -> SklearnBaseEstimator:
@@ -234,21 +264,23 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             Dictionary of fitted models
         """
         models = {}
+        self._ensemble_fit_failures: list[str] = []
 
         for model_name in self.ensemble_models:
+            # Get model-specific params (highest priority)
+            specific_params = self.ensemble_model_params.get(model_name, {})
+
             if outcome_type == "continuous":
                 if model_name == "linear":
-                    model = LinearRegression(**self.model_params)
+                    model = LinearRegression(**specific_params)
                 elif model_name == "ridge":
-                    # Use default alpha=1.0 unless overridden in model_params
-                    ridge_params = {"alpha": 1.0, **self.model_params}
+                    ridge_params = {"alpha": 1.0, **specific_params}
                     model = Ridge(**ridge_params)
                 elif model_name == "random_forest":
-                    # Use sensible defaults unless overridden
                     rf_params = {
                         "n_estimators": 100,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **specific_params,
                     }
                     model = RandomForestRegressor(**rf_params)
                 else:
@@ -259,7 +291,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     logistic_params = {
                         "max_iter": 1000,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **specific_params,
                     }
                     model = LogisticRegression(**logistic_params)
                 elif model_name == "ridge":
@@ -269,14 +301,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                         "C": 1.0,  # Inverse of regularization strength
                         "penalty": "l2",
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **specific_params,
                     }
                     model = LogisticRegression(**logistic_ridge_params)
                 elif model_name == "random_forest":
                     rf_params = {
                         "n_estimators": 100,
                         "random_state": self.random_state,
-                        **self.model_params,
+                        **specific_params,
                     }
                     model = RandomForestClassifier(**rf_params)
                 else:
@@ -292,6 +324,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             except Exception as e:
                 warning_msg = f"Failed to fit {model_name}: {str(e)}"
                 warnings.warn(warning_msg, RuntimeWarning)
+                self._ensemble_fit_failures.append(f"{model_name}: {str(e)}")
                 if self.verbose:
                     import traceback
 
@@ -304,7 +337,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         models: dict[str, Any],
         features: pd.DataFrame,
         y: NDArray[Any],
-        cv_folds: int = 5,
+        oof_predictions: Optional[NDArray[Any]] = None,
     ) -> NDArray[Any]:
         """Optimize ensemble weights using cross-validated out-of-fold predictions.
 
@@ -316,75 +349,24 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             models: Dictionary of fitted models
             features: Feature matrix
             y: Outcome vector
-            cv_folds: Number of cross-validation folds (default: 5)
+            oof_predictions: Optional out-of-fold predictions from CV.
+                If provided, uses these instead of in-sample predictions
+                to avoid overfitting bias in weight optimization.
 
         Returns:
             Optimized ensemble weights
         """
-        from sklearn.model_selection import KFold, cross_val_predict
         from scipy.optimize import minimize
 
         n_models = len(models)
         model_names = list(models.keys())
-        n_samples = len(y)
 
-        # Use cross-validated out-of-fold predictions to prevent overfitting
-        # Only use CV when we have enough samples for meaningful folds
-        use_cv = n_samples >= cv_folds * 2
-
-        if use_cv:
-            # Always shuffle to avoid bias from ordered data (e.g., treatment
-            # groups clustered together). Use seed 0 when no random_state given.
-            cv = KFold(
-                n_splits=cv_folds,
-                shuffle=True,
-                random_state=self.random_state if self.random_state is not None else 0,
-            )
-
-            # Get out-of-fold predictions for each model using unfitted clones.
-            # clone() strips fitted state and copies hyperparameters; this is
-            # safe for the current model types (Linear, Ridge, RandomForest).
-            oof_predictions = []
-            cv_failed = False
-            for name in model_names:
-                try:
-                    oof_pred = cross_val_predict(
-                        clone(models[name]),
-                        features,
-                        y,
-                        cv=cv,
-                    )
-                    oof_predictions.append(oof_pred)
-                except (ValueError, NotFittedError) as e:
-                    logger.warning(
-                        "Cross-validation failed for %s (error: %s), "
-                        "falling back to in-sample predictions for all models.",
-                        name,
-                        e,
-                    )
-                    cv_failed = True
-                    break
-
-            if cv_failed:
-                # Fall back to all in-sample predictions to avoid mixing
-                # CV and in-sample columns, which would bias weights toward
-                # the in-sample (overfitted) model.
-                predictions = np.column_stack(
-                    [models[name].predict(features) for name in model_names]
-                )
-                use_cv = False
-            else:
-                predictions = np.column_stack(oof_predictions)
+        # Get predictions from each model
+        if oof_predictions is not None:
+            predictions = oof_predictions
         else:
-            # For very small datasets, fall back to in-sample predictions
             predictions = np.column_stack(
                 [models[name].predict(features) for name in model_names]
-            )
-            warnings.warn(
-                f"Dataset too small for {cv_folds}-fold CV "
-                f"(n={n_samples}), using in-sample predictions for "
-                f"ensemble weight optimization.",
-                stacklevel=2,
             )
 
         def objective(weights: NDArray[Any]) -> float:
@@ -429,11 +411,188 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                 "ensemble_weights": {
                     name: float(w) for name, w in zip(model_names, result.x)
                 },
-                "ensemble_cv_folds": cv_folds if use_cv else 0,
+                "ensemble_cv_folds": self.ensemble_cv_folds
+                if oof_predictions is not None
+                else None,
             }
         )
 
         return np.asarray(result.x)
+
+    def _check_ensemble_positivity(
+        self,
+        predictions_treated: NDArray[Any],
+        predictions_control: NDArray[Any],
+        outcome_type: str,
+    ) -> dict[str, Any]:
+        """Check for extreme predictions that may indicate positivity violations.
+
+        Ensemble models (especially tree-based) can produce extreme predictions
+        in regions with sparse treatment overlap, leading to unreliable causal
+        effect estimates.
+
+        Args:
+            predictions_treated: Predicted outcomes under treatment
+            predictions_control: Predicted outcomes under control
+            outcome_type: Type of outcome ('continuous', 'binary')
+
+        Returns:
+            Dictionary with positivity diagnostic results
+        """
+        diagnostics: dict[str, Any] = {
+            "positivity_check": True,
+            "warnings": [],
+        }
+
+        if outcome_type == "binary":
+            # For binary outcomes, check for predictions near 0 or 1
+            extreme_threshold_low = 0.01
+            extreme_threshold_high = 0.99
+
+            for label, preds in [
+                ("treated", predictions_treated),
+                ("control", predictions_control),
+            ]:
+                extreme_low = float(np.mean(preds < extreme_threshold_low))
+                extreme_high = float(np.mean(preds > extreme_threshold_high))
+                extreme_total = extreme_low + extreme_high
+
+                diagnostics[f"{label}_extreme_low_frac"] = extreme_low
+                diagnostics[f"{label}_extreme_high_frac"] = extreme_high
+
+                if extreme_total > 0.05:  # More than 5% extreme
+                    diagnostics["positivity_check"] = False
+                    diagnostics["warnings"].append(
+                        f"{extreme_total:.1%} of {label} predictions are extreme "
+                        f"(<{extreme_threshold_low} or >{extreme_threshold_high}). "
+                        f"This may indicate positivity violations."
+                    )
+
+        # For all outcome types, check prediction spread
+        effect_estimates = predictions_treated - predictions_control
+        diagnostics["effect_range"] = [
+            float(np.min(effect_estimates)),
+            float(np.max(effect_estimates)),
+        ]
+        diagnostics["effect_std"] = float(np.std(effect_estimates))
+
+        # Check for extreme individual treatment effects (outliers)
+        iqr = float(
+            np.percentile(effect_estimates, 75)
+            - np.percentile(effect_estimates, 25)
+        )
+        if iqr > 0:
+            outlier_threshold = 3.0 * iqr
+            median_effect = float(np.median(effect_estimates))
+            n_outliers = int(
+                np.sum(np.abs(effect_estimates - median_effect) > outlier_threshold)
+            )
+            outlier_frac = n_outliers / len(effect_estimates)
+            diagnostics["effect_outlier_fraction"] = float(outlier_frac)
+
+            if outlier_frac > 0.05:
+                diagnostics["positivity_check"] = False
+                diagnostics["warnings"].append(
+                    f"{outlier_frac:.1%} of individual treatment effects are outliers "
+                    f"(>{outlier_threshold:.2f} from median). Consider trimming or "
+                    f"reducing model complexity."
+                )
+
+        # Emit warnings
+        for warning_msg in diagnostics["warnings"]:
+            warnings.warn(warning_msg, UserWarning, stacklevel=2)
+
+        return diagnostics
+
+    def _get_oof_predictions(
+        self,
+        models_config: dict[str, Any],
+        features: pd.DataFrame,
+        y: NDArray[Any],
+        outcome_type: str,
+    ) -> NDArray[Any]:
+        """Generate out-of-fold predictions using K-fold CV (super learner approach).
+
+        This implements the key insight from the super learner literature: use
+        cross-validated out-of-fold predictions for weight optimization to avoid
+        overfitting bias. Models that overfit (e.g., random forest) will not
+        receive disproportionately high weight because their OOF predictions
+        reflect true generalization performance.
+
+        Args:
+            models_config: Dictionary mapping model names to fitted model instances
+                (will be cloned to create unfitted copies for each fold)
+            features: Feature matrix
+            y: Outcome vector
+            outcome_type: Type of outcome ('continuous', 'binary')
+
+        Returns:
+            Array of shape (n_samples, n_models) with OOF predictions
+        """
+        from sklearn.base import clone as sklearn_clone
+        from sklearn.model_selection import KFold, StratifiedKFold
+
+        n_samples = len(y)
+        model_names = list(models_config.keys())
+        n_models = len(model_names)
+
+        # Determine number of folds, auto-reduce for small datasets
+        n_folds = self.ensemble_cv_folds
+        min_samples_per_fold = 5
+        if n_samples < n_folds * min_samples_per_fold:
+            n_folds = max(2, n_samples // min_samples_per_fold)
+            warnings.warn(
+                f"Reduced ensemble CV folds from {self.ensemble_cv_folds} to "
+                f"{n_folds} due to small dataset size ({n_samples} samples).",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Choose fold strategy based on outcome type
+        if outcome_type == "binary":
+            cv = StratifiedKFold(
+                n_splits=n_folds, shuffle=True, random_state=self.random_state
+            )
+            split_target = y
+        else:
+            cv = KFold(
+                n_splits=n_folds, shuffle=True, random_state=self.random_state
+            )
+            split_target = y
+
+        # Initialize OOF prediction matrix
+        oof_predictions = np.full((n_samples, n_models), np.nan)
+
+        for fold_idx, (train_idx, val_idx) in enumerate(
+            cv.split(features, split_target)
+        ):
+            X_train, X_val = features.iloc[train_idx], features.iloc[val_idx]
+            y_train = y[train_idx]
+
+            for model_idx, model_name in enumerate(model_names):
+                try:
+                    # Clone the model for this fold (creates unfitted copy)
+                    fold_model = sklearn_clone(models_config[model_name])
+                    fold_model.fit(X_train, y_train)
+                    oof_predictions[val_idx, model_idx] = fold_model.predict(X_val)
+                except Exception as e:
+                    # Fill with training mean for failed models
+                    warnings.warn(
+                        f"Model {model_name} failed on fold {fold_idx}: "
+                        f"{str(e)}. Using training mean as fallback.",
+                        RuntimeWarning,
+                        stacklevel=2,
+                    )
+                    oof_predictions[val_idx, model_idx] = np.mean(y_train)
+
+        # Check for any remaining NaN values and fill with column mean
+        for col in range(n_models):
+            nan_mask = np.isnan(oof_predictions[:, col])
+            if np.any(nan_mask):
+                col_mean = np.nanmean(oof_predictions[:, col])
+                oof_predictions[nan_mask, col] = col_mean
+
+        return oof_predictions
 
     def _prepare_features(
         self,
@@ -574,35 +733,114 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                     features=X, y=y, outcome_type=outcome.outcome_type
                 )
 
-                if len(self.ensemble_models_fitted) > 1:
-                    self.ensemble_weights = self._optimize_ensemble_weights(
-                        models=self.ensemble_models_fitted, features=X, y=y
-                    )
+                # Store fit failure diagnostics
+                if not hasattr(self, "_optimization_diagnostics"):
+                    self._optimization_diagnostics = {}
+                self._optimization_diagnostics["ensemble_fit_failures"] = (
+                    self._ensemble_fit_failures
+                )
+                self._optimization_diagnostics["ensemble_fit_success_rate"] = (
+                    len(self.ensemble_models_fitted) / len(self.ensemble_models)
+                    if len(self.ensemble_models) > 0
+                    else 0.0
+                )
 
-                    if self.verbose:
-                        print("\n=== Ensemble Weights ===")
-                        for name, weight in zip(
-                            self.ensemble_models_fitted.keys(), self.ensemble_weights
-                        ):
-                            print(f"{name}: {weight:.4f}")
-                else:
-                    # Fall back to single model if ensemble failed
-                    warnings.warn(
-                        f"Ensemble failed: only {len(self.ensemble_models_fitted)} model(s) fitted successfully. "
-                        f"Falling back to single {outcome.outcome_type} model. "
-                        f"To avoid this, check that ensemble_models are compatible with your data.",
-                        UserWarning,
-                        stacklevel=2,
+                if len(self.ensemble_models_fitted) >= self.ensemble_min_models:
+                    # Proceed with ensemble (existing weight optimization logic)
+                    if len(self.ensemble_models_fitted) > 1:
+                        # Use CV-based OOF predictions if enabled
+                        oof_preds = None
+                        min_cv_samples = self.ensemble_cv_folds * 5
+                        if self.ensemble_use_cv and len(y) >= min_cv_samples:
+                            oof_preds = self._get_oof_predictions(
+                                models_config=self.ensemble_models_fitted,
+                                features=X,
+                                y=y,
+                                outcome_type=outcome.outcome_type,
+                            )
+                            self.ensemble_oof_predictions_ = oof_preds
+
+                            # Refit all models on full data after OOF generation
+                            self.ensemble_models_fitted = self._fit_ensemble_models(
+                                features=X, y=y, outcome_type=outcome.outcome_type
+                            )
+
+                            # Update diagnostics after refit
+                            self._optimization_diagnostics[
+                                "ensemble_fit_failures"
+                            ] = self._ensemble_fit_failures
+                            self._optimization_diagnostics[
+                                "ensemble_fit_success_rate"
+                            ] = (
+                                len(self.ensemble_models_fitted)
+                                / len(self.ensemble_models)
+                                if len(self.ensemble_models) > 0
+                                else 0.0
+                            )
+                        elif self.ensemble_use_cv:
+                            warnings.warn(
+                                f"Dataset too small ({len(y)} samples) for "
+                                f"{self.ensemble_cv_folds}-fold CV. "
+                                f"Falling back to in-sample weight optimization.",
+                                UserWarning,
+                                stacklevel=2,
+                            )
+
+                        self.ensemble_weights = self._optimize_ensemble_weights(
+                            models=self.ensemble_models_fitted,
+                            features=X,
+                            y=y,
+                            oof_predictions=oof_preds,
+                        )
+
+                        if self.verbose:
+                            print("\n=== Ensemble Weights ===")
+                            cv_note = (
+                                " (CV-optimized)" if oof_preds is not None else ""
+                            )
+                            print(f"Weight optimization{cv_note}:")
+                            for name, weight in zip(
+                                self.ensemble_models_fitted.keys(),
+                                self.ensemble_weights,
+                            ):
+                                print(f"  {name}: {weight:.4f}")
+                    else:
+                        # Single model met the threshold (ensemble_min_models=1)
+                        # Fall back to single model mode
+                        warnings.warn(
+                            f"Ensemble has only {len(self.ensemble_models_fitted)} "
+                            f"model(s) fitted successfully. "
+                            f"Falling back to single model mode.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+                        self.use_ensemble = False
+                        self.outcome_model = self._select_model(outcome.outcome_type)
+                        self.outcome_model.fit(X, y)
+                elif len(self.ensemble_models_fitted) > 0:
+                    # Below threshold but some models fitted
+                    raise EstimationError(
+                        f"Ensemble fitting failed: only {len(self.ensemble_models_fitted)}/{len(self.ensemble_models)} "
+                        f"models fitted successfully (minimum required: {self.ensemble_min_models}). "
+                        f"Failed models may have incompatible parameters or data issues. "
+                        f"Set ensemble_min_models=1 to allow single-model fallback, "
+                        f"or check ensemble_model_params for compatibility."
                     )
-                    self.use_ensemble = False
-                    self.outcome_model = self._select_model(outcome.outcome_type)
-                    self.outcome_model.fit(X, y)
+                else:
+                    # Zero models fitted
+                    raise EstimationError(
+                        f"Ensemble fitting failed: no models fitted successfully out of "
+                        f"{len(self.ensemble_models)} attempted. Check that your data is "
+                        f"compatible with the requested model types."
+                    )
             else:
                 # Existing single model path
+                assert self.outcome_model is not None
                 self.outcome_model.fit(X, y)
 
             if self.verbose and not self.use_ensemble:
                 # Calculate model fit metrics (for single model only)
+                assert self.outcome_model is not None
                 y_pred = self.outcome_model.predict(X)
                 if outcome.outcome_type == "continuous":
                     mse = mean_squared_error(y, y_pred)
@@ -652,6 +890,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         # Check if model is fitted
         self._check_is_fitted()
+        assert self.treatment_data is not None
 
         # Use original data if no new covariates provided
         if covariates is None:
@@ -824,7 +1063,8 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         """
         # Check if model is fitted
         self._check_is_fitted()
-
+        assert self.treatment_data is not None
+        assert self.outcome_data is not None
         # Determine treatment values for binary/categorical treatments
         treatment_values: list[Any]
         if self.treatment_data.treatment_type == "binary":
@@ -861,6 +1101,23 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             potential_outcome_treated = np.mean(outcomes[treatment_values[1]])
             potential_outcome_control = np.mean(outcomes[treatment_values[0]])
 
+        # Run positivity diagnostics for ensemble predictions
+        if self.use_ensemble:
+            y1_pred = outcomes[treatment_values[1]]
+            y0_pred = outcomes[treatment_values[0]]
+            self._positivity_diagnostics = self._check_ensemble_positivity(
+                predictions_treated=y1_pred,
+                predictions_control=y0_pred,
+                outcome_type=self.outcome_data.outcome_type,
+            )
+
+            # Store in diagnostics
+            if not hasattr(self, "_optimization_diagnostics"):
+                self._optimization_diagnostics = {}
+            self._optimization_diagnostics["positivity"] = (
+                self._positivity_diagnostics
+            )
+
         # Calculate analytical standard error approximation when bootstrap is not used
         ate_se = None
         ate_ci_lower = None
@@ -896,6 +1153,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
                         else self.treatment_data.values.reshape(-1, 1)
                     )
 
+                    assert self.outcome_model is not None
                     predicted_outcomes = self.outcome_model.predict(X_with_treatment)
                     residuals = self.outcome_data.values - predicted_outcomes
                     residual_variance = np.var(residuals, ddof=1)
@@ -940,6 +1198,27 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         bootstrap_converged = None
         bootstrap_bias = None
         bootstrap_acceleration = None
+
+        if (
+            self.use_ensemble
+            and self.bootstrap_config
+            and self.bootstrap_config.n_samples > 0
+            and getattr(self.bootstrap_config, "propagate_ensemble", True)
+        ):
+            n_models = (
+                len(self.ensemble_models_fitted)
+                if self.ensemble_models_fitted
+                else len(self.ensemble_models)
+            )
+            total_fits = n_models * self.bootstrap_config.n_samples
+            warnings.warn(
+                f"Ensemble + bootstrap will fit {total_fits} models "
+                f"({n_models} models x {self.bootstrap_config.n_samples} bootstrap samples). "
+                f"Set bootstrap_config.propagate_ensemble=False for faster "
+                f"(but less accurate) CIs.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if self.bootstrap_config and self.bootstrap_config.n_samples > 0:
             try:
@@ -1087,7 +1366,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
 
     def _bootstrap_confidence_interval(
         self,
-    ) -> Optional[tuple[float, float, NDArray[Any]]]:
+    ) -> tuple[Optional[float], Optional[float], Optional[NDArray[Any]]]:
         """Legacy method for backward compatibility with old test API.
 
         Returns:
@@ -1123,3 +1402,14 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             return ci_lower, ci_upper, bootstrap_result.bootstrap_estimates
         else:
             return None, None, None
+
+    def get_positivity_diagnostics(self) -> dict[str, Any] | None:
+        """Get positivity diagnostics from the last ensemble prediction.
+
+        Returns diagnostics about extreme predictions that may indicate
+        positivity violations. Only populated when use_ensemble=True.
+
+        Returns:
+            Dictionary with positivity diagnostic results, or None
+        """
+        return getattr(self, "_positivity_diagnostics", None)

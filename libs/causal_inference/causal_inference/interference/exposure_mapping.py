@@ -69,17 +69,20 @@ class ExposureMapping(BaseModel):
     @property
     def total_exposure_per_unit(self) -> NDArray[Any]:
         """Total exposure received by each unit."""
-        return np.sum(self.exposure_matrix, axis=1)
+        result: NDArray[Any] = np.sum(self.exposure_matrix, axis=1)
+        return result
 
     @property
     def exposure_out_degree(self) -> NDArray[Any]:
         """Number of units each unit can expose (out-degree)."""
-        return np.sum(self.exposure_matrix > 0, axis=0)
+        result: NDArray[Any] = np.sum(self.exposure_matrix > 0, axis=0)
+        return result
 
     @property
     def exposure_in_degree(self) -> NDArray[Any]:
         """Number of units that can expose each unit (in-degree)."""
-        return np.sum(self.exposure_matrix > 0, axis=1)
+        result: NDArray[Any] = np.sum(self.exposure_matrix > 0, axis=1)
+        return result
 
 
 class ExposureMapper(abc.ABC):
@@ -198,7 +201,7 @@ class NetworkExposureMapper(ExposureMapper):
     to determine spillover patterns.
     """
 
-    def map_exposure(
+    def map_exposure(  # type: ignore[override]
         self,
         unit_data: pd.DataFrame,
         network_edges: pd.DataFrame,
@@ -393,7 +396,7 @@ class SpatialExposureMapper(ExposureMapper):
         coordinates = unit_data[[lat_col, lon_col]].values
 
         kmeans = KMeans(n_clusters=n_clusters, random_state=self.random_state)
-        clusters = kmeans.fit_predict(coordinates)
+        clusters: NDArray[Any] = kmeans.fit_predict(coordinates)
 
         return clusters
 
@@ -422,7 +425,7 @@ class SpatialExposureMapper(ExposureMapper):
         distance = np.linalg.norm(coords1 - coords2)
 
         # Adjacent if distance is below threshold (configurable)
-        return distance < 10.0  # Example threshold - made larger for test compatibility
+        return bool(distance < 10.0)  # Example threshold - made larger for test compatibility
 
 
 class TemporalExposureMapper(ExposureMapper):

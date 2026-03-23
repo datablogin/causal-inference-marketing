@@ -231,6 +231,12 @@ class BootstrapConfig(BaseModel):
         description="Use subsampling for acceleration if n_obs > threshold",
     )
 
+    propagate_ensemble: bool = Field(
+        default=True,
+        description="Propagate ensemble settings to bootstrap sub-estimators. "
+        "Set to False for faster bootstrap at the cost of less accurate CIs.",
+    )
+
     @field_validator("n_jobs")
     @classmethod
     def validate_n_jobs(cls, v: int) -> int:

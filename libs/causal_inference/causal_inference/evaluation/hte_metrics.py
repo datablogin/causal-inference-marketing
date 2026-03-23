@@ -63,7 +63,7 @@ def pehe_score(
         Journal of Computational and Graphical Statistics, 20(1), 217-240.
     """
     mse = mean_squared_error(y_true, y_pred)
-    return mse if squared else np.sqrt(mse)
+    return float(mse) if squared else float(np.sqrt(mse))
 
 
 def policy_value(

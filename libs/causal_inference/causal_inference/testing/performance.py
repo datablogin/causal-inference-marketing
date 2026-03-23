@@ -19,7 +19,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 try:
-    import psutil
+    import psutil  # type: ignore[import-untyped]
 
     PSUTIL_AVAILABLE = True
 except ImportError:
@@ -27,7 +27,7 @@ except ImportError:
     warnings.warn("psutil not available. Memory profiling will be limited.")
 
 try:
-    from memory_profiler import memory_usage
+    from memory_profiler import memory_usage  # type: ignore[import-not-found]
 
     MEMORY_PROFILER_AVAILABLE = True
 except ImportError:
@@ -162,7 +162,7 @@ class PerformanceProfiler:
             Dictionary containing memory metrics
         """
 
-        def _fit_estimator():
+        def _fit_estimator() -> None:
             """Helper function to fit estimator for memory profiling."""
             estimator.fit(
                 treatment=self._create_treatment_data(A),

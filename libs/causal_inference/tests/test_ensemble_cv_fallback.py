@@ -9,12 +9,12 @@ from causal_inference.estimators.g_computation import GComputationEstimator
 def test_ensemble_cv_fallback_small_dataset():
     """Test that very small datasets fall back to in-sample predictions.
 
-    When n < cv_folds * 2, cross-validation is infeasible and the ensemble
-    weight optimization should fall back to in-sample predictions, reporting
-    ensemble_cv_folds=0 in diagnostics.
+    When n is too small for meaningful CV folds, the fit path should skip
+    OOF predictions and use in-sample predictions for weight optimization,
+    reporting ensemble_cv_folds=None in diagnostics.
     """
     rng = np.random.default_rng(42)
-    n = 10  # Minimum allowed sample size
+    n = 10  # Small enough to trigger fallback (n < cv_folds * 5)
 
     X = rng.standard_normal((n, 2))
     treatment = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
@@ -28,35 +28,21 @@ def test_ensemble_cv_fallback_small_dataset():
         verbose=True,
     )
 
-    # Fit the estimator to populate ensemble_models_fitted
+    # Fit triggers the small-dataset fallback path internally
     estimator.fit(
         TreatmentData(values=treatment, treatment_type="binary"),
         OutcomeData(values=outcome, outcome_type="continuous"),
         CovariateData(values=X, names=["X1", "X2"]),
     )
 
-    # Now test the fallback by calling _optimize_ensemble_weights directly
-    # with high cv_folds so n < cv_folds * 2 triggers the in-sample path
-    import pandas as pd
-
-    features = pd.DataFrame(
-        {"treatment": treatment, "X1": X[:, 0], "X2": X[:, 1]}
-    )
-    weights = estimator._optimize_ensemble_weights(
-        models=estimator.ensemble_models_fitted,
-        features=features,
-        y=outcome,
-        cv_folds=6,  # 10 < 6*2 = 12, so in-sample fallback triggers
-    )
-
-    # Diagnostics should show cv_folds=0 (in-sample fallback)
+    # Diagnostics should show cv_folds=None (in-sample fallback)
     diag = estimator.get_optimization_diagnostics()
     assert diag is not None
-    assert diag["ensemble_cv_folds"] == 0, (
-        f"Expected ensemble_cv_folds=0 (in-sample fallback) but got {diag['ensemble_cv_folds']}"
+    assert diag["ensemble_cv_folds"] is None, (
+        f"Expected ensemble_cv_folds=None (in-sample fallback) but got {diag['ensemble_cv_folds']}"
     )
 
     # Weights should still be valid
-    assert weights is not None
-    assert abs(np.sum(weights) - 1.0) < 1e-6
-    assert np.all(weights >= 0)
+    assert estimator.ensemble_weights is not None
+    assert abs(np.sum(estimator.ensemble_weights) - 1.0) < 1e-6
+    assert np.all(estimator.ensemble_weights >= 0)

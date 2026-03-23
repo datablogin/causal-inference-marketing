@@ -88,7 +88,7 @@ class HonestTree:
         self.honest_ratio = honest_ratio
         self.random_state = random_state
 
-        self.tree_: DecisionTreeRegressor | Optional[str] = None
+        self.tree_: Any = None
         self.is_fitted_ = False
 
     def fit(
@@ -231,7 +231,7 @@ class HonestTree:
         treated_mean = np.mean(y[treated_mask])
         control_mean = np.mean(y[control_mask])
 
-        return treated_mean - control_mean
+        return float(treated_mean - control_mean)
 
     def _compute_leaf_effect_with_se(
         self, y: NDArray[Any], treatment: NDArray[Any]

@@ -322,10 +322,10 @@ class PCAlgorithm(BaseDiscoveryAlgorithm):
 
                 # Test all conditioning sets of current level
                 found_independence = False
-                for conditioning_set in itertools.combinations(
+                for conditioning_combo in itertools.combinations(
                     potential_conditioning, level
                 ):
-                    conditioning_set = set(conditioning_set)
+                    conditioning_set = set(conditioning_combo)
 
                     # Test conditional independence
                     independent, p_value = self._independence_test_func(
@@ -542,7 +542,7 @@ class FCI(BaseDiscoveryAlgorithm):
             computation_time=computation_time,
             algorithm_diagnostics={
                 "note": "Simplified FCI implementation - uses PC with additional labeling",
-                **pc_result.algorithm_diagnostics,
+                **(pc_result.algorithm_diagnostics or {}),
             },
         )
 

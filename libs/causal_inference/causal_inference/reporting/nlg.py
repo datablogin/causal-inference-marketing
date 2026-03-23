@@ -43,10 +43,8 @@ class BusinessInsightsGenerator:
         # Determine effect direction and magnitude
         effect_direction = "positive" if self.effect.ate > 0 else "negative"
         effect_magnitude = self._classify_effect_magnitude()
-        significance = (
-            getattr(self.effect, "p_value", None) is not None
-            and self.effect.p_value < 0.05
-        )
+        p_value = getattr(self.effect, "p_value", None)
+        significance = p_value is not None and p_value < 0.05
 
         # Get sample characteristics
         n_treated = sum(self.data[self.treatment_column])
@@ -135,10 +133,8 @@ class BusinessInsightsGenerator:
         """Generate business recommendations based on results."""
         recommendations = []
 
-        significance = (
-            getattr(self.effect, "p_value", None) is not None
-            and self.effect.p_value < 0.05
-        )
+        p_value = getattr(self.effect, "p_value", None)
+        significance = p_value is not None and p_value < 0.05
 
         if significance and self.effect.ate > 0:
             # Positive significant effect

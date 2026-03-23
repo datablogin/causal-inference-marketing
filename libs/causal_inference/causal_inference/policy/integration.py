@@ -14,6 +14,7 @@ Functions:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -62,7 +63,7 @@ class CATEPolicyResult:
         return self.policy_result.treatment_assignment
 
     @property
-    def individual_treatment_effects(self) -> NDArray[np.floating]:
+    def individual_treatment_effects(self) -> Optional[NDArray[np.floating[Any]]]:
         """Get individual treatment effects."""
         return self.policy_result.individual_uplifts
 
@@ -130,10 +131,10 @@ class PolicyIntegrator:
     def integrate_cate_with_policy(
         self,
         cate_estimator: BaseMetaLearner | CausalForest | Any,
-        features: NDArray[np.floating],
+        features: NDArray[np.floating[Any]],
         historical_treatments: Optional[NDArray[np.bool_]] = None,
-        historical_outcomes: Optional[NDArray[np.floating]] = None,
-        costs: Optional[NDArray[np.floating]] = None,
+        historical_outcomes: Optional[NDArray[np.floating[Any]]] = None,
+        costs: Optional[NDArray[np.floating[Any]]] = None,
         budget: Optional[float] = None,
         max_treatment_rate: Optional[float] = None,
         evaluate_policy: bool = True,
@@ -239,10 +240,10 @@ class PolicyIntegrator:
         self,
         cate_estimators: list[BaseMetaLearner | CausalForest | Any],
         estimator_names: list[str],
-        features: NDArray[np.floating],
+        features: NDArray[np.floating[Any]],
         historical_treatments: NDArray[np.bool_],
-        historical_outcomes: NDArray[np.floating],
-        costs: Optional[NDArray[np.floating]] = None,
+        historical_outcomes: NDArray[np.floating[Any]],
+        costs: Optional[NDArray[np.floating[Any]]] = None,
         budget: Optional[float] = None,
     ) -> dict[str, Any]:
         """Compare policies from multiple CATE estimators.
@@ -319,7 +320,7 @@ class PolicyIntegrator:
     def simulate_cate_policy(
         self,
         cate_estimator: BaseMetaLearner | CausalForest | Any,
-        data_generator: callable,
+        data_generator: Callable[..., Any],
         n_simulations: int = 100,
         scenario_params: Optional[dict[str, Any]] = None,
     ) -> SimulationResult:
@@ -335,9 +336,9 @@ class PolicyIntegrator:
             SimulationResult: Simulation results
         """
 
-        def policy_generator_wrapper(**kwargs):
+        def policy_generator_wrapper(**kwargs: Any) -> dict[str, Any]:
             """Wrapper that generates policy from CATE estimator."""
-            data = data_generator(**kwargs)
+            data: dict[str, Any] = data_generator(**kwargs)
 
             # Extract treatment effects using the CATE estimator
             features = data["features"]
@@ -359,39 +360,42 @@ class PolicyIntegrator:
     def _extract_treatment_effects(
         self,
         estimator: BaseMetaLearner | CausalForest | Any,
-        features: NDArray[np.floating],
-    ) -> NDArray[np.floating]:
+        features: NDArray[np.floating[Any]],
+    ) -> NDArray[np.floating[Any]]:
         """Extract treatment effects from various CATE estimators."""
         try:
             # Try standard predict method for treatment effects
+            result: NDArray[np.floating[Any]]
             if hasattr(estimator, "predict"):
-                return estimator.predict(features)
+                result = np.asarray(estimator.predict(features), dtype=np.float64)
 
             # Try CATE-specific methods
             elif hasattr(estimator, "predict_cate"):
-                return estimator.predict_cate(features)
+                result = np.asarray(estimator.predict_cate(features), dtype=np.float64)
 
             elif hasattr(estimator, "predict_ite"):
-                return estimator.predict_ite(features)
+                result = np.asarray(estimator.predict_ite(features), dtype=np.float64)
 
             # For meta-learners, use the specific prediction method
             elif hasattr(estimator, "estimate_cate"):
-                return estimator.estimate_cate(features)
+                result = np.asarray(estimator.estimate_cate(features), dtype=np.float64)
 
             else:
                 raise ValueError(f"Unknown CATE estimator type: {type(estimator)}")
+
+            return result
 
         except Exception as e:
             if self.verbose:
                 print(f"Error extracting treatment effects: {e}")
             # Fallback to random effects
-            return np.random.normal(0, 1, len(features))
+            return np.asarray(np.random.normal(0, 1, len(features)), dtype=np.float64)
 
     def _generate_policy_recommendations(
         self,
         policy_result: PolicyResult,
-        treatment_effects: NDArray[np.floating],
-        costs: NDArray[np.floating],
+        treatment_effects: NDArray[np.floating[Any]],
+        costs: NDArray[np.floating[Any]],
         ope_result: Optional[OPEResult] = None,
     ) -> dict[str, Any]:
         """Generate actionable policy recommendations."""
@@ -449,7 +453,7 @@ class PolicyIntegrator:
 
     def _identify_high_value_segments(
         self,
-        treatment_effects: NDArray[np.floating],
+        treatment_effects: NDArray[np.floating[Any]],
         treatment_assignment: NDArray[np.bool_],
     ) -> dict[str, Any]:
         """Identify high-value segments in the policy."""
@@ -504,7 +508,7 @@ class PolicyIntegrator:
 
 def integrate_with_cate(
     cate_estimator: BaseMetaLearner | CausalForest | Any,
-    features: NDArray[np.floating],
+    features: NDArray[np.floating[Any]],
     optimization_method: str = "greedy",
     budget: Optional[float] = None,
 ) -> PolicyResult:
@@ -532,8 +536,8 @@ def integrate_with_cate(
 
 def extract_treatment_effects(
     estimator: BaseMetaLearner | CausalForest | Any,
-    features: NDArray[np.floating],
-) -> NDArray[np.floating]:
+    features: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Extract treatment effects from CATE estimators.
 
     Args:

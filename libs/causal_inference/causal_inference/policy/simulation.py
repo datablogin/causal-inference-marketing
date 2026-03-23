@@ -49,7 +49,7 @@ class SimulationResult:
     """
 
     simulation_type: str
-    policy_values: NDArray[np.floating]
+    policy_values: NDArray[np.floating[Any]]
     mean_policy_value: float
     std_policy_value: float
     confidence_interval: tuple[float, float]
@@ -113,7 +113,7 @@ class PolicySimulator:
 
     def simulate_policy_performance(
         self,
-        data_generator: Callable,
+        data_generator: Callable[..., Any],
         policy_optimizer: PolicyOptimizer,
         evaluator: OffPolicyEvaluator,
         scenario_params: Optional[dict[str, Any]] = None,
@@ -198,41 +198,41 @@ class PolicySimulator:
                 continue
 
         # Convert to numpy arrays
-        policy_values = np.array(policy_values)
-        oracle_values = np.array(oracle_values) if oracle_values else None
+        policy_values_arr = np.array(policy_values)
+        oracle_values_arr = np.array(oracle_values) if oracle_values else None
 
         # Calculate summary statistics
-        mean_value = np.mean(policy_values)
-        std_value = np.std(policy_values)
+        mean_value = float(np.mean(policy_values_arr))
+        std_value = float(np.std(policy_values_arr))
 
         # Confidence interval
         alpha = 1 - self.confidence_level
-        ci_lower = np.percentile(policy_values, 100 * alpha / 2)
-        ci_upper = np.percentile(policy_values, 100 * (1 - alpha / 2))
+        ci_lower = float(np.percentile(policy_values_arr, 100 * alpha / 2))
+        ci_upper = float(np.percentile(policy_values_arr, 100 * (1 - alpha / 2)))
 
         # Calculate regret vs oracle
-        regret_vs_oracle = None
-        if oracle_values is not None:
-            regret_vs_oracle = np.mean(oracle_values - policy_values)
+        regret_vs_oracle: Optional[float] = None
+        if oracle_values_arr is not None:
+            regret_vs_oracle = float(np.mean(oracle_values_arr - policy_values_arr))
 
         return SimulationResult(
             simulation_type="monte_carlo",
-            policy_values=policy_values,
+            policy_values=policy_values_arr,
             mean_policy_value=mean_value,
             std_policy_value=std_value,
             confidence_interval=(ci_lower, ci_upper),
             regret_vs_oracle=regret_vs_oracle,
             simulation_info={
-                "n_successful_simulations": len(policy_values),
-                "n_failed_simulations": self.n_simulations - len(policy_values),
+                "n_successful_simulations": len(policy_values_arr),
+                "n_failed_simulations": self.n_simulations - len(policy_values_arr),
                 "simulation_details": simulation_details,
-                "oracle_available": oracle_values is not None,
+                "oracle_available": oracle_values_arr is not None,
             },
         )
 
     def scenario_analysis(
         self,
-        data_generator: Callable,
+        data_generator: Callable[..., Any],
         policy_optimizer: PolicyOptimizer,
         evaluator: OffPolicyEvaluator,
         scenarios: dict[str, dict[str, Any]],
@@ -404,7 +404,7 @@ class PolicySimulator:
         self,
         policy_assignments: list[NDArray[np.bool_]],
         policy_names: list[str],
-        data_generator: Callable,
+        data_generator: Callable[..., Any],
         test_duration: int = 30,  # days
         daily_samples: int = 1000,
     ) -> dict[str, Any]:
@@ -423,7 +423,7 @@ class PolicySimulator:
         n_policies = len(policy_assignments)
 
         # Track cumulative results
-        cumulative_values = {name: [] for name in policy_names}
+        cumulative_values: dict[str, list[float]] = {name: [] for name in policy_names}
         daily_results = []
 
         for day in range(test_duration):
@@ -433,7 +433,7 @@ class PolicySimulator:
             # Generate daily data
             daily_data = data_generator(n_samples=daily_samples)
 
-            day_results = {"day": day + 1}
+            day_results: dict[str, Any] = {"day": day + 1}
 
             for i, (policy, name) in enumerate(zip(policy_assignments, policy_names)):
                 # Subset policy to daily samples
@@ -508,7 +508,7 @@ class PolicySimulator:
 
 def monte_carlo_policy_evaluation(
     policy_assignment: NDArray[np.bool_],
-    data_generator: Callable,
+    data_generator: Callable[..., Any],
     n_simulations: int = 1000,
     evaluator: Optional[OffPolicyEvaluator] = None,
 ) -> tuple[float, float]:
@@ -546,12 +546,12 @@ def monte_carlo_policy_evaluation(
         except Exception:
             continue
 
-    policy_values = np.array(policy_values)
-    return np.mean(policy_values), np.std(policy_values)
+    policy_values_arr = np.array(policy_values)
+    return float(np.mean(policy_values_arr)), float(np.std(policy_values_arr))
 
 
 def sensitivity_analysis(
-    base_uplifts: NDArray[np.floating],
+    base_uplifts: NDArray[np.floating[Any]],
     policy_optimizer: PolicyOptimizer,
     perturbation_levels: list[float],
     perturbation_type: str = "additive_noise",

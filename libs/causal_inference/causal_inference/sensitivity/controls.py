@@ -121,7 +121,7 @@ def negative_control(
         if len(X) != n:
             raise ValueError("Covariates must have same length as treatment/outcome")
 
-    results = {}
+    results: dict[str, Any] = {}
 
     # Test 1: Treatment → Negative Control Outcome
     if negative_control_outcome is not None:
