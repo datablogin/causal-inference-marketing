@@ -7,6 +7,7 @@ treatment scenarios.
 
 from __future__ import annotations
 
+import logging
 import warnings
 from contextlib import nullcontext
 from typing import Any, Optional
@@ -14,9 +15,10 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.base import BaseEstimator as SklearnBaseEstimator
+from sklearn.base import BaseEstimator as SklearnBaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import log_loss, mean_squared_error
 
 from ..core.base import (
@@ -33,6 +35,9 @@ from ..utils.memory_efficient import (
     MemoryMonitor,
     optimize_pandas_dtypes,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
@@ -163,6 +168,10 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         self, random_state: Optional[int] = None
     ) -> GComputationEstimator:
         """Create a new estimator instance for bootstrap sampling.
+
+        Preserves the parent estimator's ensemble configuration so that
+        bootstrap confidence intervals reflect the same estimation procedure
+        used for the point estimate (bootstrap principle).
 
         Args:
             random_state: Random state for this bootstrap instance
@@ -330,7 +339,11 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
         y: NDArray[Any],
         oof_predictions: Optional[NDArray[Any]] = None,
     ) -> NDArray[Any]:
-        """Optimize ensemble weights with variance penalty.
+        """Optimize ensemble weights using cross-validated out-of-fold predictions.
+
+        Uses k-fold cross-validation to obtain out-of-fold predictions for each
+        model, then optimizes weights based on these predictions. This prevents
+        overfitting of ensemble weights to the training data.
 
         Args:
             models: Dictionary of fitted models
@@ -357,7 +370,7 @@ class GComputationEstimator(OptimizationMixin, BootstrapMixin, BaseEstimator):
             )
 
         def objective(weights: NDArray[Any]) -> float:
-            """MSE with variance penalty."""
+            """MSE with variance penalty on out-of-fold predictions."""
             ensemble_pred = predictions @ weights
             mse = float(np.mean((y - ensemble_pred) ** 2))
 

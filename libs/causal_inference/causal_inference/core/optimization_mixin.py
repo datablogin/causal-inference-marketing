@@ -67,14 +67,11 @@ class OptimizationMixin:
             Optimized weights array
         """
         # Check if optimization is enabled
-        if (
-            not self.optimization_config
-            or not self.optimization_config.optimize_weights
-        ):
+        config = self.optimization_config
+        if not config or not config.optimize_weights:
             return baseline_weights
 
-        # Local variable for type narrowing (replaces assert statements)
-        config = self.optimization_config
+        # config is now narrowed to OptimizationConfig (not None)
 
         n_obs = len(baseline_weights)
 
@@ -90,18 +87,19 @@ class OptimizationMixin:
         if variance_constraint is None:
             variance_constraint = config.variance_constraint
 
+        # Capture distance_metric in local variable for use in closure
+        distance_metric = config.distance_metric
+
         # Define objective function
         def objective(w: NDArray[Any]) -> float:
             """Distance from baseline weights."""
-            metric = config.distance_metric
-
-            if metric == "l2":
+            if distance_metric == "l2":
                 return float(np.sum((w - baseline_weights) ** 2))
-            elif metric == "kl_divergence":
+            elif distance_metric == "kl_divergence":
                 # KL divergence: sum(w * log(w / baseline))
                 eps = 1e-10
                 return float(np.sum(w * np.log((w + eps) / (baseline_weights + eps))))
-            elif metric == "huber":
+            elif distance_metric == "huber":
                 diff = w - baseline_weights
                 delta = 1.0
                 huber = np.where(
@@ -111,7 +109,7 @@ class OptimizationMixin:
                 )
                 return float(np.sum(huber))
             else:
-                raise ValueError(f"Unknown distance metric: {metric}")
+                raise ValueError(f"Unknown distance metric: {distance_metric}")
 
         # Define constraints
         constraints = []
